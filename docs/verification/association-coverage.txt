@@ -1,0 +1,42 @@
+TAP version 13
+# (node:1374220) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: cross-process first "on" has one association and no competing owner
+ok 1 - cross-process first "on" has one association and no competing owner
+  ---
+  duration_ms: 1255.80129
+  type: 'test'
+  ...
+# Subtest: cross-process first "  Exact original task\\n" has one association and no competing owner
+ok 2 - cross-process first "  Exact original task\\n" has one association and no competing owner
+  ---
+  duration_ms: 1188.467835
+  type: 'test'
+  ...
+# Subtest: cross-process activation versus resume of a different ID has one lifetime association owner
+ok 3 - cross-process activation versus resume of a different ID has one lifetime association owner
+  ---
+  duration_ms: 1184.537869
+  type: 'test'
+  ...
+# Subtest: an interrupted initial owner releases both leases on death, with independent associations and byte-preserving status
+ok 4 - an interrupted initial owner releases both leases on death, with independent associations and byte-preserving status
+  ---
+  duration_ms: 262.220356
+  type: 'test'
+  ...
+# Subtest: failed partial acquisition and uncertain writes release only their handles and never a prior owner's leases
+ok 5 - failed partial acquisition and uncertain writes release only their handles and never a prior owner's leases
+  ---
+  duration_ms: 15.018855
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4130.569691

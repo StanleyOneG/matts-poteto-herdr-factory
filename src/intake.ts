@@ -161,10 +161,22 @@ const reject = (code: string, message: string): OperationResult => ({
   code,
   message,
 });
+type Binding = {
+  generation: number;
+  lock: DatabaseSync;
+  association: DatabaseSync;
+};
+function release(lock: DatabaseSync) {
+  try {
+    lock.exec("ROLLBACK");
+  } finally {
+    lock.close();
+  }
+}
 export class Legion {
   private store: SnapshotStore;
   private selected: string | null = null;
-  private binding: { generation: number; lock: DatabaseSync } | null = null;
+  private binding: Binding | null = null;
   private tail: Promise<unknown> = Promise.resolve();
   private epoch = 0;
   private uncertain: { id: string; requestKey: string } | null = null;
@@ -181,8 +193,11 @@ export class Legion {
     const previous = this.binding;
     this.binding = null;
     if (previous) {
-      previous.lock.exec("ROLLBACK");
-      previous.lock.close();
+      try {
+        release(previous.lock);
+      } finally {
+        release(previous.association);
+      }
     }
   }
   async state(): Promise<LegionView> {
@@ -323,140 +338,166 @@ export class Legion {
           "ownership",
           "Turn intake off before resuming a different Legatus.",
         );
-      let recoveryLock: DatabaseSync | null = null;
-      let state: LegatusSnapshot | null;
-      if (resume) {
-        const id = resume;
-        if (!LegatusId.safeParse(id).success)
-          return reject("invalid-id", "Invalid Legatus ID.");
-        if (!this.store.exists(id))
-          return reject("not-found", "Legatus records were not found.");
-        try {
-          if (!this.binding) recoveryLock = await this.store.acquire(id);
-          state = await this.store.recover(id, this.options.context, () => epoch === this.epoch);
-          if (state && this.uncertain?.id === state.id) this.uncertain = null;
-        } catch (error) {
-          if (recoveryLock) {
-            recoveryLock.exec("ROLLBACK");
-            recoveryLock.close();
-          }
-          return reject(
-            "ownership",
-            `Exclusive intake recovery is unavailable. ${String(error)}`,
-          );
-        }
-      } else {
-        try {
-          state = this.selected
-            ? await this.store.read(this.selected)
-            : await this.store.find(this.options.session, this.options.context);
-        } catch (error) {
-          return reject("unavailable", `Intake records are unavailable. ${String(error)}`);
-        }
-      }
-      if (resume && !state)
+      if (resume && !LegatusId.safeParse(resume).success)
+        return reject("invalid-id", "Invalid Legatus ID.");
+      if (resume && !this.store.exists(resume))
         return reject("not-found", "Legatus records were not found.");
-      if (state && state.context !== this.options.context) {
-        if (recoveryLock) {
-          recoveryLock.exec("ROLLBACK");
-          recoveryLock.close();
-        }
-        return reject(
-          "context",
-          "Legatus belongs to a different working context.",
-        );
-      }
-      const expectedRevision = state?.revision ?? null;
-      const snapshot =
-        state ??
-        createSnapshot({ id: randomUUID(), context: this.options.context });
-      const fingerprint = createHash("sha256")
-        .update(JSON.stringify(input))
-        .digest("hex");
-      const existing = snapshot.receipts.find(
-        (r) => r.result.receipt.requestKey === input.requestKey,
-      );
-      if (existing) {
-        if (recoveryLock) {
-          recoveryLock.exec("ROLLBACK");
-          recoveryLock.close();
-        }
-        if (existing.fingerprint !== fingerprint)
-          return reject(
-            "request-conflict",
-            "Request key has a different payload.",
-          );
-        this.uncertain = null;
-        return existing.result;
-      }
-      if (!this.binding) {
-        try {
-          const lock = recoveryLock ?? (await this.store.acquire(snapshot.id));
-          if (epoch !== this.epoch) {
-            lock.exec("ROLLBACK");
-            lock.close();
-            return reject("revoked", "Activation was revoked.");
-          }
-          this.binding = { generation: snapshot.generation + 1, lock };
-        } catch (error) {
-          return reject(
-            "ownership",
-            `Exclusive ownership is unavailable. ${String(error)}`,
-          );
-        }
-        snapshot.generation = this.binding.generation;
-        snapshot.attachments.push({
-          session: this.options.session,
-          generation: snapshot.generation,
-        });
-      }
-      this.selected = snapshot.id;
-      if (!isActivation)
-        snapshot.submissions.push({
-          id: SubmissionId.parse(randomUUID()),
-          revision: 1,
-          text: taskText,
-          sequence: snapshot.submissions.length + 1,
-          timestamp: new Date().toISOString(),
-          evidence: input.evidence,
-          originIntent: { kind: "new-task" },
-          state: { kind: "pending", routing: { kind: "new-task" } },
-        });
-      const result: CommittedResult = {
-        kind: isActivation ? "applied" : "saved",
-        receipt: {
-          legatus: snapshot.id,
-          requestKey: input.requestKey,
-          sequence: snapshot.receipts.length + 1,
-          message: ready
-            ? isActivation
-              ? "Legion is active. Intake only."
-              : "Saved for interpretation. Intake only."
-            : "Saved, not admitted. Run /legion doctor.",
-        },
-      };
-      if (!isActivation)
-        result.receipt.message +=
-          " Command text only. Attachments were not captured.";
-      snapshot.receipts.push({ fingerprint, result });
-      snapshot.revision++;
+      let ownership:
+        | { kind: "owned" }
+        | { kind: "acquiring"; association: DatabaseSync };
       try {
-        await this.store.save(
-          snapshot,
-          expectedRevision,
-          () => this.epoch === epoch && !!this.binding,
-        );
+        ownership = this.binding
+          ? { kind: "owned" }
+          : {
+              kind: "acquiring",
+              association: await this.store.acquireAssociation({
+                context: this.options.context,
+                session: this.options.session,
+                resume,
+              }),
+            };
       } catch (error) {
-        this.uncertain = { id: snapshot.id, requestKey: input.requestKey };
-        this.revoke();
-        return {
-          kind: "uncertain",
-          requestKey: input.requestKey,
-          message: `Commit could not be established. Reconcile status ${snapshot.id} and retry the same request key. ${String(error)}`,
-        };
+        return reject(
+          "ownership", `Exclusive association ownership is unavailable. ${String(error)}`,
+        );
       }
-      if (!ready) this.revoke();
-      return result;
+      let adopted = false;
+      let recoveryLock: DatabaseSync | null = null;
+      try {
+        if (epoch !== this.epoch)
+          return reject("revoked", "Activation was revoked.");
+        let state: LegatusSnapshot | null;
+        if (resume) {
+          const id = resume;
+          try {
+            if (ownership.kind === "acquiring")
+              recoveryLock = await this.store.acquire(id);
+            state = await this.store.recover(id, this.options.context, () => epoch === this.epoch);
+            if (state && this.uncertain?.id === state.id) this.uncertain = null;
+          } catch (error) {
+            return reject(
+              "ownership",
+              `Exclusive intake recovery is unavailable. ${String(error)}`,
+            );
+          }
+        } else {
+          try {
+            state = this.selected
+              ? await this.store.read(this.selected)
+              : await this.store.find(this.options.session, this.options.context);
+          } catch (error) {
+            return reject("unavailable", `Intake records are unavailable. ${String(error)}`);
+          }
+        }
+        if (resume && !state)
+          return reject("not-found", "Legatus records were not found.");
+        if (state && state.context !== this.options.context)
+          return reject(
+            "context",
+            "Legatus belongs to a different working context.",
+          );
+        const expectedRevision = state?.revision ?? null;
+        const snapshot =
+          state ??
+          createSnapshot({ id: randomUUID(), context: this.options.context });
+        const fingerprint = createHash("sha256")
+          .update(JSON.stringify(input))
+          .digest("hex");
+        const existing = snapshot.receipts.find(
+          (r) => r.result.receipt.requestKey === input.requestKey,
+        );
+        if (existing) {
+          if (existing.fingerprint !== fingerprint)
+            return reject(
+              "request-conflict",
+              "Request key has a different payload.",
+            );
+          this.uncertain = null;
+          return existing.result;
+        }
+        if (epoch !== this.epoch)
+          return reject("revoked", "Activation was revoked.");
+        if (ownership.kind === "acquiring") {
+          try {
+            const lock = recoveryLock ?? (await this.store.acquire(snapshot.id));
+            if (epoch !== this.epoch) {
+              if (lock !== recoveryLock) release(lock);
+              return reject("revoked", "Activation was revoked.");
+            }
+            this.binding = {
+              generation: snapshot.generation + 1,
+              lock,
+              association: ownership.association,
+            };
+            adopted = true;
+            recoveryLock = null;
+          } catch (error) {
+            return reject(
+              "ownership",
+              `Exclusive ownership is unavailable. ${String(error)}`,
+            );
+          }
+          snapshot.generation = this.binding.generation;
+          snapshot.attachments.push({
+            session: this.options.session,
+            generation: snapshot.generation,
+          });
+        }
+        this.selected = snapshot.id;
+        if (!isActivation)
+          snapshot.submissions.push({
+            id: SubmissionId.parse(randomUUID()),
+            revision: 1,
+            text: taskText,
+            sequence: snapshot.submissions.length + 1,
+            timestamp: new Date().toISOString(),
+            evidence: input.evidence,
+            originIntent: { kind: "new-task" },
+            state: { kind: "pending", routing: { kind: "new-task" } },
+          });
+        const result: CommittedResult = {
+          kind: isActivation ? "applied" : "saved",
+          receipt: {
+            legatus: snapshot.id,
+            requestKey: input.requestKey,
+            sequence: snapshot.receipts.length + 1,
+            message: ready
+              ? isActivation
+                ? "Legion is active. Intake only."
+                : "Saved for interpretation. Intake only."
+              : "Saved, not admitted. Run /legion doctor.",
+          },
+        };
+        if (!isActivation)
+          result.receipt.message +=
+            " Command text only. Attachments were not captured.";
+        snapshot.receipts.push({ fingerprint, result });
+        snapshot.revision++;
+        try {
+          await this.store.save(
+            snapshot,
+            expectedRevision,
+            () => this.epoch === epoch && !!this.binding,
+          );
+        } catch (error) {
+          this.uncertain = { id: snapshot.id, requestKey: input.requestKey };
+          this.revoke();
+          return {
+            kind: "uncertain",
+            requestKey: input.requestKey,
+            message: `Commit could not be established. Reconcile status ${snapshot.id} and retry the same request key. ${String(error)}`,
+          };
+        }
+        if (!ready) this.revoke();
+        return result;
+      } finally {
+        try {
+          if (recoveryLock) release(recoveryLock);
+        } finally {
+          if (ownership.kind === "acquiring" && !adopted)
+            release(ownership.association);
+        }
+      }
     });
   }
   submit(raw: unknown): Promise<OperationResult> {

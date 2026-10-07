@@ -1128,6 +1128,73 @@ try {
   await literal.close();
   checks.push("real whitespace observations stay model-free and byte-preserving; reserved on/off/resume route consistently; direct and task-escaped literal text remains exact");
 
+  for (const [round, taskBearing] of [false, false, false, true].entries()) {
+    const session = randomUUID();
+    const pair = [client(["--session-id", session]), client(["--session-id", session])];
+    await Promise.all(pair.map(c => c.rpc("get_state")));
+    const starts = pair.map(c => c.records.length);
+    await Promise.all(pair.map((c, i) => c.prompt(taskBearing ? `/legion task Exact association task ${i}  ` : "/legion on")));
+    const states = await Promise.all(pair.map(c => c.state()));
+    assert.equal(states.filter(s => s?.mode === "active").length, 1, "Same-session concurrent Pi RPC activation must have exactly one owner");
+    const winner = states.findIndex(s => s?.mode === "active");
+    const loser = 1 - winner;
+    const id = states[winner].snapshot.id;
+    assert.equal(states[loser].mode, "inactive");
+    assert.equal(states[loser].snapshot.id, id);
+    noTurn(pair[loser], starts[loser]);
+    assert.equal(pair[loser].records.slice(starts[loser]).filter(r => r.method === "notify" && /\nReceipt /.test(r.message)).length, 0, "A rejected contender has no successful receipt");
+    if (taskBearing) {
+      await until(() => pair[winner].records.slice(starts[winner]).some(r => r.type === "agent_settled"), "single association owner's task settles");
+      const saved = await pair[winner].state();
+      assert.equal(saved.snapshot.submissions.length, 1);
+      assert.equal(saved.snapshot.submissions[0].text, `Exact association task ${winner}  `);
+      assert.equal(saved.snapshot.tasks.length, 1);
+    } else {
+      noTurn(pair[winner], starts[winner]);
+      assert.equal(states[winner].snapshot.receipts.length, 1);
+    }
+    if (round !== 1) await pair[winner].prompt("/legion off");
+    await Promise.all(pair.map(c => c.close()));
+    const restart = client(["--session-id", session]);
+    assert.equal((await restart.state()).snapshot.id, id);
+    await restart.prompt("/legion on");
+    assert.equal((await restart.state()).snapshot.id, id);
+    assert.equal((await restart.state()).mode, "active");
+    await restart.prompt("/legion off");
+    await restart.close();
+  }
+  checks.push("real same-session concurrent activation has one owner and identity; rejected contender has no receipt or turn; exact task retained; restart and off release remain stable");
+
+  const ancestor = client(["--session-id", randomUUID()]);
+  await ancestor.prompt("/legion on");
+  const ancestorId = (await ancestor.state()).snapshot.id;
+  await ancestor.close();
+  for (const concurrent of [true, false]) {
+    const session = randomUUID();
+    const pair = [client(["--session-id", session]), client(["--session-id", session])];
+    await Promise.all(pair.map(c => c.rpc("get_state")));
+    if (concurrent) {
+      await Promise.all([pair[0].prompt("/legion on"), pair[1].prompt(`/legion resume ${ancestorId}`)]);
+    } else {
+      await pair[0].prompt("/legion on");
+      assert.notEqual((await pair[0].state()).snapshot.id, ancestorId);
+      await pair[1].prompt(`/legion resume ${ancestorId}`);
+    }
+    const states = await Promise.all(pair.map(c => c.state()));
+    assert.equal(states.filter(s => s?.mode === "active").length, 1, "Activation and different-ID resume cannot own the same association");
+    const winner = states.findIndex(s => s?.mode === "active");
+    assert.equal(states[1 - winner].snapshot.id, states[winner].snapshot.id);
+    noTurn(pair[0], 0);
+    noTurn(pair[1], 0);
+    await Promise.all(pair.map(c => c.close()));
+    const reopened = client(["--session-id", session]);
+    assert.equal((await reopened.state()).snapshot.id, states[winner].snapshot.id);
+    await reopened.prompt("/legion on");
+    assert.equal((await reopened.state()).mode, "active");
+    await reopened.close();
+  }
+  checks.push("real concurrent activation versus different-ID resume and an already-live initial owner retain one association; normal shutdown releases both leases");
+
   await writeFile(join(root, "rpc.json"), JSON.stringify(logs));
   assert.equal(hash(await readFile(hostSettings)), hostBefore);
   assert.equal(

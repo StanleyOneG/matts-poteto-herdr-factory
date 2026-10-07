@@ -442,14 +442,29 @@ export class SnapshotStore {
       throw new Error(`Attachment is not committed. Explicitly resume ${id}.`);
     return state;
   }
+  async acquireAssociation(input: {
+    context: string;
+    session: string;
+    resume: string | null;
+  }): Promise<DatabaseSync> {
+    if (
+      input.resume && this.identity(input.resume, true).context !== input.context
+    )
+      throw new Error("Recovery context does not match creation identity.");
+    return this.acquirePath(
+      join(this.root, `association.v1.${digest(input.context)}.${digest(input.session)}.lock`),
+    );
+  }
   async acquire(id: string): Promise<DatabaseSync> {
-    LegatusId.parse(id);
+    return this.acquirePath(this.path(id, "lock"));
+  }
+  private async acquirePath(path: string): Promise<DatabaseSync> {
     const parent = dirname(this.root);
     mkdirSync(parent, { recursive: true, mode: 0o700 });
     mkdirSync(this.root, { recursive: true, mode: 0o700 });
     syncDirectory(parent);
     const DB = await sqlite();
-    const db = new DB(this.path(id, "lock"));
+    const db = new DB(path);
     try {
       db.exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; CREATE TABLE IF NOT EXISTS owner (id INTEGER); BEGIN EXCLUSIVE");
       syncDirectory(this.root);

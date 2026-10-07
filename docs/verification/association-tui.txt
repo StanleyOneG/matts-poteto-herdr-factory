@@ -1,0 +1,514 @@
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                              controlled
+ ▀▀█  v1.0.4                                                                                                            
+
+ █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more                                   
+
+ Press ctrl+o to show full startup help and loaded resources.                                                           
+
+                                                                                                                        
+
+ Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.                                  
+
+
+
+[Skills]                                                                                                                
+
+  architect, arena, automate-me, blast-radius, bro, code-review, council-mode, create-verification-skill, deslop,       
+
+figure-it-out, herdr, how, implement, interrogate, maintain-verification-skill, matt-tdd, no-comments, pi-subagents,    
+
+poteto-mode, principle-attack-the-premise, principle-boundary-discipline, principle-build-the-lever,                    
+
+principle-encode-lessons-in-structure, principle-exhaust-the-design-space, principle-experience-first,                  
+
+principle-fix-root-causes, principle-foundational-thinking, principle-guard-the-context-window,                         
+
+principle-laziness-protocol, principle-make-operations-idempotent, principle-migrate-callers-then-delete-legacy-apis,   
+
+principle-minimize-reader-load, principle-model-the-domain, principle-never-block-on-the-human,                         
+
+principle-outcome-oriented-execution, principle-prove-it-works, principle-redesign-from-first-principles,               
+
+principle-separate-before-serializing-shared-state, principle-sequence-verifiable-units,                                
+
+principle-subtract-before-you-add, principle-test-behavior-not-implementation, principle-type-system-discipline, recall,
+
+reflect, setup-pstack, show-me-your-work, swarm, tdd, teach, technical-writing, typescript-best-practices, unslop, why  
+
+
+
+[Prompts]                                                                                                               
+
+  /council, /gather-context-and-clarify, /parallel-cleanup, /parallel-research, /parallel-review, /review-loop          
+
+
+
+[Extensions]                                                                                                            
+
+  fixture-package/extension.ts, pi-subagents, pstack, src/extension.ts                                                  
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+/legion                                                                                                                 
+→ on                                                                                                                    
+
+  task                                                                                                                  
+
+  status                                                                                                                
+
+  doctor                                                                                                                
+
+  off                                                                                                                   
+
+  (1/6)                                                                                                                 
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+/legion on                                                                                                              
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+
+
+
+
+
+
+
+
+
+
+
+
+/legion r                                                                                                               
+→ resume                                                                                                                
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+/legion resume                                                                                                          
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+
+
+/legion d                                                                                                               
+→ doctor                                                                                                                
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+/legion doctor                                                                                                          
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+
+
+                                                                                                                        
+ Legion is inactive.                                                                                                    
+
+ Pi ready. Observed Pi 1.0.4. T01 runtime target is 1.0.4 with input and settled hooks.                                 
+
+ Storage ready. Observed Node v22.23.1. Tested SQLite target is 22.23.1.                                                
+
+ @zenspc/pi-pstack ready. Loaded resource                                                                               
+
+ /home/vscode/.pi/agent/npm/node_modules/@zenspc/pi-pstack/extensions/pstack/index.ts. Observed 0.6.0. Tested target    
+
+ 0.6.0.                                                                                                                 
+
+ pi-subagents ready. Loaded root tool /home/vscode/.pi/agent/npm/node_modules/pi-subagents/index.js. Observed 0.76.1.   
+
+ Tested target 0.76.1.                                                                                                  
+
+ Skill herdr ready. Loaded native skill /tmp/legion-pi-m8j7Xa/agent/skills/herdr/SKILL.md.                              
+
+ Skill poteto-mode ready. Loaded skill                                                                                  
+
+ /home/vscode/.pi/agent/npm/node_modules/@zenspc/pi-pstack/skills/poteto-mode/SKILL.md. pstack provenance verified.     
+
+ Skill matt-tdd ready. Loaded native skill /tmp/legion-pi-m8j7Xa/agent/skills/matt-tdd/SKILL.md.                        
+
+ Skill implement ready. Loaded native skill /tmp/legion-pi-m8j7Xa/agent/skills/implement/SKILL.md.                      
+
+ Skill code-review ready. Loaded native skill /tmp/legion-pi-m8j7Xa/agent/skills/code-review/SKILL.md.                  
+
+ Herdr ready. Read-only local status running. Server 0.9.1, CLI herdr 0.9.1, protocol 22, socket                        
+
+ /tmp/legion-pi-m8j7Xa/.config/herdr/herdr.sock. Tested target 0.9.1 protocol 22.                                       
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+0.0%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+ Saved for interpretation. Intake only. Command text only. Attachments were not captured.                               
+
+ Legatus e359b78c-edc2-4a44-8236-818ac4c9e7c0                                                                           
+
+ Receipt 943f561c-e946-443c-be7c-0e803a7bed23                                                                           
+
+
+
+                                                                                                                        
+
+ Legion intake dispatch cd650454-c329-48a2-b0c7-c9c71c592982                                                            
+
+                                                                                                                        
+
+
+
+── ⠋ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+5.7%/200k (auto)                                                                                    (fixture) controlled
+
+Legion active | 0 tasks | intake only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                        
+
+ legion_intake kind="new-task" source={"id":"57d4655d-a9fc-4f46-8324-e524f743716b","revision":1} goal="TUI greet...     
+
+ {"kind":"applied","receipt":{"legatus":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","requestKey":"488ed303-50de-499a-af25-38 
+
+ 426f3f5f28/call_15","sequence":2,"message":"Saved for interpretation. Intake only."}}                                  
+
+                                                                                                                        
+
+
+
+                                                                                                                        
+
+ [legion-decision]                                                                                                      
+
+                                                                                                                        
+
+ Emperor decision 7adf1fe5-392b-4991-a478-ca1c72bd5ce0 revision 1                                                       
+
+ Which language?                                                                                                        
+
+ Recommendation. Use English                                                                                            
+
+ Affected work. cade66cc-22a8-4fb9-829f-44432d10c95c revision 1                                                         
+
+ Reply normally in chat. No confirmation token is required.                                                             
+
+                                                                                                                        
+
+
+
+── ⠋ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+5.7%/200k (auto)                                                                                    (fixture) controlled
+
+Legion active | 1 tasks | intake only
+ Legion is inactive.                                                                                                    
+
+
+
+── ⠙ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+5.7%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+
+
+ TUI inactive settlement.                                                                                               
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+5.7%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+ Legion is inactive.                                                                                                    
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+5.7%/200k (auto)                                                                                    (fixture) controlled
+
+Legion inactive
+ Legion is active. Intake only.                                                                                         
+
+ Legatus e359b78c-edc2-4a44-8236-818ac4c9e7c0                                                                           
+
+ Receipt 2c4189a6-cf32-4700-abdd-0ddff61a6ca2                                                                           
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+5.7%/200k (auto)                                                                                    (fixture) controlled
+
+Legion active | 1 tasks | intake only
+ Saved for interpretation. Intake only.                                                                                 
+
+ Legatus e359b78c-edc2-4a44-8236-818ac4c9e7c0                                                                           
+
+ Receipt 3db486ab-dfea-40b6-88e4-59fb3f8f5f43                                                                           
+
+
+
+                                                                                                                        
+
+ Legion intake dispatch 29c62474-63e0-4727-b5f2-2dc46fb5f65f                                                            
+
+                                                                                                                        
+
+
+
+                                                                                                                        
+
+ legion_intake kind="answer" source={"id":"c24659ef-5920-498a-b102-ec9783bafa0b","revision":1} decision={"id":"7...     
+
+ {"kind":"applied","receipt":{"legatus":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","requestKey":"e4511c33-2128-4b93-9678-3b 
+
+ 453053fd3f/call_17","sequence":5,"message":"Saved for interpretation. Intake only."}}                                  
+
+                                                                                                                        
+
+
+
+── ⠋ Working ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+6.3%/200k (auto)                                                                                    (fixture) controlled
+
+Legion active | 1 tasks | intake only
+
+
+ Intake recorded.                                                                                                       
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+6.3%/200k (auto)                                                                                    (fixture) controlled
+
+Legion active | 1 tasks | intake only
+ Legion is active. Intake only.                                                                                         
+
+ Legatus e359b78c-edc2-4a44-8236-818ac4c9e7c0                                                                           
+
+ 1 tasks. 0 pending inputs.                                                                                             
+
+ State                                                                                                                  
+
+ {"mode":"active","snapshot":{"version":1,"id":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","context":"/tmp/legion-pi-m8j7Xa/ 
+
+ repo","revision":5,"generation":2,"attachments":[{"session":"01a11430-4d5c-7742-aec1-ca67763b9e58","generation":1},{"s 
+
+ ession":"01a11430-4d5c-7742-aec1-ca67763b9e58","generation":2}],"submissions":[{"id":"57d4655d-a9fc-4f46-8324-e524f743 
+
+ 716b","revision":1,"text":"TUI                                                                                         
+
+ greeting","sequence":1,"timestamp":"2026-10-07T02:27:53.565Z","evidence":{"session":"01a11430-4d5c-7742-aec1-ca67763b9 
+
+ e58","generation":null,"presented":[],"origin":"host-command","transport":"source-unavailable"},"originIntent":{"kind" 
+
+ :"new-task"},"state":{"kind":"applied","resolution":"cade66cc-22a8-4fb9-829f-44432d10c95c"}},{"id":"c24659ef-5920-498a 
+
+ -b102-ec9783bafa0b","revision":1,"text":"Use French,                                                                   
+
+ please.","sequence":2,"timestamp":"2026-10-07T02:27:53.824Z","evidence":{"session":"01a11430-4d5c-7742-aec1-ca67763b9e 
+
+ 58","generation":2,"presented":[{"decision":{"id":"7adf1fe5-392b-4991-a478-ca1c72bd5ce0","revision":1},"amendment":nul 
+
+ l}],"origin":"emperor","transport":"interactive"},"originIntent":{"kind":"unclassified"},"state":{"kind":"applied","re 
+
+ solution":"b029a6b3-d898-4152-8d68-7339c827bfff"}}],"tasks":[{"id":"cade66cc-22a8-4fb9-829f-44432d10c95c","technicalCh 
+
+ oices":[],"history":[{"revision":1,"goal":"TUI                                                                         
+
+ greeting","acceptance":[],"source":{"id":"57d4655d-a9fc-4f46-8324-e524f743716b","revision":1}}],"scope":{"original":"5 
+
+ 7d4655d-a9fc-4f46-8324-e524f743716b","context":"/tmp/legion-pi-m8j7Xa/repo","policy":"intake-only-v1","amendments":[]} 
+
+ }],"decisions":[{"id":"7adf1fe5-392b-4991-a478-ca1c72bd5ce0","history":[{"revision":1,"kind":"product","question":"Whi 
+
+ ch language?","recommendation":"Use                                                                                    
+
+ English","affected":[{"id":"cade66cc-22a8-4fb9-829f-44432d10c95c","revision":1}],"original":{"id":"57d4655d-a9fc-4f46- 
+
+ 8324-e524f743716b","revision":1},"amendment":null}],"state":{"kind":"resolved","resolution":"b029a6b3-d898-4152-8d68-7 
+
+ 339c827bfff"}}],"amendments":[],"resolutions":[{"id":"b029a6b3-d898-4152-8d68-7339c827bfff","decision":{"id":"7adf1fe5 
+
+ -392b-4991-a478-ca1c72bd5ce0","revision":1},"answerSource":{"id":"c24659ef-5920-498a-b102-ec9783bafa0b","revision":1}, 
+
+ "effect":{"kind":"record-clarification","target":{"id":"cade66cc-22a8-4fb9-829f-44432d10c95c","revision":1},"answer":" 
+
+ Use French,                                                                                                            
+
+ please."}}],"receipts":[{"fingerprint":"c7d17cd79c1433e0fc864e9730048ab927671e65508d7121a09fedfd07367dc8","result":{"k 
+
+ ind":"saved","receipt":{"legatus":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","requestKey":"943f561c-e946-443c-be7c-0e803a7 
+
+ bed23","sequence":1,"message":"Saved for interpretation. Intake only. Command text only. Attachments were not          
+
+ captured."}}},{"fingerprint":"a9951ebf7131b2fbf7e8588bf621ecba6f06b59200482056cce644281923293b","result":{"kind":"appl 
+
+ ied","receipt":{"legatus":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","requestKey":"488ed303-50de-499a-af25-38426f3f5f28/ca 
+
+ ll_15","sequence":2,"message":"Saved for interpretation. Intake                                                        
+
+ only."}}},{"fingerprint":"6a12928923edfadca672183ca187389bcf1adb8ffea086306e3cf17f56291a1d","result":{"kind":"applied" 
+
+ ,"receipt":{"legatus":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","requestKey":"2c4189a6-cf32-4700-abdd-0ddff61a6ca2","sequ 
+
+ ence":3,"message":"Legion is active. Intake                                                                            
+
+ only."}}},{"fingerprint":"5e90abb153ecc216617e4f2358e37b2663993ab1a0537a70a499f292d3817c65","result":{"kind":"saved"," 
+
+ receipt":{"legatus":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","requestKey":"3db486ab-dfea-40b6-88e4-59fb3f8f5f43","sequen 
+
+ ce":4,"message":"Saved for interpretation. Intake                                                                      
+
+ only."}}},{"fingerprint":"aa7c35b71cf7c552b1d12f7fa66b874f6ce0d8c9ca5c83b72157add05d553738","result":{"kind":"applied" 
+
+ ,"receipt":{"legatus":"e359b78c-edc2-4a44-8236-818ac4c9e7c0","requestKey":"e4511c33-2128-4b93-9678-3b453053fd3f/call_1 
+
+ 7","sequence":5,"message":"Saved for interpretation. Intake                                                            
+
+ only."}}}]},"tasks":[{"id":"cade66cc-22a8-4fb9-829f-44432d10c95c","technicalChoices":[],"history":[{"revision":1,"goal 
+
+ ":"TUI                                                                                                                 
+
+ greeting","acceptance":[],"source":{"id":"57d4655d-a9fc-4f46-8324-e524f743716b","revision":1}}],"scope":{"original":"5 
+
+ 7d4655d-a9fc-4f46-8324-e524f743716b","context":"/tmp/legion-pi-m8j7Xa/repo","policy":"intake-only-v1","amendments":[]} 
+
+ ,"eligibility":"admitted"}],"diagnostics":[],"unavailable":null}                                                       
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                                                                                                        
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+~/repo (main)
+
+6.3%/200k (auto)                                                                                    (fixture) controlled
+
+Legion active | 1 tasks | intake only

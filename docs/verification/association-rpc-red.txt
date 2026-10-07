@@ -1,0 +1,26 @@
+
+> pi-legion@0.1.0 verify:pi
+> node --import tsx scripts/verify-pi.mjs
+
+(node:1372828) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Evidence /tmp/legion-pi-ycVV02
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Same-session concurrent Pi RPC activation must have exactly one owner
+
+2 !== 1
+
+    at file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:1138:12
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 2,
+  expected: 1,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1
