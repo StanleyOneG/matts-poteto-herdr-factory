@@ -1,0 +1,188 @@
+[
+  {
+    "records": [
+      {
+        "type": "extension_ui_request",
+        "id": "9ca6d349-ffe0-424c-9611-32105d8a2b29",
+        "method": "setStatus",
+        "statusKey": "legion-intake",
+        "statusText": "Legion inactive"
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "fab812aa-34bd-4491-82ba-c8df4404b9b7",
+        "method": "setWidget",
+        "widgetKey": "subagent-async"
+      },
+      {
+        "id": "1",
+        "type": "response",
+        "command": "get_state",
+        "success": true,
+        "data": {
+          "model": {
+            "id": "controlled",
+            "name": "Controlled fixture",
+            "api": "openai-completions",
+            "provider": "fixture",
+            "baseUrl": "http://127.0.0.1:34871/v1",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 4096
+          },
+          "thinkingLevel": "off",
+          "isStreaming": false,
+          "isCompacting": false,
+          "steeringMode": "one-at-a-time",
+          "followUpMode": "one-at-a-time",
+          "sessionFile": "/tmp/legion-pi-1JnBYq/agent/sessions/--tmp-legion-pi-1JnBYq-repo--/2026-10-07T02-48-47-424Z_59efd6f3-9ff9-491e-b58e-8ffb9dd687e8.jsonl",
+          "sessionId": "59efd6f3-9ff9-491e-b58e-8ffb9dd687e8",
+          "autoCompactionEnabled": true,
+          "messageCount": 0,
+          "pendingMessageCount": 0
+        }
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "be294053-a3c6-4407-ac89-0e034ff8d550",
+        "method": "notify",
+        "message": "Not saved. Exclusive association ownership is unavailable. Error: database is locked",
+        "notifyType": "error"
+      },
+      {
+        "id": "2",
+        "type": "response",
+        "command": "prompt",
+        "success": true,
+        "data": {
+          "disposition": "handled"
+        }
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "b14666fb-69b0-440f-acc3-afd4f9836e44",
+        "method": "notify",
+        "message": "Legion is inactive.",
+        "notifyType": "info"
+      },
+      {
+        "id": "3",
+        "type": "response",
+        "command": "prompt",
+        "success": true,
+        "data": {
+          "disposition": "handled"
+        }
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "91fff282-8e67-4d37-973f-bcbf7cbec54e",
+        "method": "setWidget",
+        "widgetKey": "subagent-async"
+      }
+    ],
+    "stderr": "Warning: No project session found with id '59efd6f3-9ff9-491e-b58e-8ffb9dd687e8'; creating a new session with that id.\n"
+  },
+  {
+    "records": [
+      {
+        "type": "extension_ui_request",
+        "id": "42a84ff4-7a77-4ac9-a2ac-c61d8f4d6cd9",
+        "method": "setStatus",
+        "statusKey": "legion-intake",
+        "statusText": "Legion inactive"
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "5c3f64fc-1466-4f6a-a07a-dbd036c6a78b",
+        "method": "setWidget",
+        "widgetKey": "subagent-async"
+      },
+      {
+        "id": "1",
+        "type": "response",
+        "command": "get_state",
+        "success": true,
+        "data": {
+          "model": {
+            "id": "controlled",
+            "name": "Controlled fixture",
+            "api": "openai-completions",
+            "provider": "fixture",
+            "baseUrl": "http://127.0.0.1:34871/v1",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 4096
+          },
+          "thinkingLevel": "off",
+          "isStreaming": false,
+          "isCompacting": false,
+          "steeringMode": "one-at-a-time",
+          "followUpMode": "one-at-a-time",
+          "sessionFile": "/tmp/legion-pi-1JnBYq/agent/sessions/--tmp-legion-pi-1JnBYq-repo--/2026-10-07T02-48-47-447Z_59efd6f3-9ff9-491e-b58e-8ffb9dd687e8.jsonl",
+          "sessionId": "59efd6f3-9ff9-491e-b58e-8ffb9dd687e8",
+          "autoCompactionEnabled": true,
+          "messageCount": 0,
+          "pendingMessageCount": 0
+        }
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "1179f8b3-4849-42d8-a36e-b49fa7796647",
+        "method": "notify",
+        "message": "Not saved. Exclusive association ownership is unavailable. Error: database is locked",
+        "notifyType": "error"
+      },
+      {
+        "id": "2",
+        "type": "response",
+        "command": "prompt",
+        "success": true,
+        "data": {
+          "disposition": "handled"
+        }
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "f901d6d7-a95f-4b4f-a9ea-7bfbf2219b0e",
+        "method": "notify",
+        "message": "Legion is inactive.",
+        "notifyType": "info"
+      },
+      {
+        "id": "3",
+        "type": "response",
+        "command": "prompt",
+        "success": true,
+        "data": {
+          "disposition": "handled"
+        }
+      },
+      {
+        "type": "extension_ui_request",
+        "id": "edbb4fc5-a00e-442d-8569-5315b6f81cd5",
+        "method": "setWidget",
+        "widgetKey": "subagent-async"
+      }
+    ],
+    "stderr": "Warning: No project session found with id '59efd6f3-9ff9-491e-b58e-8ffb9dd687e8'; creating a new session with that id.\n"
+  }
+]

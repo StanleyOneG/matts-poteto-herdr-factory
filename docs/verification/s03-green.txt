@@ -1,0 +1,28 @@
+
+> pi-legion@0.1.0 test
+> tsx --test tests/*.test.ts
+
+TAP version 13
+# (node:1338319) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: activation preserves logical identity and exact task text across restart without activating
+ok 1 - activation preserves logical identity and exact task text across restart without activating
+  ---
+  duration_ms: 13.430468
+  type: 'test'
+  ...
+# Subtest: direct interpretation admits a scoped task without tickets or external execution
+ok 2 - direct interpretation admits a scoped task without tickets or external execution
+  ---
+  duration_ms: 10.258161
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 241.631039

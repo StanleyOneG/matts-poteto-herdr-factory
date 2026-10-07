@@ -1,0 +1,42 @@
+
+> pi-legion@0.1.0 verify:pi
+> node scripts/verify-pi.mjs
+
+Evidence /tmp/legion-pi-qxvgu6
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Fixture prerequisites are actually loaded and compatible
++ actual - expected
+
++ [
++   {
++     id: 'f945de5f-c0af-4545-a83e-7e644a37d6f1',
++     message: 'pi-subagents missing. Load the pi-subagents root tool in this context.',
++     method: 'notify',
++     notifyType: 'warning',
++     type: 'extension_ui_request'
++   }
++ ]
+- []
+
+    at file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:119:10
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [
+    {
+      type: 'extension_ui_request',
+      id: 'f945de5f-c0af-4545-a83e-7e644a37d6f1',
+      method: 'notify',
+      message: 'pi-subagents missing. Load the pi-subagents root tool in this context.',
+      notifyType: 'warning'
+    }
+  ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1

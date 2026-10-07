@@ -1,0 +1,6 @@
+
+> pi-legion@0.1.0 verify:pi
+> node scripts/verify-pi.mjs
+
+{"result":"passed","root":"/tmp/legion-pi-0xxl3A","pi":"1.0.4","node":"v22.23.1","herdr":"0.9.1","protocol":22,"providerRequests":20,"checks":["install, literal inactive, missing resources, saved not admitted before provider, model-free doctor/status","unrelated sessions inactive, records reopen by logical ID without Pi journal","supported host-command provenance is source-unavailable and trusted extensions can invoke commands","extension-origin ordinary input cannot create a submission or answer a decision","actual loaded dependencies, repeated activation, correlated direct interpretation, decision chat rendering, ordinary conversational answer, selected model/settings unchanged","real busy race at extension input defers the one-use dispatch marker","busy input is durable, not steering, and interpreted in a fresh settled run","off preserves input, late proposals rejected, non-intake tools remain blocked until settlement","real PTY command completion, English doctor, decision and recommendation rendering"]}
+Evidence /tmp/legion-pi-0xxl3A

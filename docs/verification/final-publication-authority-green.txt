@@ -1,0 +1,24 @@
+TAP version 13
+# (node:1368285) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: off during before-route-publish prevents publication after the lifetime lease is revoked
+ok 1 - off during before-route-publish prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 15.991338
+  type: 'test'
+  ...
+# Subtest: off during before-initialized-publish prevents publication after the lifetime lease is revoked
+ok 2 - off during before-initialized-publish prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 9.247252
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 243.050081

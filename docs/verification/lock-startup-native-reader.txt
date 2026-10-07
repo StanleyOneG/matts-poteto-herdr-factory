@@ -1,0 +1,3 @@
+{"root":"/tmp/legion-lock-readers-qF1glV","sqlite":"3.53.1","readerAllowed":true,"secondWriterRejected":true,"releaseReacquire":true,"stableInode":true}
+(node:1385417) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

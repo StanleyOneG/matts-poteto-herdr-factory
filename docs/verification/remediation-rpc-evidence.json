@@ -1,0 +1,4808 @@
+{
+  "root": "/tmp/legion-pi-BlvIqD",
+  "retention": "Selected public RPC records. Snapshot receipt history omitted. Full controlled records remain at root/rpc.json.",
+  "clients": [
+    {
+      "inputTexts": [
+        "Held auth resume"
+      ],
+      "agentStarts": 1,
+      "agentSettlements": 1,
+      "extensionErrors": [],
+      "lifecycleNotices": [],
+      "states": [
+        {
+          "mode": "active",
+          "legatus": "931523df-a549-46ec-b5de-40df7893a2fa",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "12c29d16-24dd-40ec-ab24-0aee25fddfaa",
+              "revision": 1,
+              "text": "Held auth resume",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:44.956Z",
+              "evidence": {
+                "session": "01a113e9-b02f-7567-a9b1-8b2004af89b2",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "931523df-a549-46ec-b5de-40df7893a2fa",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "12c29d16-24dd-40ec-ab24-0aee25fddfaa",
+              "revision": 1,
+              "text": "Held auth resume",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:44.956Z",
+              "evidence": {
+                "session": "01a113e9-b02f-7567-a9b1-8b2004af89b2",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "47685a59-cf72-45c9-bda1-d1f6cf435b94"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "47685a59-cf72-45c9-bda1-d1f6cf435b94",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Held authentication task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "12c29d16-24dd-40ec-ab24-0aee25fddfaa",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "12c29d16-24dd-40ec-ab24-0aee25fddfaa",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [],
+          "resolutions": []
+        }
+      ],
+      "presentations": [],
+      "toolResults": [
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_1",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"931523df-a549-46ec-b5de-40df7893a2fa\",\"requestKey\":\"db9e50fe-07a7-4253-a99f-dc29b8601993/call_1\",\"sequence\":3,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "931523df-a549-46ec-b5de-40df7893a2fa",
+                "requestKey": "db9e50fe-07a7-4253-a99f-dc29b8601993/call_1",
+                "sequence": 3,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        }
+      ]
+    },
+    {
+      "inputTexts": [
+        "Held auth off"
+      ],
+      "agentStarts": 1,
+      "agentSettlements": 1,
+      "extensionErrors": [],
+      "lifecycleNotices": [],
+      "states": [
+        {
+          "mode": "active",
+          "legatus": "73f8eba1-24bb-4557-ab3a-689c019617a0",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "28a9de7a-7b14-439e-aec6-e832c747fc99",
+              "revision": 1,
+              "text": "Held auth off",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:45.708Z",
+              "evidence": {
+                "session": "01a113e9-b381-729c-b876-137e0dfddb10",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "inactive",
+          "legatus": "73f8eba1-24bb-4557-ab3a-689c019617a0",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "28a9de7a-7b14-439e-aec6-e832c747fc99",
+              "revision": 1,
+              "text": "Held auth off",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:45.708Z",
+              "evidence": {
+                "session": "01a113e9-b381-729c-b876-137e0dfddb10",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "73f8eba1-24bb-4557-ab3a-689c019617a0",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "28a9de7a-7b14-439e-aec6-e832c747fc99",
+              "revision": 1,
+              "text": "Held auth off",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:45.708Z",
+              "evidence": {
+                "session": "01a113e9-b381-729c-b876-137e0dfddb10",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "d115a760-03e5-4b67-a21a-030e3219e62f"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "d115a760-03e5-4b67-a21a-030e3219e62f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Held authentication task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "28a9de7a-7b14-439e-aec6-e832c747fc99",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "28a9de7a-7b14-439e-aec6-e832c747fc99",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [],
+          "resolutions": []
+        }
+      ],
+      "presentations": [],
+      "toolResults": [
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_3",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"73f8eba1-24bb-4557-ab3a-689c019617a0\",\"requestKey\":\"d1b5a320-039c-4ae2-a47c-1ea4494aff79/call_3\",\"sequence\":3,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "73f8eba1-24bb-4557-ab3a-689c019617a0",
+                "requestKey": "d1b5a320-039c-4ae2-a47c-1ea4494aff79/call_3",
+                "sequence": 3,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        }
+      ]
+    },
+    {
+      "inputTexts": [
+        "Held auth busy"
+      ],
+      "agentStarts": 2,
+      "agentSettlements": 2,
+      "extensionErrors": [],
+      "lifecycleNotices": [
+        "Interpretation deferred. Inputs remain saved."
+      ],
+      "states": [
+        {
+          "mode": "active",
+          "legatus": "88cb886a-b3a4-414f-b194-f0cc66650465",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "b61aafc2-597e-4a07-80fc-702ffd5f6677",
+              "revision": 1,
+              "text": "Held auth busy",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:46.659Z",
+              "evidence": {
+                "session": "01a113e9-b736-7153-bfb6-50557d687f8b",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "88cb886a-b3a4-414f-b194-f0cc66650465",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "b61aafc2-597e-4a07-80fc-702ffd5f6677",
+              "revision": 1,
+              "text": "Held auth busy",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:46.659Z",
+              "evidence": {
+                "session": "01a113e9-b736-7153-bfb6-50557d687f8b",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "aabbec1e-8987-4b39-92ef-1268297a1bac"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "aabbec1e-8987-4b39-92ef-1268297a1bac",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Deferred held-auth task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "b61aafc2-597e-4a07-80fc-702ffd5f6677",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "b61aafc2-597e-4a07-80fc-702ffd5f6677",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [],
+          "resolutions": []
+        }
+      ],
+      "presentations": [],
+      "toolResults": [
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_6",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"88cb886a-b3a4-414f-b194-f0cc66650465\",\"requestKey\":\"903041b5-ed9e-412d-b6c4-d153ef572854/call_6\",\"sequence\":2,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "88cb886a-b3a4-414f-b194-f0cc66650465",
+                "requestKey": "903041b5-ed9e-412d-b6c4-d153ef572854/call_6",
+                "sequence": 2,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        }
+      ]
+    },
+    {
+      "inputTexts": [
+        "Held auth settled"
+      ],
+      "agentStarts": 2,
+      "agentSettlements": 2,
+      "extensionErrors": [],
+      "lifecycleNotices": [],
+      "states": [
+        {
+          "mode": "active",
+          "legatus": "92378d28-ae9c-4f1f-88a1-ea1467ab670a",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "2056c5a3-cbd2-4dd7-b8c4-bfb36c4a2a72",
+              "revision": 1,
+              "text": "Held auth settled",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:47.422Z",
+              "evidence": {
+                "session": "01a113e9-ba30-746f-af42-aabffd656c0c",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "92378d28-ae9c-4f1f-88a1-ea1467ab670a",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "2056c5a3-cbd2-4dd7-b8c4-bfb36c4a2a72",
+              "revision": 1,
+              "text": "Held auth settled",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:47.422Z",
+              "evidence": {
+                "session": "01a113e9-ba30-746f-af42-aabffd656c0c",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "7e1711e0-b2c0-4c43-89f7-0036d109a9a1"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "7e1711e0-b2c0-4c43-89f7-0036d109a9a1",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Deferred held-auth task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2056c5a3-cbd2-4dd7-b8c4-bfb36c4a2a72",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2056c5a3-cbd2-4dd7-b8c4-bfb36c4a2a72",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [],
+          "resolutions": []
+        }
+      ],
+      "presentations": [],
+      "toolResults": [
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_9",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"92378d28-ae9c-4f1f-88a1-ea1467ab670a\",\"requestKey\":\"11b98a8d-7227-4860-9f12-25b178e8fb63/call_9\",\"sequence\":2,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "92378d28-ae9c-4f1f-88a1-ea1467ab670a",
+                "requestKey": "11b98a8d-7227-4860-9f12-25b178e8fb63/call_9",
+                "sequence": 2,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        }
+      ]
+    },
+    {
+      "inputTexts": [
+        "Keep exact missing-auth input"
+      ],
+      "agentStarts": 1,
+      "agentSettlements": 1,
+      "extensionErrors": [],
+      "lifecycleNotices": [
+        "Intake stalled before delivery. Authentication is unavailable. Inputs remain saved. Restore authentication, then explicitly resume intake."
+      ],
+      "states": [
+        {
+          "mode": "active",
+          "legatus": "909cdfb5-bbee-47bb-985b-3a1c3866a92e",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "4fe72abf-3a0c-47aa-bc3c-60585cecb501",
+              "revision": 1,
+              "text": "Keep exact missing-auth input",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:48.162Z",
+              "evidence": {
+                "session": "01a113e9-bd15-72f4-b990-27769520d239",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "909cdfb5-bbee-47bb-985b-3a1c3866a92e",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "4fe72abf-3a0c-47aa-bc3c-60585cecb501",
+              "revision": 1,
+              "text": "Keep exact missing-auth input",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:48.162Z",
+              "evidence": {
+                "session": "01a113e9-bd15-72f4-b990-27769520d239",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "5aff3ff7-cf47-4ce2-bce7-b697b4f63852"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "5aff3ff7-cf47-4ce2-bce7-b697b4f63852",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Authentication restored",
+                  "acceptance": [],
+                  "source": {
+                    "id": "4fe72abf-3a0c-47aa-bc3c-60585cecb501",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "4fe72abf-3a0c-47aa-bc3c-60585cecb501",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [],
+          "resolutions": []
+        }
+      ],
+      "presentations": [],
+      "toolResults": [
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_11",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"909cdfb5-bbee-47bb-985b-3a1c3866a92e\",\"requestKey\":\"f5093681-8c4e-4868-bbb5-91aff96444c1/call_11\",\"sequence\":3,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "909cdfb5-bbee-47bb-985b-3a1c3866a92e",
+                "requestKey": "f5093681-8c4e-4868-bbb5-91aff96444c1/call_11",
+                "sequence": 3,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        }
+      ]
+    },
+    {
+      "inputTexts": [
+        "Add greeting",
+        "Use French, please.",
+        "The report may need external service data.",
+        "Yes, that read-only access is fine.",
+        "Preserve dispatch race",
+        "A task while busy",
+        "Another independent task",
+        "Saved before off"
+      ],
+      "agentStarts": 11,
+      "agentSettlements": 11,
+      "extensionErrors": [
+        {
+          "type": "extension_error",
+          "extensionPath": "<runtime>",
+          "event": "send_user_message",
+          "error": "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message."
+        }
+      ],
+      "lifecycleNotices": [
+        "Interpretation deferred. Inputs remain saved.",
+        "Intake stalled. No valid proposal committed. Inputs remain saved. Resume intake explicitly to retry."
+      ],
+      "states": [
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 1,
+          "submissions": [],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 1,
+          "submissions": [],
+          "tasks": [],
+          "decisions": [],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "blocked"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "open"
+              }
+            }
+          ],
+          "resolutions": []
+        },
+        {
+          "mode": "inactive",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 1,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "open"
+              }
+            }
+          ],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "blocked"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "open"
+              }
+            }
+          ],
+          "resolutions": []
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            }
+          ]
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "awaiting-clarification",
+                "decision": {
+                  "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                  "revision": 1
+                }
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "blocked"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "open"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            }
+          ]
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+              "revision": 1,
+              "text": "Preserve dispatch race",
+              "sequence": 5,
+              "timestamp": "2026-10-07T01:10:52.792Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "56030aea-a017-4fe4-b626-29473259cd5f"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "56030aea-a017-4fe4-b626-29473259cd5f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Race-safe task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+              "revision": 1,
+              "text": "Preserve dispatch race",
+              "sequence": 5,
+              "timestamp": "2026-10-07T01:10:52.792Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "56030aea-a017-4fe4-b626-29473259cd5f"
+              }
+            },
+            {
+              "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+              "revision": 1,
+              "text": "A task while busy",
+              "sequence": 6,
+              "timestamp": "2026-10-07T01:10:53.069Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            },
+            {
+              "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+              "revision": 1,
+              "text": "Another independent task",
+              "sequence": 7,
+              "timestamp": "2026-10-07T01:10:53.093Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "unclassified"
+                }
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "56030aea-a017-4fe4-b626-29473259cd5f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Race-safe task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+              "revision": 1,
+              "text": "Preserve dispatch race",
+              "sequence": 5,
+              "timestamp": "2026-10-07T01:10:52.792Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "56030aea-a017-4fe4-b626-29473259cd5f"
+              }
+            },
+            {
+              "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+              "revision": 1,
+              "text": "A task while busy",
+              "sequence": 6,
+              "timestamp": "2026-10-07T01:10:53.069Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "3775ef74-3a06-4c83-8968-2f1308c8f6d7"
+              }
+            },
+            {
+              "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+              "revision": 1,
+              "text": "Another independent task",
+              "sequence": 7,
+              "timestamp": "2026-10-07T01:10:53.093Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "974f4242-7ecc-4c30-9628-744f97f2501f"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "56030aea-a017-4fe4-b626-29473259cd5f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Race-safe task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "3775ef74-3a06-4c83-8968-2f1308c8f6d7",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "974f4242-7ecc-4c30-9628-744f97f2501f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 2,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+              "revision": 1,
+              "text": "Preserve dispatch race",
+              "sequence": 5,
+              "timestamp": "2026-10-07T01:10:52.792Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "56030aea-a017-4fe4-b626-29473259cd5f"
+              }
+            },
+            {
+              "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+              "revision": 1,
+              "text": "A task while busy",
+              "sequence": 6,
+              "timestamp": "2026-10-07T01:10:53.069Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "3775ef74-3a06-4c83-8968-2f1308c8f6d7"
+              }
+            },
+            {
+              "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+              "revision": 1,
+              "text": "Another independent task",
+              "sequence": 7,
+              "timestamp": "2026-10-07T01:10:53.093Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "974f4242-7ecc-4c30-9628-744f97f2501f"
+              }
+            },
+            {
+              "id": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+              "revision": 1,
+              "text": "Saved before off",
+              "sequence": 8,
+              "timestamp": "2026-10-07T01:10:53.271Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "56030aea-a017-4fe4-b626-29473259cd5f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Race-safe task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "3775ef74-3a06-4c83-8968-2f1308c8f6d7",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "974f4242-7ecc-4c30-9628-744f97f2501f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "inactive",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 3,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+              "revision": 1,
+              "text": "Preserve dispatch race",
+              "sequence": 5,
+              "timestamp": "2026-10-07T01:10:52.792Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "56030aea-a017-4fe4-b626-29473259cd5f"
+              }
+            },
+            {
+              "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+              "revision": 1,
+              "text": "A task while busy",
+              "sequence": 6,
+              "timestamp": "2026-10-07T01:10:53.069Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "3775ef74-3a06-4c83-8968-2f1308c8f6d7"
+              }
+            },
+            {
+              "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+              "revision": 1,
+              "text": "Another independent task",
+              "sequence": 7,
+              "timestamp": "2026-10-07T01:10:53.093Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "974f4242-7ecc-4c30-9628-744f97f2501f"
+              }
+            },
+            {
+              "id": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+              "revision": 1,
+              "text": "Saved before off",
+              "sequence": 8,
+              "timestamp": "2026-10-07T01:10:53.271Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "inactive"
+            },
+            {
+              "id": "56030aea-a017-4fe4-b626-29473259cd5f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Race-safe task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            },
+            {
+              "id": "3775ef74-3a06-4c83-8968-2f1308c8f6d7",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            },
+            {
+              "id": "974f4242-7ecc-4c30-9628-744f97f2501f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "active",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 4,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+              "revision": 1,
+              "text": "Preserve dispatch race",
+              "sequence": 5,
+              "timestamp": "2026-10-07T01:10:52.792Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "56030aea-a017-4fe4-b626-29473259cd5f"
+              }
+            },
+            {
+              "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+              "revision": 1,
+              "text": "A task while busy",
+              "sequence": 6,
+              "timestamp": "2026-10-07T01:10:53.069Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "3775ef74-3a06-4c83-8968-2f1308c8f6d7"
+              }
+            },
+            {
+              "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+              "revision": 1,
+              "text": "Another independent task",
+              "sequence": 7,
+              "timestamp": "2026-10-07T01:10:53.093Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "974f4242-7ecc-4c30-9628-744f97f2501f"
+              }
+            },
+            {
+              "id": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+              "revision": 1,
+              "text": "Saved before off",
+              "sequence": 8,
+              "timestamp": "2026-10-07T01:10:53.271Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "d3d4c90e-b6bd-4fcd-9203-54069fdbee82"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "56030aea-a017-4fe4-b626-29473259cd5f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Race-safe task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "3775ef74-3a06-4c83-8968-2f1308c8f6d7",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "974f4242-7ecc-4c30-9628-744f97f2501f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            },
+            {
+              "id": "d3d4c90e-b6bd-4fcd-9203-54069fdbee82",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Recovered pending task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "inactive",
+          "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+          "generation": 4,
+          "submissions": [
+            {
+              "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+              "revision": 1,
+              "text": "Add greeting",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:52.515Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "8aea09f0-7824-487f-8ed7-2a331f55d411"
+              }
+            },
+            {
+              "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+              "revision": 1,
+              "text": "Use French, please.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:10:52.643Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+              "revision": 1,
+              "text": "The report may need external service data.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:10:52.689Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+              "revision": 1,
+              "text": "Yes, that read-only access is fine.",
+              "sequence": 4,
+              "timestamp": "2026-10-07T01:10:52.736Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            },
+            {
+              "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+              "revision": 1,
+              "text": "Preserve dispatch race",
+              "sequence": 5,
+              "timestamp": "2026-10-07T01:10:52.792Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "56030aea-a017-4fe4-b626-29473259cd5f"
+              }
+            },
+            {
+              "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+              "revision": 1,
+              "text": "A task while busy",
+              "sequence": 6,
+              "timestamp": "2026-10-07T01:10:53.069Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "3775ef74-3a06-4c83-8968-2f1308c8f6d7"
+              }
+            },
+            {
+              "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+              "revision": 1,
+              "text": "Another independent task",
+              "sequence": 7,
+              "timestamp": "2026-10-07T01:10:53.093Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "974f4242-7ecc-4c30-9628-744f97f2501f"
+              }
+            },
+            {
+              "id": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+              "revision": 1,
+              "text": "Saved before off",
+              "sequence": 8,
+              "timestamp": "2026-10-07T01:10:53.271Z",
+              "evidence": {
+                "session": "01a113e9-ccb4-7593-8a0c-3bc0c80ffda2",
+                "generation": 2,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  },
+                  {
+                    "decision": {
+                      "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                      "revision": 1
+                    },
+                    "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                  }
+                ],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "d3d4c90e-b6bd-4fcd-9203-54069fdbee82"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  }
+                },
+                {
+                  "revision": 2,
+                  "goal": "Add greeting",
+                  "acceptance": [
+                    "Greeting exists"
+                  ],
+                  "source": {
+                    "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": [
+                  "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                ]
+              },
+              "eligibility": "inactive"
+            },
+            {
+              "id": "56030aea-a017-4fe4-b626-29473259cd5f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Race-safe task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "2c67a906-ab9b-4161-9d04-7518e450e7ea",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            },
+            {
+              "id": "3775ef74-3a06-4c83-8968-2f1308c8f6d7",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "adad0815-025a-42d6-9ffb-c2380afb9251",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            },
+            {
+              "id": "974f4242-7ecc-4c30-9628-744f97f2501f",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Independent",
+                  "acceptance": [],
+                  "source": {
+                    "id": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "c1ce817c-477c-467a-bcb3-66c908cb0207",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            },
+            {
+              "id": "d3d4c90e-b6bd-4fcd-9203-54069fdbee82",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Recovered pending task",
+                  "acceptance": [],
+                  "source": {
+                    "id": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "7a96e824-e2ab-434e-b87c-c39e9f40e306",
+                "context": "/tmp/legion-pi-BlvIqD/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            }
+          ],
+          "decisions": [
+            {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Which language?",
+                  "recommendation": "Use English",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "9a17304d-7dd2-4054-91d6-5a05d576e9d0",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "f6888391-6ba2-4b90-942d-01ed58e31b0b"
+              }
+            },
+            {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "protected",
+                  "question": "Approve this exact access?",
+                  "recommendation": "Use local data unless needed",
+                  "affected": [
+                    {
+                      "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "4c37ae72-7529-43c5-b000-b51d5bbaba92",
+                    "revision": 1
+                  },
+                  "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a"
+              }
+            }
+          ],
+          "resolutions": [
+            {
+              "id": "f6888391-6ba2-4b90-942d-01ed58e31b0b",
+              "decision": {
+                "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "7d70cd01-18ee-4cfc-a81d-a71a86abcbe0",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "8aea09f0-7824-487f-8ed7-2a331f55d411",
+                  "revision": 1
+                },
+                "answer": "Use French, please."
+              }
+            },
+            {
+              "id": "eef0ec83-cc35-4d8b-8f32-13a8b5916a0a",
+              "decision": {
+                "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "3b4213f9-3649-4abc-a0dc-139fcee17b88",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "approve-amendment",
+                "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+              }
+            }
+          ]
+        }
+      ],
+      "presentations": [
+        {
+          "type": "custom_message",
+          "customType": "legion-decision",
+          "content": "Emperor decision 8fe42c66-82e1-448a-b184-51931b81c9ab revision 1\nWhich language?\nRecommendation. Use English\nAffected work. 8aea09f0-7824-487f-8ed7-2a331f55d411 revision 1\nReply normally in chat. No confirmation token is required.",
+          "display": true,
+          "details": {
+            "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+            "decision": {
+              "id": "8fe42c66-82e1-448a-b184-51931b81c9ab",
+              "revision": 1
+            },
+            "amendment": null
+          },
+          "id": "3a9861f6",
+          "parentId": "c448291b",
+          "timestamp": "2026-10-07T01:10:52.565Z"
+        },
+        {
+          "type": "custom_message",
+          "customType": "legion-decision",
+          "content": "Emperor decision 8431a823-8b1f-419e-bf00-5fdbc1da6b47 revision 1\nApprove this exact access?\nRecommendation. Use local data unless needed\nAffected work. 8aea09f0-7824-487f-8ed7-2a331f55d411 revision 1\nExact access amendment d7e0ccf6-4f49-466a-a088-90c5aa02501b. Read the test service with a read-only account\nReply normally in chat. No confirmation token is required.",
+          "display": true,
+          "details": {
+            "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+            "decision": {
+              "id": "8431a823-8b1f-419e-bf00-5fdbc1da6b47",
+              "revision": 1
+            },
+            "amendment": "d7e0ccf6-4f49-466a-a088-90c5aa02501b"
+          },
+          "id": "50b592e8",
+          "parentId": "8a2e9a5a",
+          "timestamp": "2026-10-07T01:10:52.705Z"
+        }
+      ],
+      "toolResults": [
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_19",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"32db4e84-7050-4828-9b0e-78d922807c66/call_19\",\"sequence\":4,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "32db4e84-7050-4828-9b0e-78d922807c66/call_19",
+                "sequence": 4,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_22",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"29af1518-8362-4a5c-aed6-591ab04a9e79/call_22\",\"sequence\":7,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "29af1518-8362-4a5c-aed6-591ab04a9e79/call_22",
+                "sequence": 7,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_24",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"da8865d9-d9b2-49c9-b8e5-b307c57a6a1c/call_24\",\"sequence\":9,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "da8865d9-d9b2-49c9-b8e5-b307c57a6a1c/call_24",
+                "sequence": 9,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_26",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"b9417da5-f0c5-453c-a74e-665268db013c/call_26\",\"sequence\":11,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "b9417da5-f0c5-453c-a74e-665268db013c/call_26",
+                "sequence": 11,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_29",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"1a1496bd-f43b-48ed-a7e5-9f19d49185e2/call_29\",\"sequence\":13,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "1a1496bd-f43b-48ed-a7e5-9f19d49185e2/call_29",
+                "sequence": 13,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_31",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"e841f65e-bc41-479b-b121-0286b3193672/call_31\",\"sequence\":16,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "e841f65e-bc41-479b-b121-0286b3193672/call_31",
+                "sequence": 16,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_33",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"fe3ed977-1c26-4a27-8696-91432b4bfb76/call_33\",\"sequence\":17,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "fe3ed977-1c26-4a27-8696-91432b4bfb76/call_33",
+                "sequence": 17,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_35",
+          "toolName": "bash",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "T01 interpretation permits only legion_intake, even after off until the run settles."
+              }
+            ],
+            "details": {}
+          },
+          "isError": true
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_36",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"rejected\",\"code\":\"inactive\",\"message\":\"Legion is inactive.\"}"
+              }
+            ],
+            "details": {
+              "kind": "rejected",
+              "code": "inactive",
+              "message": "Legion is inactive."
+            },
+            "isError": true
+          },
+          "isError": true
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "call_38",
+          "toolName": "legion_intake",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"kind\":\"applied\",\"receipt\":{\"legatus\":\"4169e23b-9858-428d-b85c-163f7c6f2238\",\"requestKey\":\"0cc8bdbc-66f7-4edc-844a-eb5e316d6796/call_38\",\"sequence\":21,\"message\":\"Saved for interpretation. Intake only.\"}}"
+              }
+            ],
+            "details": {
+              "kind": "applied",
+              "receipt": {
+                "legatus": "4169e23b-9858-428d-b85c-163f7c6f2238",
+                "requestKey": "0cc8bdbc-66f7-4edc-844a-eb5e316d6796/call_38",
+                "sequence": 21,
+                "message": "Saved for interpretation. Intake only."
+              }
+            },
+            "isError": false
+          },
+          "isError": false
+        }
+      ]
+    }
+  ]
+}

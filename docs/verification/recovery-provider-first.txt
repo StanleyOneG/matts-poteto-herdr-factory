@@ -1,0 +1,2 @@
+{"result":"NOT VERIFIED","provider":"openai-codex","model":"gpt-6-astra","root":"/tmp/legion-provider-7MoGNk","originalsUnchanged":{"auth.json":true,"settings.json":true,"models.json":true,"models-store.json":true},"testAuthenticationRemoved":true,"rawProviderOutputRetained":false,"failure":"Actual loaded prerequisites must be ready.\n\n1 !== 0\n","checkpoints":[]}
+Evidence /tmp/legion-provider-7MoGNk/result.json

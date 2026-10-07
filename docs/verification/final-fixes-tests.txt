@@ -1,0 +1,254 @@
+
+> pi-legion@0.1.0 test
+> tsx --test tests/*.test.ts
+
+TAP version 13
+# (node:1368506) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a hot journal blocks only matching discovery and preserves unrelated contexts and independent same-context sessions
+ok 1 - a hot journal blocks only matching discovery and preserves unrelated contexts and independent same-context sessions
+  ---
+  duration_ms: 327.970396
+  type: 'test'
+  ...
+# Subtest: first creation before-route-publish explicitly recovers one identity without inventing unacknowledged input
+ok 2 - first creation before-route-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 227.253224
+  type: 'test'
+  ...
+# Subtest: first creation after-route-publish explicitly recovers one identity without inventing unacknowledged input
+ok 3 - first creation after-route-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 184.806968
+  type: 'test'
+  ...
+# Subtest: first creation after-bootstrap-commit explicitly recovers one identity without inventing unacknowledged input
+ok 4 - first creation after-bootstrap-commit explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 174.556755
+  type: 'test'
+  ...
+# Subtest: first creation before-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+ok 5 - first creation before-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 181.083952
+  type: 'test'
+  ...
+# Subtest: first creation after-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+ok 6 - first creation after-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 189.130354
+  type: 'test'
+  ...
+# Subtest: first creation before-commit explicitly recovers one identity without inventing unacknowledged input
+ok 7 - first creation before-commit explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 203.960986
+  type: 'test'
+  ...
+# Subtest: first creation after-commit explicitly recovers one identity without inventing unacknowledged input
+ok 8 - first creation after-commit explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 282.285505
+  type: 'test'
+  ...
+# Subtest: first creation after-receipt explicitly recovers one identity without inventing unacknowledged input
+ok 9 - first creation after-receipt explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 297.926124
+  type: 'test'
+  ...
+# Subtest: incomplete metadata fails closed only for its routed identity and cannot be overwritten by recovery
+ok 10 - incomplete metadata fails closed only for its routed identity and cannot be overwritten by recovery
+  ---
+  duration_ms: 182.376979
+  type: 'test'
+  ...
+# Subtest: alias before-route-publish never grants attachment before commit and explicit resume reconciles one identity
+ok 11 - alias before-route-publish never grants attachment before commit and explicit resume reconciles one identity
+  ---
+  duration_ms: 166.201029
+  type: 'test'
+  ...
+# Subtest: alias after-route-publish never grants attachment before commit and explicit resume reconciles one identity
+ok 12 - alias after-route-publish never grants attachment before commit and explicit resume reconciles one identity
+  ---
+  duration_ms: 167.052183
+  type: 'test'
+  ...
+# Subtest: alias before-commit never grants attachment before commit and explicit resume reconciles one identity
+ok 13 - alias before-commit never grants attachment before commit and explicit resume reconciles one identity
+  ---
+  duration_ms: 169.609379
+  type: 'test'
+  ...
+# Subtest: initialized missing data and malformed identity never reset acknowledged history; legacy files do not poison current routes
+ok 14 - initialized missing data and malformed identity never reset acknowledged history; legacy files do not poison current routes
+  ---
+  duration_ms: 7.898803
+  type: 'test'
+  ...
+# Subtest: missing initialization evidence cannot reclassify an acknowledged snapshot as first creation
+ok 15 - missing initialization evidence cannot reclassify an acknowledged snapshot as first creation
+  ---
+  duration_ms: 4.198179
+  type: 'test'
+  ...
+# Subtest: explicit recovery from the wrong context cannot publish or bootstrap another context's initial identity
+ok 16 - explicit recovery from the wrong context cannot publish or bootstrap another context's initial identity
+  ---
+  duration_ms: 179.169019
+  type: 'test'
+  ...
+# Subtest: unknown route fields fail closed for the affected identity without blocking an independent session
+ok 17 - unknown route fields fail closed for the affected identity without blocking an independent session
+  ---
+  duration_ms: 5.453736
+  type: 'test'
+  ...
+# Subtest: multiple scoped candidate identities remain unavailable until an explicit identity is selected
+ok 18 - multiple scoped candidate identities remain unavailable until an explicit identity is selected
+  ---
+  duration_ms: 9.66163
+  type: 'test'
+  ...
+# Subtest: off during route-opened prevents publication after the lifetime lease is revoked
+ok 19 - off during route-opened prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 2.205031
+  type: 'test'
+  ...
+# Subtest: off during before-route-publish prevents publication after the lifetime lease is revoked
+ok 20 - off during before-route-publish prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 3.208781
+  type: 'test'
+  ...
+# Subtest: off during before-initialized-publish prevents publication after the lifetime lease is revoked
+ok 21 - off during before-initialized-publish prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 3.78443
+  type: 'test'
+  ...
+# (node:1368507) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: activation preserves logical identity and exact task text across restart without activating
+ok 22 - activation preserves logical identity and exact task text across restart without activating
+  ---
+  duration_ms: 36.917224
+  type: 'test'
+  ...
+# Subtest: direct interpretation admits a scoped task without tickets or external execution
+ok 23 - direct interpretation admits a scoped task without tickets or external execution
+  ---
+  duration_ms: 14.194273
+  type: 'test'
+  ...
+# Subtest: a product question blocks affected work and accepts an ordinary answer durably
+ok 24 - a product question blocks affected work and accepts an ordinary answer durably
+  ---
+  duration_ms: 17.866969
+  type: 'test'
+  ...
+# Subtest: routing clarification advances original and answer atomically without changing an assignment
+ok 25 - routing clarification advances original and answer atomically without changing an assignment
+  ---
+  duration_ms: 32.126325
+  type: 'test'
+  ...
+# Subtest: protected amendments accept conversational approval of only the presented immutable change
+ok 26 - protected amendments accept conversational approval of only the presented immutable change
+  ---
+  duration_ms: 32.867563
+  type: 'test'
+  ...
+# Subtest: independent tasks are admitted while affected work is blocked and routine choices remain delegated
+ok 27 - independent tasks are admitted while affected work is blocked and routine choices remain delegated
+  ---
+  duration_ms: 17.381211
+  type: 'test'
+  ...
+# Subtest: off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+ok 28 - off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+  ---
+  duration_ms: 8.441596
+  type: 'test'
+  ...
+# Subtest: uncertain acknowledgment reconciles the committed receipt without duplicate intake
+ok 29 - uncertain acknowledgment reconciles the committed receipt without duplicate intake
+  ---
+  duration_ms: 6.965315
+  type: 'test'
+  ...
+# Subtest: read-only status of another Legatus never redirects the active owner
+ok 30 - read-only status of another Legatus never redirects the active owner
+  ---
+  duration_ms: 8.971698
+  type: 'test'
+  ...
+# Subtest: ambiguous protected answers retain immutable revisions and permit later conversational decline
+ok 31 - ambiguous protected answers retain immutable revisions and permit later conversational decline
+  ---
+  duration_ms: 22.016832
+  type: 'test'
+  ...
+# Subtest: every prerequisite failure is diagnosed read-only and task-bearing failure preserves input inactive
+ok 32 - every prerequisite failure is diagnosed read-only and task-bearing failure preserves input inactive
+  ---
+  duration_ms: 178.599271
+  type: 'test'
+  ...
+# Subtest: a committed request reconciles after off and restart while equal text with a new key remains distinct
+ok 33 - a committed request reconciles after off and restart while equal text with a new key remains distinct
+  ---
+  duration_ms: 14.258394
+  type: 'test'
+  ...
+# Subtest: stale protected decisions require a newly presented revision before resolving
+ok 34 - stale protected decisions require a newly presented revision before resolving
+  ---
+  duration_ms: 36.213345
+  type: 'test'
+  ...
+# Subtest: read-only status reconciles uncertainty so explicit resume can recover intake
+ok 35 - read-only status reconciles uncertainty so explicit resume can recover intake
+  ---
+  duration_ms: 11.921911
+  type: 'test'
+  ...
+# Subtest: reserved arguments require valid command syntax and task escapes retain their literal text
+ok 36 - reserved arguments require valid command syntax and task escapes retain their literal text
+  ---
+  duration_ms: 4.313871
+  type: 'test'
+  ...
+# Subtest: product clarification without affected tasks rejects without consuming original input while empty routing remains answerable
+ok 37 - product clarification without affected tasks rejects without consuming original input while empty routing remains answerable
+  ---
+  duration_ms: 21.674169
+  type: 'test'
+  ...
+# (node:1368508) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real process death before-commit preserves receipts and ownership without read-only recovery
+ok 38 - real process death before-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 291.877423
+  type: 'test'
+  ...
+# Subtest: real process death after-commit preserves receipts and ownership without read-only recovery
+ok 39 - real process death after-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 315.984396
+  type: 'test'
+  ...
+1..39
+# tests 39
+# suites 0
+# pass 39
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3185.531997

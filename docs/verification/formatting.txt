@@ -1,0 +1,10 @@
+src/extension.ts 111ms
+src/intake.ts 86ms
+src/preflight.ts 14ms
+src/snapshot.ts 23ms
+tests/intake.test.ts 63ms
+tests/owner-worker.ts 3ms
+tests/persistence.test.ts 8ms
+scripts/verify-pi.mjs 67ms
+package.json 2ms (unchanged)
+tsconfig.json 1ms

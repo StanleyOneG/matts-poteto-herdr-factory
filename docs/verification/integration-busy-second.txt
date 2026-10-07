@@ -1,0 +1,68 @@
+
+> pi-legion@0.1.0 verify:pi
+> node scripts/verify-pi.mjs
+
+Evidence /tmp/legion-pi-vTi3vH
+file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:178
+  await new Promise((r, reject) => tui.once('exit', code => code === 0 ? r() : reject(new Error(tuiOut))));
+                                                                                      ^
+
+Error: Traceback (most recent call last):
+  File "/workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-tui.py", line 27, in <module>
+    wait('/legion resume')
+    ~~~~^^^^^^^^^^^^^^^^^^
+  File "/workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-tui.py", line 14, in wait
+    if time.time() > deadline: raise AssertionError('TUI did not render ' + text + '\n' + plain()[-4000:])
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: TUI did not render /legion resume
+                                                               
+  architect, arena, automate-me, blast-radius, bro, code-review, council-mode, create-verification-skill, deslop,       
+figure-it-out, herdr, how, implement, interrogate, maintain-verification-skill, matt-tdd, no-comments, pi-subagents,    
+poteto-mode, principle-attack-the-premise, principle-boundary-discipline, principle-build-the-lever,                    
+principle-encode-lessons-in-structure, principle-exhaust-the-design-space, principle-experience-first,                  
+principle-fix-root-causes, principle-foundational-thinking, principle-guard-the-context-window,                         
+principle-laziness-protocol, principle-make-operations-idempotent, principle-migrate-callers-then-delete-legacy-apis,   
+principle-minimize-reader-load, principle-model-the-domain, principle-never-block-on-the-human,                         
+principle-outcome-oriented-execution, principle-prove-it-works, principle-redesign-from-first-principles,               
+principle-separate-before-serializing-shared-state, principle-sequence-verifiable-units,                                
+principle-subtract-before-you-add, principle-test-behavior-not-implementation, principle-type-system-discipline, recall,
+reflect, setup-pstack, show-me-your-work, swarm, tdd, teach, technical-writing, typescript-best-practices, unslop, why  
+
+[Prompts]                                                                                                               
+  /council, /gather-context-and-clarify, /parallel-cleanup, /parallel-research, /parallel-review, /review-loop          
+
+[Extensions]                                                                                                            
+  extension.ts, pi-subagents, pstack                                                                                    
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive/legion                                                                                                                 → on                                                                                                                    
+  task                                                                                                                  
+  status                                                                                                                
+  doctor                                                                                                                
+  off                                                                                                                   
+  (1/6)                                                                                                                 
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive/legion on                                                                                                              
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive
+
+
+
+
+
+/legion r                                                                                                               
+
+    at ChildProcess.<anonymous> (file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:178:87)
+    at Object.onceWrapper (node:events:634:26)
+    at ChildProcess.emit (node:events:519:28)
+    at ChildProcess._handle.onexit (node:internal/child_process:293:12)
+
+Node.js v22.23.1

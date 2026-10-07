@@ -1,0 +1,36 @@
+TAP version 13
+# (node:1355166) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: product clarification without affected tasks rejects without consuming original input while empty routing remains answerable
+not ok 1 - product clarification without affected tasks rejects without consuming original input while empty routing remains answerable
+  ---
+  duration_ms: 21.43621
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/intake.test.ts:1:23682'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'applied'
+    - 'rejected'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'rejected'
+  actual: 'applied'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/intake.test.ts:984:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 246.780625

@@ -1,0 +1,68 @@
+
+> pi-legion@0.1.0 verify:pi
+> node scripts/verify-pi.mjs
+
+Evidence /tmp/legion-pi-6GyXmZ
+file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:178
+  await new Promise((r, reject) => tui.once('exit', code => code === 0 ? r() : reject(new Error(tuiOut))));
+                                                                                      ^
+
+Error: Traceback (most recent call last):
+  File "/workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-tui.py", line 35, in <module>
+    wait('Observed Pi 1.0.4')
+    ~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-tui.py", line 14, in wait
+    if time.time() > deadline: raise AssertionError('TUI did not render ' + text + '\n' + plain()[-4000:])
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: TUI did not render Observed Pi 1.0.4
+                                       controlled
+Legion inactive/legion                                                                                                                 → on                                                                                                                    
+  task                                                                                                                  
+  status                                                                                                                
+  doctor                                                                                                                
+  off                                                                                                                   
+  (1/6)                                                                                                                 
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive/legion on                                                                                                              
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive
+
+
+
+
+
+/legion r                                                                                                               → resume                                                                                                                
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive/legion resume                                                                                                          
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive
+/legion d                                                                                                               → doctor                                                                                                                
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive/legion doctor                                                                                                          
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive
+                                                                                                                         Herdr ready. Read-only local status running. Server 0.9.1, CLI herdr 0.9.1, protocol 22, socket                        
+ /tmp/legion-pi-6GyXmZ/.config/herdr/herdr.sock. Tested target 0.9.1 protocol 22.                                       
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                        
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/repo (main)
+0.0%/200k (auto)                                                                                              controlled
+Legion inactive
+
+    at ChildProcess.<anonymous> (file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:178:87)
+    at Object.onceWrapper (node:events:634:26)
+    at ChildProcess.emit (node:events:519:28)
+    at ChildProcess._handle.onexit (node:internal/child_process:293:12)
+
+Node.js v22.23.1

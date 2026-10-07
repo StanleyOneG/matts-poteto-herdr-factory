@@ -1,0 +1,9 @@
+{
+  "stagedFiles": 38,
+  "scope": "authorized code tests README and verification only",
+  "actualAuthenticationAndTransportValuesAbsent": true,
+  "configurationOrAuthenticationFilesStaged": false,
+  "originalHistoricalManifestUnchanged": true,
+  "providerAgentDirectoryRemoved": true,
+  "noSecretValuesPrinted": true
+}

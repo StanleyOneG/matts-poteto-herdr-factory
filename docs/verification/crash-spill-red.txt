@@ -1,0 +1,92 @@
+
+> pi-legion@0.1.0 test
+> tsx --test tests/*.test.ts
+
+TAP version 13
+# (node:1341623) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: activation preserves logical identity and exact task text across restart without activating
+ok 1 - activation preserves logical identity and exact task text across restart without activating
+  ---
+  duration_ms: 15.434409
+  type: 'test'
+  ...
+# Subtest: direct interpretation admits a scoped task without tickets or external execution
+ok 2 - direct interpretation admits a scoped task without tickets or external execution
+  ---
+  duration_ms: 11.409367
+  type: 'test'
+  ...
+# Subtest: a product question blocks affected work and accepts an ordinary answer durably
+ok 3 - a product question blocks affected work and accepts an ordinary answer durably
+  ---
+  duration_ms: 14.030475
+  type: 'test'
+  ...
+# Subtest: routing clarification advances original and answer atomically without changing an assignment
+ok 4 - routing clarification advances original and answer atomically without changing an assignment
+  ---
+  duration_ms: 19.199572
+  type: 'test'
+  ...
+# Subtest: protected amendments accept conversational approval of only the presented immutable change
+ok 5 - protected amendments accept conversational approval of only the presented immutable change
+  ---
+  duration_ms: 20.027768
+  type: 'test'
+  ...
+# Subtest: independent tasks are admitted while affected work is blocked and routine choices remain delegated
+ok 6 - independent tasks are admitted while affected work is blocked and routine choices remain delegated
+  ---
+  duration_ms: 11.722702
+  type: 'test'
+  ...
+# Subtest: off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+ok 7 - off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+  ---
+  duration_ms: 6.573151
+  type: 'test'
+  ...
+# Subtest: uncertain acknowledgment reconciles the committed receipt without duplicate intake
+ok 8 - uncertain acknowledgment reconciles the committed receipt without duplicate intake
+  ---
+  duration_ms: 4.126876
+  type: 'test'
+  ...
+# Subtest: read-only status of another Legatus never redirects the active owner
+ok 9 - read-only status of another Legatus never redirects the active owner
+  ---
+  duration_ms: 6.024546
+  type: 'test'
+  ...
+# (node:1341624) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real process death before-commit preserves receipts and ownership without read-only recovery
+not ok 10 - real process death before-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 272.356812
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/persistence.test.ts:11:3'
+  failureType: 'testCodeFailure'
+  error: 'attempt to write a readonly database'
+  code: 'ERR_SQLITE_ERROR'
+  stack: |-
+    SnapshotStore.read (/workspaces/astraprojects/matts-poteto-herdr-factory/src/snapshot.ts:48:60)
+    async SnapshotStore.find (/workspaces/astraprojects/matts-poteto-herdr-factory/src/snapshot.ts:56:21)
+    async <anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/src/intake.ts:62:79)
+  ...
+# Subtest: real process death after-commit preserves receipts and ownership without read-only recovery
+ok 11 - real process death after-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 263.209391
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 10
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 772.464932

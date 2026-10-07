@@ -1,0 +1,9 @@
+Runtime fixture auth files checked 27
+Nonempty runtime fixture auth files []
+Provider test agent directory removed /tmp/legion-provider-7MoGNk True
+Provider test agent directory removed /tmp/legion-provider-LOC7UQ True
+Provider test agent directory removed /tmp/legion-provider-omNnB3 True
+Interrupted test process census
+[]
+Only named Legion runtime fixtures inspected. Grounding fixtures and unrelated sessions left untouched.
+Provider trials report original auth, settings, models, and catalog bytes unchanged. No original authentication write or refresh requested.

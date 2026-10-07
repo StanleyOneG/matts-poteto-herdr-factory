@@ -1,0 +1,20 @@
+npm notice
+npm notice 📦  pi-legion@0.1.0
+npm notice Tarball Contents
+npm notice 8.7kB README.md
+npm notice 820B package.json
+npm notice 14.0kB src/extension.ts
+npm notice 24.7kB src/intake.ts
+npm notice 4.7kB src/preflight.ts
+npm notice 8.4kB src/snapshot.ts
+npm notice Tarball Details
+npm notice name: pi-legion
+npm notice version: 0.1.0
+npm notice filename: pi-legion-0.1.0.tgz
+npm notice package size: 16.6 kB
+npm notice unpacked size: 61.4 kB
+npm notice shasum: af6b714a59c98031292a0152e7bb674850ba1b74
+npm notice integrity: sha512-THx13ot/QLtKW[...]IZixCH9gfS/4w==
+npm notice total files: 6
+npm notice
+pi-legion-0.1.0.tgz

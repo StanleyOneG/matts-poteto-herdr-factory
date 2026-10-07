@@ -1,0 +1,6 @@
+(node:1382775) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"name":"baseline-batch","rounds":1500,"zeros":108,"twos":0,"winners":[740,652],"failures":{"batch":1608},"records":108}
+{"name":"baseline-stepped","rounds":1500,"zeros":79,"twos":0,"winners":[694,727],"failures":{"CREATE TABLE IF NOT EXISTS owner(id INTEGER)":1563,"PRAGMA journal_mode=DELETE":5,"BEGIN EXCLUSIVE":11},"records":79}
+{"name":"no-create","rounds":1500,"zeros":264,"twos":0,"winners":[658,578],"failures":{"BEGIN EXCLUSIVE":1640,"PRAGMA journal_mode=DELETE":124},"records":264}
+{"name":"begin-only","rounds":1500,"zeros":379,"twos":0,"winners":[603,518],"failures":{"BEGIN EXCLUSIVE":1879},"records":379}

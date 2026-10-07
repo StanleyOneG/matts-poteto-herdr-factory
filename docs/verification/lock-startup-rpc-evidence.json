@@ -1,0 +1,1821 @@
+{
+  "root": "/tmp/legion-pi-uIr7bK",
+  "publicObservations": [
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "b159f743-b7d3-4237-9de9-008d8b6e89dc",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "822179b8b779d7adaf5270d0f8f54fb72bd86231d30d5a957bbe9bb51c5874ca",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+                    "requestKey": "63df5a6f-b8b8-4878-9a74-59f6972b3468",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "b159f743-b7d3-4237-9de9-008d8b6e89dc",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "822179b8b779d7adaf5270d0f8f54fb72bd86231d30d5a957bbe9bb51c5874ca",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+                    "requestKey": "63df5a6f-b8b8-4878-9a74-59f6972b3468",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "b159f743-b7d3-4237-9de9-008d8b6e89dc",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "822179b8b779d7adaf5270d0f8f54fb72bd86231d30d5a957bbe9bb51c5874ca",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+                    "requestKey": "63df5a6f-b8b8-4878-9a74-59f6972b3468",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "b159f743-b7d3-4237-9de9-008d8b6e89dc",
+                "generation": 1
+              },
+              {
+                "session": "b159f743-b7d3-4237-9de9-008d8b6e89dc",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "822179b8b779d7adaf5270d0f8f54fb72bd86231d30d5a957bbe9bb51c5874ca",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+                    "requestKey": "63df5a6f-b8b8-4878-9a74-59f6972b3468",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "5ad434a7146a09d9dfcdea1c9019df7abdc3782c32f7c1bdd8632b175008f7bc",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+                    "requestKey": "f57113f4-4ea4-4b70-b199-ea68200fbea0",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "b159f743-b7d3-4237-9de9-008d8b6e89dc",
+                "generation": 1
+              },
+              {
+                "session": "b159f743-b7d3-4237-9de9-008d8b6e89dc",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "822179b8b779d7adaf5270d0f8f54fb72bd86231d30d5a957bbe9bb51c5874ca",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+                    "requestKey": "63df5a6f-b8b8-4878-9a74-59f6972b3468",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "5ad434a7146a09d9dfcdea1c9019df7abdc3782c32f7c1bdd8632b175008f7bc",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "43c1f4d4-b99b-4170-bda1-6848e3a69b33",
+                    "requestKey": "f57113f4-4ea4-4b70-b199-ea68200fbea0",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "05ea7244-901e-4350-b886-b68ae4f21076",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "53d027c4-2484-4701-aba5-f77179df0eee",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "32a693bc566e95ae57aea482016ad2ae0992f6210b6fda3364d2e76320aa0857",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "05ea7244-901e-4350-b886-b68ae4f21076",
+                    "requestKey": "e8a7daf9-9882-4ff9-b507-992435e0bc52",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "05ea7244-901e-4350-b886-b68ae4f21076",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "53d027c4-2484-4701-aba5-f77179df0eee",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "32a693bc566e95ae57aea482016ad2ae0992f6210b6fda3364d2e76320aa0857",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "05ea7244-901e-4350-b886-b68ae4f21076",
+                    "requestKey": "e8a7daf9-9882-4ff9-b507-992435e0bc52",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "05ea7244-901e-4350-b886-b68ae4f21076",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "53d027c4-2484-4701-aba5-f77179df0eee",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "32a693bc566e95ae57aea482016ad2ae0992f6210b6fda3364d2e76320aa0857",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "05ea7244-901e-4350-b886-b68ae4f21076",
+                    "requestKey": "e8a7daf9-9882-4ff9-b507-992435e0bc52",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "05ea7244-901e-4350-b886-b68ae4f21076",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "53d027c4-2484-4701-aba5-f77179df0eee",
+                "generation": 1
+              },
+              {
+                "session": "53d027c4-2484-4701-aba5-f77179df0eee",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "32a693bc566e95ae57aea482016ad2ae0992f6210b6fda3364d2e76320aa0857",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "05ea7244-901e-4350-b886-b68ae4f21076",
+                    "requestKey": "e8a7daf9-9882-4ff9-b507-992435e0bc52",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "25a99034ce99f07a94cd32194513663c1dd40c5f5c9706cb9a3370815984eeba",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "05ea7244-901e-4350-b886-b68ae4f21076",
+                    "requestKey": "5c854146-9cab-4986-8084-6356a0793cd2",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "05ea7244-901e-4350-b886-b68ae4f21076",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "53d027c4-2484-4701-aba5-f77179df0eee",
+                "generation": 1
+              },
+              {
+                "session": "53d027c4-2484-4701-aba5-f77179df0eee",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "32a693bc566e95ae57aea482016ad2ae0992f6210b6fda3364d2e76320aa0857",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "05ea7244-901e-4350-b886-b68ae4f21076",
+                    "requestKey": "e8a7daf9-9882-4ff9-b507-992435e0bc52",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "25a99034ce99f07a94cd32194513663c1dd40c5f5c9706cb9a3370815984eeba",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "05ea7244-901e-4350-b886-b68ae4f21076",
+                    "requestKey": "5c854146-9cab-4986-8084-6356a0793cd2",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "118f1223-d658-418a-8322-38758c09dbb2",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "0d148b17-45f3-48bf-bf58-c8935e466047",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "ee030b4d53d0ea70f99fddfede93a70ef9d6d67012b81c1d2bd4aa6e59988ada",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "118f1223-d658-418a-8322-38758c09dbb2",
+                    "requestKey": "1cd2ecea-2691-418b-a7c2-0546ece944a4",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "118f1223-d658-418a-8322-38758c09dbb2",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "0d148b17-45f3-48bf-bf58-c8935e466047",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "ee030b4d53d0ea70f99fddfede93a70ef9d6d67012b81c1d2bd4aa6e59988ada",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "118f1223-d658-418a-8322-38758c09dbb2",
+                    "requestKey": "1cd2ecea-2691-418b-a7c2-0546ece944a4",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "118f1223-d658-418a-8322-38758c09dbb2",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "0d148b17-45f3-48bf-bf58-c8935e466047",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "ee030b4d53d0ea70f99fddfede93a70ef9d6d67012b81c1d2bd4aa6e59988ada",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "118f1223-d658-418a-8322-38758c09dbb2",
+                    "requestKey": "1cd2ecea-2691-418b-a7c2-0546ece944a4",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "118f1223-d658-418a-8322-38758c09dbb2",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "0d148b17-45f3-48bf-bf58-c8935e466047",
+                "generation": 1
+              },
+              {
+                "session": "0d148b17-45f3-48bf-bf58-c8935e466047",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "ee030b4d53d0ea70f99fddfede93a70ef9d6d67012b81c1d2bd4aa6e59988ada",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "118f1223-d658-418a-8322-38758c09dbb2",
+                    "requestKey": "1cd2ecea-2691-418b-a7c2-0546ece944a4",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "74b59608be75fe3fd26c5566dd9ab000577c16df39cc884530c3a64ffc001491",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "118f1223-d658-418a-8322-38758c09dbb2",
+                    "requestKey": "7c3c6927-5da4-460c-bd8d-d6fb5f42f5b6",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "118f1223-d658-418a-8322-38758c09dbb2",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "0d148b17-45f3-48bf-bf58-c8935e466047",
+                "generation": 1
+              },
+              {
+                "session": "0d148b17-45f3-48bf-bf58-c8935e466047",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "ee030b4d53d0ea70f99fddfede93a70ef9d6d67012b81c1d2bd4aa6e59988ada",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "118f1223-d658-418a-8322-38758c09dbb2",
+                    "requestKey": "1cd2ecea-2691-418b-a7c2-0546ece944a4",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "74b59608be75fe3fd26c5566dd9ab000577c16df39cc884530c3a64ffc001491",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "118f1223-d658-418a-8322-38758c09dbb2",
+                    "requestKey": "7c3c6927-5da4-460c-bd8d-d6fb5f42f5b6",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 1
+              }
+            ],
+            "submissions": [
+              {
+                "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "revision": 1,
+                "text": "Exact association task 0  ",
+                "sequence": 1,
+                "timestamp": "2026-10-07T03:08:29.505Z",
+                "evidence": {
+                  "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                  "generation": null,
+                  "presented": [],
+                  "origin": "host-command",
+                  "transport": "source-unavailable"
+                },
+                "originIntent": {
+                  "kind": "new-task"
+                },
+                "state": {
+                  "kind": "pending",
+                  "routing": {
+                    "kind": "new-task"
+                  }
+                }
+              }
+            ],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "eb24e5e2b61ac641b7b193add2bfdf265c031001f50b9c4fba32ca990024932e",
+                "result": {
+                  "kind": "saved",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "31c287aa-a9ab-4d61-8927-abf30224d872",
+                    "sequence": 1,
+                    "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 1
+              }
+            ],
+            "submissions": [
+              {
+                "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "revision": 1,
+                "text": "Exact association task 0  ",
+                "sequence": 1,
+                "timestamp": "2026-10-07T03:08:29.505Z",
+                "evidence": {
+                  "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                  "generation": null,
+                  "presented": [],
+                  "origin": "host-command",
+                  "transport": "source-unavailable"
+                },
+                "originIntent": {
+                  "kind": "new-task"
+                },
+                "state": {
+                  "kind": "pending",
+                  "routing": {
+                    "kind": "new-task"
+                  }
+                }
+              }
+            ],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "eb24e5e2b61ac641b7b193add2bfdf265c031001f50b9c4fba32ca990024932e",
+                "result": {
+                  "kind": "saved",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "31c287aa-a9ab-4d61-8927-abf30224d872",
+                    "sequence": 1,
+                    "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 1
+              }
+            ],
+            "submissions": [
+              {
+                "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "revision": 1,
+                "text": "Exact association task 0  ",
+                "sequence": 1,
+                "timestamp": "2026-10-07T03:08:29.505Z",
+                "evidence": {
+                  "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                  "generation": null,
+                  "presented": [],
+                  "origin": "host-command",
+                  "transport": "source-unavailable"
+                },
+                "originIntent": {
+                  "kind": "new-task"
+                },
+                "state": {
+                  "kind": "applied",
+                  "resolution": "a72657cb-7090-4424-9076-43f3c8b5150d"
+                }
+              }
+            ],
+            "tasks": [
+              {
+                "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+                "technicalChoices": [],
+                "history": [
+                  {
+                    "revision": 1,
+                    "goal": "Literal retained",
+                    "acceptance": [],
+                    "source": {
+                      "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                      "revision": 1
+                    }
+                  }
+                ],
+                "scope": {
+                  "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                  "context": "/tmp/legion-pi-uIr7bK/repo",
+                  "policy": "intake-only-v1",
+                  "amendments": []
+                }
+              }
+            ],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "eb24e5e2b61ac641b7b193add2bfdf265c031001f50b9c4fba32ca990024932e",
+                "result": {
+                  "kind": "saved",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "31c287aa-a9ab-4d61-8927-abf30224d872",
+                    "sequence": 1,
+                    "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                  }
+                }
+              },
+              {
+                "fingerprint": "97a55ec8632bb8eb896b3bf4be5338512ffc994112df1955520d77b910fad1a7",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "8146fa66-a1b1-4904-8cc1-646c0695a35a/call_44",
+                    "sequence": 2,
+                    "message": "Saved for interpretation. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [
+            {
+              "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Literal retained",
+                  "acceptance": [],
+                  "source": {
+                    "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "context": "/tmp/legion-pi-uIr7bK/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 1
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 1
+              }
+            ],
+            "submissions": [
+              {
+                "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "revision": 1,
+                "text": "Exact association task 0  ",
+                "sequence": 1,
+                "timestamp": "2026-10-07T03:08:29.505Z",
+                "evidence": {
+                  "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                  "generation": null,
+                  "presented": [],
+                  "origin": "host-command",
+                  "transport": "source-unavailable"
+                },
+                "originIntent": {
+                  "kind": "new-task"
+                },
+                "state": {
+                  "kind": "applied",
+                  "resolution": "a72657cb-7090-4424-9076-43f3c8b5150d"
+                }
+              }
+            ],
+            "tasks": [
+              {
+                "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+                "technicalChoices": [],
+                "history": [
+                  {
+                    "revision": 1,
+                    "goal": "Literal retained",
+                    "acceptance": [],
+                    "source": {
+                      "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                      "revision": 1
+                    }
+                  }
+                ],
+                "scope": {
+                  "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                  "context": "/tmp/legion-pi-uIr7bK/repo",
+                  "policy": "intake-only-v1",
+                  "amendments": []
+                }
+              }
+            ],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "eb24e5e2b61ac641b7b193add2bfdf265c031001f50b9c4fba32ca990024932e",
+                "result": {
+                  "kind": "saved",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "31c287aa-a9ab-4d61-8927-abf30224d872",
+                    "sequence": 1,
+                    "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                  }
+                }
+              },
+              {
+                "fingerprint": "97a55ec8632bb8eb896b3bf4be5338512ffc994112df1955520d77b910fad1a7",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "8146fa66-a1b1-4904-8cc1-646c0695a35a/call_44",
+                    "sequence": 2,
+                    "message": "Saved for interpretation. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [
+            {
+              "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Literal retained",
+                  "acceptance": [],
+                  "source": {
+                    "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "context": "/tmp/legion-pi-uIr7bK/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "inactive"
+            }
+          ],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 3,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 1
+              },
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 2
+              }
+            ],
+            "submissions": [
+              {
+                "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "revision": 1,
+                "text": "Exact association task 0  ",
+                "sequence": 1,
+                "timestamp": "2026-10-07T03:08:29.505Z",
+                "evidence": {
+                  "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                  "generation": null,
+                  "presented": [],
+                  "origin": "host-command",
+                  "transport": "source-unavailable"
+                },
+                "originIntent": {
+                  "kind": "new-task"
+                },
+                "state": {
+                  "kind": "applied",
+                  "resolution": "a72657cb-7090-4424-9076-43f3c8b5150d"
+                }
+              }
+            ],
+            "tasks": [
+              {
+                "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+                "technicalChoices": [],
+                "history": [
+                  {
+                    "revision": 1,
+                    "goal": "Literal retained",
+                    "acceptance": [],
+                    "source": {
+                      "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                      "revision": 1
+                    }
+                  }
+                ],
+                "scope": {
+                  "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                  "context": "/tmp/legion-pi-uIr7bK/repo",
+                  "policy": "intake-only-v1",
+                  "amendments": []
+                }
+              }
+            ],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "eb24e5e2b61ac641b7b193add2bfdf265c031001f50b9c4fba32ca990024932e",
+                "result": {
+                  "kind": "saved",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "31c287aa-a9ab-4d61-8927-abf30224d872",
+                    "sequence": 1,
+                    "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                  }
+                }
+              },
+              {
+                "fingerprint": "97a55ec8632bb8eb896b3bf4be5338512ffc994112df1955520d77b910fad1a7",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "8146fa66-a1b1-4904-8cc1-646c0695a35a/call_44",
+                    "sequence": 2,
+                    "message": "Saved for interpretation. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "ac91040a199fefa096dd7a146cef9d3f00c49c9087505cadaf5ad80f67b9979d",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "7a1a58e0-4b4f-4d67-ba05-bc1278841d29",
+                    "sequence": 3,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [
+            {
+              "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Literal retained",
+                  "acceptance": [],
+                  "source": {
+                    "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "context": "/tmp/legion-pi-uIr7bK/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 3,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 1
+              },
+              {
+                "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                "generation": 2
+              }
+            ],
+            "submissions": [
+              {
+                "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "revision": 1,
+                "text": "Exact association task 0  ",
+                "sequence": 1,
+                "timestamp": "2026-10-07T03:08:29.505Z",
+                "evidence": {
+                  "session": "4812be0e-cff9-433c-8153-392b14fe8e7c",
+                  "generation": null,
+                  "presented": [],
+                  "origin": "host-command",
+                  "transport": "source-unavailable"
+                },
+                "originIntent": {
+                  "kind": "new-task"
+                },
+                "state": {
+                  "kind": "applied",
+                  "resolution": "a72657cb-7090-4424-9076-43f3c8b5150d"
+                }
+              }
+            ],
+            "tasks": [
+              {
+                "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+                "technicalChoices": [],
+                "history": [
+                  {
+                    "revision": 1,
+                    "goal": "Literal retained",
+                    "acceptance": [],
+                    "source": {
+                      "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                      "revision": 1
+                    }
+                  }
+                ],
+                "scope": {
+                  "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                  "context": "/tmp/legion-pi-uIr7bK/repo",
+                  "policy": "intake-only-v1",
+                  "amendments": []
+                }
+              }
+            ],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "eb24e5e2b61ac641b7b193add2bfdf265c031001f50b9c4fba32ca990024932e",
+                "result": {
+                  "kind": "saved",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "31c287aa-a9ab-4d61-8927-abf30224d872",
+                    "sequence": 1,
+                    "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                  }
+                }
+              },
+              {
+                "fingerprint": "97a55ec8632bb8eb896b3bf4be5338512ffc994112df1955520d77b910fad1a7",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "8146fa66-a1b1-4904-8cc1-646c0695a35a/call_44",
+                    "sequence": 2,
+                    "message": "Saved for interpretation. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "ac91040a199fefa096dd7a146cef9d3f00c49c9087505cadaf5ad80f67b9979d",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "4aad8717-0503-41ad-8fca-eee1e76207a5",
+                    "requestKey": "7a1a58e0-4b4f-4d67-ba05-bc1278841d29",
+                    "sequence": 3,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [
+            {
+              "id": "a72657cb-7090-4424-9076-43f3c8b5150d",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Literal retained",
+                  "acceptance": [],
+                  "source": {
+                    "id": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "630cd13f-e3cd-44d5-aabc-ad4fb7bfdef9",
+                "context": "/tmp/legion-pi-uIr7bK/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              },
+              "eligibility": "admitted"
+            }
+          ],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "1267a30d-5909-4d43-b828-bc16760bb639",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "c264b17e-13c8-4e0b-a365-77cb4979d83f",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "9d9c208cdfa159543a9a820cf47062fe3de351dd4084aca8fc27e73823cb2a57",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "1267a30d-5909-4d43-b828-bc16760bb639",
+                    "requestKey": "ce635636-ec35-4c88-a61e-9d159d42f095",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "d9f269a6-437a-4ee4-af9d-245a121ad80b",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "2b5c8ad920d20c57afe1ac767808274141e6620e15beb4adc28788d3dfd0aa51",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+                    "requestKey": "7c03bde4-df6f-4ba8-b83c-367abb85ec4c",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "d9f269a6-437a-4ee4-af9d-245a121ad80b",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "2b5c8ad920d20c57afe1ac767808274141e6620e15beb4adc28788d3dfd0aa51",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+                    "requestKey": "7c03bde4-df6f-4ba8-b83c-367abb85ec4c",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "d9f269a6-437a-4ee4-af9d-245a121ad80b",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "2b5c8ad920d20c57afe1ac767808274141e6620e15beb4adc28788d3dfd0aa51",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+                    "requestKey": "7c03bde4-df6f-4ba8-b83c-367abb85ec4c",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "d9f269a6-437a-4ee4-af9d-245a121ad80b",
+                "generation": 1
+              },
+              {
+                "session": "d9f269a6-437a-4ee4-af9d-245a121ad80b",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "2b5c8ad920d20c57afe1ac767808274141e6620e15beb4adc28788d3dfd0aa51",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+                    "requestKey": "7c03bde4-df6f-4ba8-b83c-367abb85ec4c",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "1582cfb8636759a2be4b4ac289a4371bb42d06b5c4ef37332262fffe5d760a7d",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f9be7aac-cb0c-4466-86dc-09ec561a3ac1",
+                    "requestKey": "b18b04bf-7000-4d35-a06f-17275630e192",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "f1774c24-071d-4660-87b3-75eae74f6884",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "9aaf1550-c4b1-4a83-a367-5734dca5b7eb",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "728d304735d48f3b8d8487700f198d044ccec996144f4448be5d9b980e50cec1",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f1774c24-071d-4660-87b3-75eae74f6884",
+                    "requestKey": "b956941b-307d-4575-86a5-ba6a0a7eac24",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "f1774c24-071d-4660-87b3-75eae74f6884",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "9aaf1550-c4b1-4a83-a367-5734dca5b7eb",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "728d304735d48f3b8d8487700f198d044ccec996144f4448be5d9b980e50cec1",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f1774c24-071d-4660-87b3-75eae74f6884",
+                    "requestKey": "b956941b-307d-4575-86a5-ba6a0a7eac24",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "f1774c24-071d-4660-87b3-75eae74f6884",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "9aaf1550-c4b1-4a83-a367-5734dca5b7eb",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "728d304735d48f3b8d8487700f198d044ccec996144f4448be5d9b980e50cec1",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f1774c24-071d-4660-87b3-75eae74f6884",
+                    "requestKey": "b956941b-307d-4575-86a5-ba6a0a7eac24",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    },
+    {
+      "states": [
+        {
+          "mode": "inactive",
+          "snapshot": {
+            "version": 1,
+            "id": "f1774c24-071d-4660-87b3-75eae74f6884",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 1,
+            "generation": 1,
+            "attachments": [
+              {
+                "session": "9aaf1550-c4b1-4a83-a367-5734dca5b7eb",
+                "generation": 1
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "728d304735d48f3b8d8487700f198d044ccec996144f4448be5d9b980e50cec1",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f1774c24-071d-4660-87b3-75eae74f6884",
+                    "requestKey": "b956941b-307d-4575-86a5-ba6a0a7eac24",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        },
+        {
+          "mode": "active",
+          "snapshot": {
+            "version": 1,
+            "id": "f1774c24-071d-4660-87b3-75eae74f6884",
+            "context": "/tmp/legion-pi-uIr7bK/repo",
+            "revision": 2,
+            "generation": 2,
+            "attachments": [
+              {
+                "session": "9aaf1550-c4b1-4a83-a367-5734dca5b7eb",
+                "generation": 1
+              },
+              {
+                "session": "9aaf1550-c4b1-4a83-a367-5734dca5b7eb",
+                "generation": 2
+              }
+            ],
+            "submissions": [],
+            "tasks": [],
+            "decisions": [],
+            "amendments": [],
+            "resolutions": [],
+            "receipts": [
+              {
+                "fingerprint": "728d304735d48f3b8d8487700f198d044ccec996144f4448be5d9b980e50cec1",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f1774c24-071d-4660-87b3-75eae74f6884",
+                    "requestKey": "b956941b-307d-4575-86a5-ba6a0a7eac24",
+                    "sequence": 1,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              },
+              {
+                "fingerprint": "9f337197f927f043cf42568e4ef94ae3ed1bdec7b963e76f5c3e0111f7c5b321",
+                "result": {
+                  "kind": "applied",
+                  "receipt": {
+                    "legatus": "f1774c24-071d-4660-87b3-75eae74f6884",
+                    "requestKey": "92f41feb-b3e9-43bc-9b04-9143b8f31a13",
+                    "sequence": 2,
+                    "message": "Legion is active. Intake only."
+                  }
+                }
+              }
+            ]
+          },
+          "tasks": [],
+          "diagnostics": [],
+          "unavailable": null
+        }
+      ],
+      "errors": [],
+      "starts": 0
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+TAP version 13
+# Subtest: cross-process first "on" has one association and no competing owner
+not ok 1 - cross-process first "on" has one association and no competing owner
+  ---
+  duration_ms: 341.503146
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/association.test.ts:1:1986'
+  failureType: 'testCodeFailure'
+  error: |-
+    Exactly one cross-process owner may activate
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/association.test.ts:49:16)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: cross-process first "  Exact original task\\n" has one association and no competing owner
+not ok 2 - cross-process first "  Exact original task\\n" has one association and no competing owner
+  ---
+  duration_ms: 293.617801
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/association.test.ts:1:1986'
+  failureType: 'testCodeFailure'
+  error: |-
+    Exactly one cross-process owner may activate
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/association.test.ts:49:16)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 845.204317

@@ -1,0 +1,261 @@
+
+> pi-legion@0.1.0 verify:pi
+> node --import tsx scripts/verify-pi.mjs
+
+(node:1365214) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Evidence /tmp/legion-pi-8PtmK7
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Whitespace observations must remain inactive without creating intake
++ actual - expected
+
++ {
++   diagnostics: [],
++   mode: 'active',
++   snapshot: {
++     amendments: [],
++     attachments: [
++       {
++         generation: 1,
++         session: '01a113fc-c714-7067-832f-c9633a4892d2'
++       }
++     ],
++     context: '/tmp/legion-pi-8PtmK7/repo',
++     decisions: [
++       {
++         history: [
++           {
++             affected: [
++               {
++                 id: 'eefe3ed7-ed55-4f44-89fd-c9041dab1bcb',
++                 revision: 1
++               }
++             ],
++             amendment: null,
++             kind: 'product',
++             original: {
++               id: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
++               revision: 1
++             },
++             question: 'Which language?',
++             recommendation: 'Use English',
++             revision: 1
++           }
++         ],
++         id: '3211e781-f03f-4450-87bb-e20ff1a570c3',
++         state: {
++           kind: 'open'
++         }
++       }
++     ],
++     generation: 1,
++     id: 'cbbb235c-af08-4bf6-ac7b-1ef50404e51c',
++     receipts: [
++       {
++         fingerprint: '24570b54a531c0ce0bd35b3adc47ffdbc3589836ca38cf4702b58926b1f02a5e',
++         result: {
++           kind: 'saved',
++           receipt: {
++             legatus: 'cbbb235c-af08-4bf6-ac7b-1ef50404e51c',
++             message: 'Saved for interpretation. Intake only. Command text only. Attachments were not captured.',
++             requestKey: '594decbe-699c-4237-95f2-8ce30ec36e58',
++             sequence: 1
++           }
++         }
++       },
++       {
++         fingerprint: 'efeb5f09519eb2c87c9b92069499780eab13fdfa205d737f7e2729facd01a7df',
++         result: {
++           kind: 'applied',
++           receipt: {
++             legatus: 'cbbb235c-af08-4bf6-ac7b-1ef50404e51c',
++             message: 'Saved for interpretation. Intake only.',
++             requestKey: '31c32623-38b7-4b50-af61-c99ddcc7b5b3/call_19',
++             sequence: 2
++           }
++         }
++       }
++     ],
++     resolutions: [],
++     revision: 2,
++     submissions: [
++       {
++         evidence: {
++           generation: null,
++           origin: 'host-command',
++           presented: [],
++           session: '01a113fc-c714-7067-832f-c9633a4892d2',
++           transport: 'source-unavailable'
++         },
++         id: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
++         originIntent: {
++           kind: 'new-task'
++         },
++         revision: 1,
++         sequence: 1,
++         state: {
++           kind: 'applied',
++           resolution: 'eefe3ed7-ed55-4f44-89fd-c9041dab1bcb'
++         },
++         text: ' status',
++         timestamp: '2026-10-07T01:31:36.209Z'
++       }
++     ],
++     tasks: [
++       {
++         history: [
++           {
++             acceptance: [],
++             goal: 'TUI greeting',
++             revision: 1,
++             source: {
++               id: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
++               revision: 1
++             }
++           }
++         ],
++         id: 'eefe3ed7-ed55-4f44-89fd-c9041dab1bcb',
++         scope: {
++           amendments: [],
++           context: '/tmp/legion-pi-8PtmK7/repo',
++           original: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
++           policy: 'intake-only-v1'
++         },
++         technicalChoices: []
++       }
++     ],
++     version: 1
++   },
++   tasks: [
++     {
++       eligibility: 'blocked',
++       history: [
++         {
++           acceptance: [],
++           goal: 'TUI greeting',
++           revision: 1,
++           source: {
++             id: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
++             revision: 1
++           }
++         }
++       ],
++       id: 'eefe3ed7-ed55-4f44-89fd-c9041dab1bcb',
++       scope: {
++         amendments: [],
++         context: '/tmp/legion-pi-8PtmK7/repo',
++         original: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
++         policy: 'intake-only-v1'
++       },
++       technicalChoices: []
++     }
++   ],
++   unavailable: null
++ }
+- null
+
+    at file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:668:12
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: {
+    mode: 'active',
+    snapshot: {
+      version: 1,
+      id: 'cbbb235c-af08-4bf6-ac7b-1ef50404e51c',
+      context: '/tmp/legion-pi-8PtmK7/repo',
+      revision: 2,
+      generation: 1,
+      attachments: [
+        {
+          session: '01a113fc-c714-7067-832f-c9633a4892d2',
+          generation: 1
+        }
+      ],
+      submissions: [
+        {
+          id: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
+          revision: 1,
+          text: ' status',
+          sequence: 1,
+          timestamp: '2026-10-07T01:31:36.209Z',
+          evidence: {
+            session: '01a113fc-c714-7067-832f-c9633a4892d2',
+            generation: null,
+            presented: [],
+            origin: 'host-command',
+            transport: 'source-unavailable'
+          },
+          originIntent: { kind: 'new-task' },
+          state: {
+            kind: 'applied',
+            resolution: 'eefe3ed7-ed55-4f44-89fd-c9041dab1bcb'
+          }
+        }
+      ],
+      tasks: [
+        {
+          id: 'eefe3ed7-ed55-4f44-89fd-c9041dab1bcb',
+          technicalChoices: [],
+          history: [ [Object] ],
+          scope: {
+            original: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
+            context: '/tmp/legion-pi-8PtmK7/repo',
+            policy: 'intake-only-v1',
+            amendments: []
+          }
+        }
+      ],
+      decisions: [
+        {
+          id: '3211e781-f03f-4450-87bb-e20ff1a570c3',
+          history: [ [Object] ],
+          state: { kind: 'open' }
+        }
+      ],
+      amendments: [],
+      resolutions: [],
+      receipts: [
+        {
+          fingerprint: '24570b54a531c0ce0bd35b3adc47ffdbc3589836ca38cf4702b58926b1f02a5e',
+          result: { kind: 'saved', receipt: [Object] }
+        },
+        {
+          fingerprint: 'efeb5f09519eb2c87c9b92069499780eab13fdfa205d737f7e2729facd01a7df',
+          result: { kind: 'applied', receipt: [Object] }
+        }
+      ]
+    },
+    tasks: [
+      {
+        id: 'eefe3ed7-ed55-4f44-89fd-c9041dab1bcb',
+        technicalChoices: [],
+        history: [
+          {
+            revision: 1,
+            goal: 'TUI greeting',
+            acceptance: [],
+            source: [Object]
+          }
+        ],
+        scope: {
+          original: 'b7da3d6e-9983-4d4d-b137-a38f0f20ed87',
+          context: '/tmp/legion-pi-8PtmK7/repo',
+          policy: 'intake-only-v1',
+          amendments: []
+        },
+        eligibility: 'blocked'
+      }
+    ],
+    diagnostics: [],
+    unavailable: null
+  },
+  expected: null,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1

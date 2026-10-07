@@ -1,0 +1,18 @@
+TAP version 13
+# (node:1376460) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: off during association-only acquisition cannot activate or leak the unadopted lease
+ok 1 - off during association-only acquisition cannot activate or leak the unadopted lease
+  ---
+  duration_ms: 17.213778
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 277.933553

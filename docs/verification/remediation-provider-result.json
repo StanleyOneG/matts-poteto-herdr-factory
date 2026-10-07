@@ -1,0 +1,780 @@
+{
+  "result": "passed",
+  "provider": "openai-codex",
+  "model": "gpt-6-astra",
+  "node": "v22.23.1",
+  "transportVariables": [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY"
+  ],
+  "nodeOptions": "--use-env-proxy",
+  "root": "/tmp/legion-provider-m0qXHe",
+  "originalsUnchanged": {
+    "auth.json": true,
+    "settings.json": true,
+    "models.json": true,
+    "models-store.json": true
+  },
+  "testAuthenticationUnchanged": true,
+  "testSettingsUnchanged": true,
+  "testAuthenticationRemoved": true,
+  "reasoningOrCompleteProviderResponsesRetained": false,
+  "failure": null,
+  "diagnostics": [
+    "Legion is inactive.\nPi ready. Observed Pi 1.0.4. T01 runtime target is 1.0.4 with input and settled hooks.\nStorage ready. Observed Node v22.23.1. Tested SQLite target is 22.23.1.\n@zenspc/pi-pstack ready. Loaded resource /home/vscode/.pi/agent/npm/node_modules/@zenspc/pi-pstack/extensions/pstack/index.ts. Observed 0.6.0. Tested target 0.6.0.\npi-subagents ready. Loaded root tool /home/vscode/.pi/agent/npm/node_modules/pi-subagents/index.js. Observed 0.76.1. Tested target 0.76.1.\nSkill herdr ready. Loaded native skill /tmp/legion-provider-m0qXHe/agent/skills/herdr/SKILL.md.\nSkill poteto-mode ready. Loaded skill /home/vscode/.pi/agent/npm/node_modules/@zenspc/pi-pstack/skills/poteto-mode/SKILL.md. pstack provenance verified.\nSkill matt-tdd ready. Loaded native skill /tmp/legion-provider-m0qXHe/agent/skills/matt-tdd/SKILL.md.\nSkill implement ready. Loaded native skill /tmp/legion-provider-m0qXHe/agent/skills/implement/SKILL.md.\nSkill code-review ready. Loaded native skill /tmp/legion-provider-m0qXHe/agent/skills/code-review/SKILL.md.\nHerdr ready. Read-only local status running. Server 0.9.1, CLI herdr 0.9.1, protocol 22, socket /tmp/legion-provider-m0qXHe/.config/herdr/herdr.sock. Tested target 0.9.1 protocol 22."
+  ],
+  "providerOutcomes": [
+    {
+      "input": "/legion Record a direct task to fix the spelling of the text-only fixture label from 'Helo' to 'Hello'. The approved scope is only that spelling change. Do not execute it.",
+      "messages": [
+        {
+          "provider": "openai-codex",
+          "model": "gpt-6-astra",
+          "stopReason": "toolUse",
+          "error": null
+        },
+        {
+          "provider": "openai-codex",
+          "model": "gpt-6-astra",
+          "stopReason": "stop",
+          "error": null
+        }
+      ]
+    },
+    {
+      "input": "/legion Record a separate task to add a greeting to the text-only fixture page. The product owner has not decided whether its language must be English or French. That is a material product choice, so ask before admitting the greeting. Do not execute it.",
+      "messages": [
+        {
+          "provider": "openai-codex",
+          "model": "gpt-6-astra",
+          "stopReason": "toolUse",
+          "error": null
+        },
+        {
+          "provider": "openai-codex",
+          "model": "gpt-6-astra",
+          "stopReason": "stop",
+          "error": null
+        }
+      ]
+    },
+    {
+      "input": "Use French for that greeting, please.",
+      "messages": [
+        {
+          "provider": "openai-codex",
+          "model": "gpt-6-astra",
+          "stopReason": "toolUse",
+          "error": null
+        },
+        {
+          "provider": "openai-codex",
+          "model": "gpt-6-astra",
+          "stopReason": "stop",
+          "error": null
+        }
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "input": "/legion Record a direct task to fix the spelling of the text-only fixture label from 'Helo' to 'Hello'. The approved scope is only that spelling change. Do not execute it.",
+      "tools": [
+        "legion_intake"
+      ],
+      "state": {
+        "mode": "active",
+        "snapshot": {
+          "version": 1,
+          "id": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+          "context": "/tmp/legion-provider-m0qXHe/repo",
+          "revision": 2,
+          "generation": 1,
+          "attachments": [
+            {
+              "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+              "generation": 1
+            }
+          ],
+          "submissions": [
+            {
+              "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+              "revision": 1,
+              "text": "Record a direct task to fix the spelling of the text-only fixture label from 'Helo' to 'Hello'. The approved scope is only that spelling change. Do not execute it.",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:54.742Z",
+              "evidence": {
+                "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Correct the text-only fixture label spelling from 'Helo' to 'Hello'.",
+                  "acceptance": [
+                    "The text-only fixture label reads 'Hello' instead of 'Helo'.",
+                    "No changes other than that spelling correction are made."
+                  ],
+                  "source": {
+                    "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                "context": "/tmp/legion-provider-m0qXHe/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              }
+            }
+          ],
+          "decisions": [],
+          "amendments": [],
+          "resolutions": [],
+          "receipts": [
+            {
+              "fingerprint": "ad81654ba9a69e12d5ac7c4299a3c7660b7cdde472385480ee3581fa0a5e7425",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "7ff05f9e-f9e5-4f3a-a023-a2154b585807",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "6d318dab198f763f1458ccee578170dbeb2ff58579e73336d2dd0517b3f5abe1",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "60c6d830-7bfd-4802-bf13-4e5011edb008/call_f9c6a472b3dd449586bbec8b1fbe0652|fc_004b3f72f6dd2a8d016ac59c22953081919053d31f5ae44f2f",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ]
+        },
+        "tasks": [
+          {
+            "id": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d",
+            "technicalChoices": [],
+            "history": [
+              {
+                "revision": 1,
+                "goal": "Correct the text-only fixture label spelling from 'Helo' to 'Hello'.",
+                "acceptance": [
+                  "The text-only fixture label reads 'Hello' instead of 'Helo'.",
+                  "No changes other than that spelling correction are made."
+                ],
+                "source": {
+                  "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                  "revision": 1
+                }
+              }
+            ],
+            "scope": {
+              "original": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+              "context": "/tmp/legion-provider-m0qXHe/repo",
+              "policy": "intake-only-v1",
+              "amendments": []
+            },
+            "eligibility": "admitted"
+          }
+        ],
+        "diagnostics": [],
+        "unavailable": null
+      }
+    },
+    {
+      "input": "/legion Record a separate task to add a greeting to the text-only fixture page. The product owner has not decided whether its language must be English or French. That is a material product choice, so ask before admitting the greeting. Do not execute it.",
+      "tools": [
+        "legion_intake"
+      ],
+      "state": {
+        "mode": "active",
+        "snapshot": {
+          "version": 1,
+          "id": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+          "context": "/tmp/legion-provider-m0qXHe/repo",
+          "revision": 4,
+          "generation": 1,
+          "attachments": [
+            {
+              "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+              "generation": 1
+            }
+          ],
+          "submissions": [
+            {
+              "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+              "revision": 1,
+              "text": "Record a direct task to fix the spelling of the text-only fixture label from 'Helo' to 'Hello'. The approved scope is only that spelling change. Do not execute it.",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:54.742Z",
+              "evidence": {
+                "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d"
+              }
+            },
+            {
+              "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+              "revision": 1,
+              "text": "Record a separate task to add a greeting to the text-only fixture page. The product owner has not decided whether its language must be English or French. That is a material product choice, so ask before admitting the greeting. Do not execute it.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:11:04.135Z",
+              "evidence": {
+                "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Correct the text-only fixture label spelling from 'Helo' to 'Hello'.",
+                  "acceptance": [
+                    "The text-only fixture label reads 'Hello' instead of 'Helo'.",
+                    "No changes other than that spelling correction are made."
+                  ],
+                  "source": {
+                    "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                "context": "/tmp/legion-provider-m0qXHe/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              }
+            },
+            {
+              "id": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add a greeting to the text-only fixture page, with its language pending product-owner clarification.",
+                  "acceptance": [
+                    "The text-only fixture page includes a greeting in the language selected by the product owner."
+                  ],
+                  "source": {
+                    "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "7a454015-95a0-4e01-8d43-c8df84422908",
+                "context": "/tmp/legion-provider-m0qXHe/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "id": "176a93f2-81c0-47f6-a569-c469b2ec18b9",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Should the greeting be in English or French?",
+                  "recommendation": "Have the product owner select English or French before admitting this task; do not assume a language.",
+                  "affected": [
+                    {
+                      "id": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "open"
+              }
+            }
+          ],
+          "amendments": [],
+          "resolutions": [],
+          "receipts": [
+            {
+              "fingerprint": "ad81654ba9a69e12d5ac7c4299a3c7660b7cdde472385480ee3581fa0a5e7425",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "7ff05f9e-f9e5-4f3a-a023-a2154b585807",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "6d318dab198f763f1458ccee578170dbeb2ff58579e73336d2dd0517b3f5abe1",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "60c6d830-7bfd-4802-bf13-4e5011edb008/call_f9c6a472b3dd449586bbec8b1fbe0652|fc_004b3f72f6dd2a8d016ac59c22953081919053d31f5ae44f2f",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "ae1ef96e8ad313f4c55f1a2d44df818e45ba7548cb6325a7dd2fbfa3523842e1",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "ce84aaf0-0f6a-49cf-af0a-eabbef438d2a",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "2dabf952da7e56d881a89e18c70e618b533a67c2644061a5755a0db797ef97d1",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "77711072-f13a-4a0d-8e27-6dbc180f32b1/call_aaebbc75c5a841e6b11c4f302306262a|fc_004b3f72f6dd2a8d016ac59c2b064c81919a735d7cedd25d93",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ]
+        },
+        "tasks": [
+          {
+            "id": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d",
+            "technicalChoices": [],
+            "history": [
+              {
+                "revision": 1,
+                "goal": "Correct the text-only fixture label spelling from 'Helo' to 'Hello'.",
+                "acceptance": [
+                  "The text-only fixture label reads 'Hello' instead of 'Helo'.",
+                  "No changes other than that spelling correction are made."
+                ],
+                "source": {
+                  "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                  "revision": 1
+                }
+              }
+            ],
+            "scope": {
+              "original": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+              "context": "/tmp/legion-provider-m0qXHe/repo",
+              "policy": "intake-only-v1",
+              "amendments": []
+            },
+            "eligibility": "admitted"
+          },
+          {
+            "id": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994",
+            "technicalChoices": [],
+            "history": [
+              {
+                "revision": 1,
+                "goal": "Add a greeting to the text-only fixture page, with its language pending product-owner clarification.",
+                "acceptance": [
+                  "The text-only fixture page includes a greeting in the language selected by the product owner."
+                ],
+                "source": {
+                  "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+                  "revision": 1
+                }
+              }
+            ],
+            "scope": {
+              "original": "7a454015-95a0-4e01-8d43-c8df84422908",
+              "context": "/tmp/legion-provider-m0qXHe/repo",
+              "policy": "intake-only-v1",
+              "amendments": []
+            },
+            "eligibility": "blocked"
+          }
+        ],
+        "diagnostics": [],
+        "unavailable": null
+      }
+    },
+    {
+      "input": "Use French for that greeting, please.",
+      "tools": [
+        "legion_intake"
+      ],
+      "state": {
+        "mode": "active",
+        "snapshot": {
+          "version": 1,
+          "id": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+          "context": "/tmp/legion-provider-m0qXHe/repo",
+          "revision": 6,
+          "generation": 1,
+          "attachments": [
+            {
+              "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+              "generation": 1
+            }
+          ],
+          "submissions": [
+            {
+              "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+              "revision": 1,
+              "text": "Record a direct task to fix the spelling of the text-only fixture label from 'Helo' to 'Hello'. The approved scope is only that spelling change. Do not execute it.",
+              "sequence": 1,
+              "timestamp": "2026-10-07T01:10:54.742Z",
+              "evidence": {
+                "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+                "generation": null,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d"
+              }
+            },
+            {
+              "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+              "revision": 1,
+              "text": "Record a separate task to add a greeting to the text-only fixture page. The product owner has not decided whether its language must be English or French. That is a material product choice, so ask before admitting the greeting. Do not execute it.",
+              "sequence": 2,
+              "timestamp": "2026-10-07T01:11:04.135Z",
+              "evidence": {
+                "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+                "generation": 1,
+                "presented": [],
+                "origin": "host-command",
+                "transport": "source-unavailable"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994"
+              }
+            },
+            {
+              "id": "81ee9671-f337-4ad4-a491-dd05f4b7a34d",
+              "revision": 1,
+              "text": "Use French for that greeting, please.",
+              "sequence": 3,
+              "timestamp": "2026-10-07T01:11:14.468Z",
+              "evidence": {
+                "session": "01a113e9-d6d6-73bc-bc8b-551e1033a6ab",
+                "generation": 1,
+                "presented": [
+                  {
+                    "decision": {
+                      "id": "176a93f2-81c0-47f6-a569-c469b2ec18b9",
+                      "revision": 1
+                    },
+                    "amendment": null
+                  }
+                ],
+                "origin": "emperor",
+                "transport": "rpc"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              },
+              "state": {
+                "kind": "applied",
+                "resolution": "4c5fdb0b-58d2-47c6-8b8e-247eecd5ecdf"
+              }
+            }
+          ],
+          "tasks": [
+            {
+              "id": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Correct the text-only fixture label spelling from 'Helo' to 'Hello'.",
+                  "acceptance": [
+                    "The text-only fixture label reads 'Hello' instead of 'Helo'.",
+                    "No changes other than that spelling correction are made."
+                  ],
+                  "source": {
+                    "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                "context": "/tmp/legion-provider-m0qXHe/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              }
+            },
+            {
+              "id": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994",
+              "technicalChoices": [],
+              "history": [
+                {
+                  "revision": 1,
+                  "goal": "Add a greeting to the text-only fixture page, with its language pending product-owner clarification.",
+                  "acceptance": [
+                    "The text-only fixture page includes a greeting in the language selected by the product owner."
+                  ],
+                  "source": {
+                    "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+                    "revision": 1
+                  }
+                }
+              ],
+              "scope": {
+                "original": "7a454015-95a0-4e01-8d43-c8df84422908",
+                "context": "/tmp/legion-provider-m0qXHe/repo",
+                "policy": "intake-only-v1",
+                "amendments": []
+              }
+            }
+          ],
+          "decisions": [
+            {
+              "id": "176a93f2-81c0-47f6-a569-c469b2ec18b9",
+              "history": [
+                {
+                  "revision": 1,
+                  "kind": "product",
+                  "question": "Should the greeting be in English or French?",
+                  "recommendation": "Have the product owner select English or French before admitting this task; do not assume a language.",
+                  "affected": [
+                    {
+                      "id": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994",
+                      "revision": 1
+                    }
+                  ],
+                  "original": {
+                    "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+                    "revision": 1
+                  },
+                  "amendment": null
+                }
+              ],
+              "state": {
+                "kind": "resolved",
+                "resolution": "4c5fdb0b-58d2-47c6-8b8e-247eecd5ecdf"
+              }
+            }
+          ],
+          "amendments": [],
+          "resolutions": [
+            {
+              "id": "4c5fdb0b-58d2-47c6-8b8e-247eecd5ecdf",
+              "decision": {
+                "id": "176a93f2-81c0-47f6-a569-c469b2ec18b9",
+                "revision": 1
+              },
+              "answerSource": {
+                "id": "81ee9671-f337-4ad4-a491-dd05f4b7a34d",
+                "revision": 1
+              },
+              "effect": {
+                "kind": "record-clarification",
+                "target": {
+                  "id": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994",
+                  "revision": 1
+                },
+                "answer": "Use French for that greeting, please."
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "ad81654ba9a69e12d5ac7c4299a3c7660b7cdde472385480ee3581fa0a5e7425",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "7ff05f9e-f9e5-4f3a-a023-a2154b585807",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "6d318dab198f763f1458ccee578170dbeb2ff58579e73336d2dd0517b3f5abe1",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "60c6d830-7bfd-4802-bf13-4e5011edb008/call_f9c6a472b3dd449586bbec8b1fbe0652|fc_004b3f72f6dd2a8d016ac59c22953081919053d31f5ae44f2f",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "ae1ef96e8ad313f4c55f1a2d44df818e45ba7548cb6325a7dd2fbfa3523842e1",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "ce84aaf0-0f6a-49cf-af0a-eabbef438d2a",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "2dabf952da7e56d881a89e18c70e618b533a67c2644061a5755a0db797ef97d1",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "77711072-f13a-4a0d-8e27-6dbc180f32b1/call_aaebbc75c5a841e6b11c4f302306262a|fc_004b3f72f6dd2a8d016ac59c2b064c81919a735d7cedd25d93",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1e515954a3a3d9a2ee3ee188071193f59eda871d42fb6e41040ad8f27aa4b18c",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "fd0aa0d8-5ea5-4d29-afc5-c8cb19081e71",
+                  "sequence": 5,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e4a4035bf9ae02f4ebeef47c59e11a1dc5ad0ce6fbde5c329d516690d29286ab",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "27b3d9e1-c46c-43d6-b5da-55033e5af1c8",
+                  "requestKey": "1eb78d42-f106-475b-977b-724186e1097f/call_646e720bd4704bd18f1adf1893e3e897|fc_004b3f72f6dd2a8d016ac59c3697a881919b53136b532fede2",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ]
+        },
+        "tasks": [
+          {
+            "id": "2a12bb44-e0cc-4810-9ee4-c34cbd434e7d",
+            "technicalChoices": [],
+            "history": [
+              {
+                "revision": 1,
+                "goal": "Correct the text-only fixture label spelling from 'Helo' to 'Hello'.",
+                "acceptance": [
+                  "The text-only fixture label reads 'Hello' instead of 'Helo'.",
+                  "No changes other than that spelling correction are made."
+                ],
+                "source": {
+                  "id": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+                  "revision": 1
+                }
+              }
+            ],
+            "scope": {
+              "original": "7f7f2217-7d6e-464a-a60d-13f5a29387f9",
+              "context": "/tmp/legion-provider-m0qXHe/repo",
+              "policy": "intake-only-v1",
+              "amendments": []
+            },
+            "eligibility": "admitted"
+          },
+          {
+            "id": "9d64ba1b-85fd-4f45-be98-6ca5ee29e994",
+            "technicalChoices": [],
+            "history": [
+              {
+                "revision": 1,
+                "goal": "Add a greeting to the text-only fixture page, with its language pending product-owner clarification.",
+                "acceptance": [
+                  "The text-only fixture page includes a greeting in the language selected by the product owner."
+                ],
+                "source": {
+                  "id": "7a454015-95a0-4e01-8d43-c8df84422908",
+                  "revision": 1
+                }
+              }
+            ],
+            "scope": {
+              "original": "7a454015-95a0-4e01-8d43-c8df84422908",
+              "context": "/tmp/legion-provider-m0qXHe/repo",
+              "policy": "intake-only-v1",
+              "amendments": []
+            },
+            "eligibility": "admitted"
+          }
+        ],
+        "diagnostics": [],
+        "unavailable": null
+      }
+    }
+  ],
+  "evidenceContainsNoSecrets": true
+}
