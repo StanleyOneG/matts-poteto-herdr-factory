@@ -325,15 +325,6 @@ export default function (pi: ExtensionAPI) {
         return;
       }
       const caller = { ...evidence(ctx), origin: "host-command" };
-      if (text.trim() === "off") {
-        binding = null;
-        if (
-          run?.kind === "dispatch" ||
-          (run?.kind === "pre-start" &&
-            (run.stage === "checking" || run.stage === "failed"))
-        )
-          run = null;
-      }
       try {
         const result = await current.command({
           text,
@@ -341,10 +332,19 @@ export default function (pi: ExtensionAPI) {
           evidence: caller,
         });
         notifyResult(ctx, result);
-        if (legion !== current || /^(?:status|doctor)(?:\s|$)/.test(text))
+        if (legion !== current || result.disposition === "observe" || result.disposition === "none")
           return;
+        if (result.disposition === "off") {
+          binding = null;
+          if (
+            run?.kind === "dispatch" ||
+            (run?.kind === "pre-start" &&
+              (run.stage === "checking" || run.stage === "failed"))
+          )
+            run = null;
+        }
         await refresh(ctx);
-        if (/^resume\s+/.test(text) && result.kind === "applied") {
+        if (result.disposition === "resume" && result.kind === "applied") {
           if (
             ctx.isIdle() &&
             !ctx.hasPendingMessages() &&
@@ -360,8 +360,7 @@ export default function (pi: ExtensionAPI) {
               "warning",
             );
         }
-        if (text.trim() !== "doctor" && !/^status(?: |$)/.test(text))
-          schedule(ctx);
+        if (result.disposition !== "off") schedule(ctx);
       } catch (error) {
         report(
           ctx,
@@ -405,7 +404,11 @@ export default function (pi: ExtensionAPI) {
             (!!auth.apiKey || ctx.modelRegistry.hasConfiguredAuth(model));
         }
       } catch {}
+      const currentState = await legion?.state();
       if (
+        currentState?.mode !== "active" ||
+        currentState.snapshot?.id !== checking.evidence.legatus ||
+        currentState.snapshot.generation !== checking.evidence.generation ||
         run !== checking ||
         !binding ||
         binding.session !== checking.evidence.session ||

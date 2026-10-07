@@ -1,0 +1,36 @@
+TAP version 13
+# (node:1368355) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: off during route-opened prevents publication after the lifetime lease is revoked
+not ok 1 - off during route-opened prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 25.993977
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/final-storage.test.ts:1:14147'
+  failureType: 'testCodeFailure'
+  error: |-
+    Revocation prevents writing identity content after the lease closes
+    + actual - expected
+    
+    + '{"version":1,"id":"ae96d503-a39a-477e-8593-ebb545b412c4","context":"/revoked/repo","session":"owner","kind":"initial"}'
+    - ''
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ''
+  actual: '{"version":1,"id":"ae96d503-a39a-477e-8593-ebb545b412c4","context":"/revoked/repo","session":"owner","kind":"initial"}'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/final-storage.test.ts:260:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 260.855652

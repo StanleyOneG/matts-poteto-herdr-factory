@@ -1,0 +1,3957 @@
+{
+  "root": "/tmp/legion-pi-lHkZb3",
+  "retention": "Selected public observations; full actual records remain in root/rpc.json.",
+  "clients": [
+    {
+      "inputTexts": [
+        "Add greeting",
+        "Use French, please.",
+        "The report may need external service data.",
+        "Yes, that read-only access is fine.",
+        "Preserve dispatch race",
+        "A task while busy",
+        "Another independent task",
+        "Saved before off"
+      ],
+      "inactiveNoticeIndices": [
+        7,
+        9,
+        12,
+        14,
+        17,
+        19,
+        24,
+        29,
+        101,
+        115,
+        353,
+        361,
+        439
+      ],
+      "agentStartIndices": [
+        63,
+        97,
+        129,
+        166,
+        201,
+        234,
+        248,
+        280,
+        313,
+        345,
+        402
+      ],
+      "agentSettledIndices": [
+        93,
+        112,
+        155,
+        194,
+        227,
+        247,
+        274,
+        312,
+        339,
+        396,
+        428
+      ],
+      "states": [
+        {
+          "recordIndex": 35,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 38,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 40,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 42,
+          "mode": "inactive",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 44,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 46,
+          "mode": "inactive",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 48,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 50,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 52,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 1,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 58,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 2,
+          "generation": 1,
+          "submissions": [],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": []
+        },
+        {
+          "recordIndex": 94,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 4,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "blocked"
+          ]
+        },
+        {
+          "recordIndex": 113,
+          "mode": "inactive",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 4,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "inactive"
+          ]
+        },
+        {
+          "recordIndex": 122,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 5,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "blocked"
+          ]
+        },
+        {
+          "recordIndex": 156,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 7,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 161,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 7,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 195,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 9,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "awaiting-clarification",
+                "decision": {
+                  "id": "caacd039-92f3-47f1-98c7-0a6670f129f9",
+                  "revision": 1
+                }
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "blocked"
+          ]
+        },
+        {
+          "recordIndex": 228,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 11,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 275,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 13,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Preserve dispatch race",
+              "state": {
+                "kind": "applied",
+                "resolution": "0dccee9c-2e1a-49b0-aba7-e30c673917d3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a31d025deeb55b09fe505e114b7a934431af0d8941e5b9eeecdaef32b4061680",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "93ad3c7e-577e-4d92-a96f-392e5469b0ec",
+                  "sequence": 12,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "dc13201c666f373555da8ed261992fcb12b53d922782d85b96c917bc90b8a19c",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "92a834b1-d774-44b3-b4e0-7ec69c0e3dc4/call_29",
+                  "sequence": 13,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 289,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 15,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Preserve dispatch race",
+              "state": {
+                "kind": "applied",
+                "resolution": "0dccee9c-2e1a-49b0-aba7-e30c673917d3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "A task while busy",
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Another independent task",
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "unclassified"
+                }
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a31d025deeb55b09fe505e114b7a934431af0d8941e5b9eeecdaef32b4061680",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "93ad3c7e-577e-4d92-a96f-392e5469b0ec",
+                  "sequence": 12,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "dc13201c666f373555da8ed261992fcb12b53d922782d85b96c917bc90b8a19c",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "92a834b1-d774-44b3-b4e0-7ec69c0e3dc4/call_29",
+                  "sequence": 13,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "21021b651ba9f4600b153b282b0fca6975e620a836dd29dca4db2d9bf8178b2e",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "158679f5-318f-49ec-bd8a-e5b807d75b80",
+                  "sequence": 14,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "b0dfb9b51a900b868e780b048cd84e4dc9af8b3141854d29abd2b920a9868977",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "55ebb813-03cc-4472-a67c-3215bb145afb",
+                  "sequence": 15,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 340,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 17,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Preserve dispatch race",
+              "state": {
+                "kind": "applied",
+                "resolution": "0dccee9c-2e1a-49b0-aba7-e30c673917d3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "A task while busy",
+              "state": {
+                "kind": "applied",
+                "resolution": "b2d1536a-011f-4893-8a6a-1727da2b42ed"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Another independent task",
+              "state": {
+                "kind": "applied",
+                "resolution": "e65dbdc3-723e-4a07-8d70-472d993de3e3"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a31d025deeb55b09fe505e114b7a934431af0d8941e5b9eeecdaef32b4061680",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "93ad3c7e-577e-4d92-a96f-392e5469b0ec",
+                  "sequence": 12,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "dc13201c666f373555da8ed261992fcb12b53d922782d85b96c917bc90b8a19c",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "92a834b1-d774-44b3-b4e0-7ec69c0e3dc4/call_29",
+                  "sequence": 13,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "21021b651ba9f4600b153b282b0fca6975e620a836dd29dca4db2d9bf8178b2e",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "158679f5-318f-49ec-bd8a-e5b807d75b80",
+                  "sequence": 14,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "b0dfb9b51a900b868e780b048cd84e4dc9af8b3141854d29abd2b920a9868977",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "55ebb813-03cc-4472-a67c-3215bb145afb",
+                  "sequence": 15,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "dcbffe1c625b7e77224c6a896019e6ec8122f9abd8c0780299e2c176fdbc79a3",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6ea5d33b-d550-46ae-96a0-33c57d77c653/call_31",
+                  "sequence": 16,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "95ad0a136b8e22eb94cb38cf288293f228bcf9ca177ed54f4a40449ce070de7b",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "f385e14e-a56d-4fc3-83ee-558d673d3b47/call_33",
+                  "sequence": 17,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted",
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 351,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 18,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Preserve dispatch race",
+              "state": {
+                "kind": "applied",
+                "resolution": "0dccee9c-2e1a-49b0-aba7-e30c673917d3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "A task while busy",
+              "state": {
+                "kind": "applied",
+                "resolution": "b2d1536a-011f-4893-8a6a-1727da2b42ed"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Another independent task",
+              "state": {
+                "kind": "applied",
+                "resolution": "e65dbdc3-723e-4a07-8d70-472d993de3e3"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Saved before off",
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a31d025deeb55b09fe505e114b7a934431af0d8941e5b9eeecdaef32b4061680",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "93ad3c7e-577e-4d92-a96f-392e5469b0ec",
+                  "sequence": 12,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "dc13201c666f373555da8ed261992fcb12b53d922782d85b96c917bc90b8a19c",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "92a834b1-d774-44b3-b4e0-7ec69c0e3dc4/call_29",
+                  "sequence": 13,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "21021b651ba9f4600b153b282b0fca6975e620a836dd29dca4db2d9bf8178b2e",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "158679f5-318f-49ec-bd8a-e5b807d75b80",
+                  "sequence": 14,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "b0dfb9b51a900b868e780b048cd84e4dc9af8b3141854d29abd2b920a9868977",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "55ebb813-03cc-4472-a67c-3215bb145afb",
+                  "sequence": 15,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "dcbffe1c625b7e77224c6a896019e6ec8122f9abd8c0780299e2c176fdbc79a3",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6ea5d33b-d550-46ae-96a0-33c57d77c653/call_31",
+                  "sequence": 16,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "95ad0a136b8e22eb94cb38cf288293f228bcf9ca177ed54f4a40449ce070de7b",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "f385e14e-a56d-4fc3-83ee-558d673d3b47/call_33",
+                  "sequence": 17,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "6430531f2fb92e94e0c2ae32dde9a245919eebf4c4ee135ea44473b0b65b47fa",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "2f8b23e1-36dc-4fb6-84ae-c5e22b302c8f",
+                  "sequence": 18,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted",
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 397,
+          "mode": "inactive",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 19,
+          "generation": 3,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Preserve dispatch race",
+              "state": {
+                "kind": "applied",
+                "resolution": "0dccee9c-2e1a-49b0-aba7-e30c673917d3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "A task while busy",
+              "state": {
+                "kind": "applied",
+                "resolution": "b2d1536a-011f-4893-8a6a-1727da2b42ed"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Another independent task",
+              "state": {
+                "kind": "applied",
+                "resolution": "e65dbdc3-723e-4a07-8d70-472d993de3e3"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Saved before off",
+              "state": {
+                "kind": "pending",
+                "routing": {
+                  "kind": "new-task"
+                }
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a31d025deeb55b09fe505e114b7a934431af0d8941e5b9eeecdaef32b4061680",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "93ad3c7e-577e-4d92-a96f-392e5469b0ec",
+                  "sequence": 12,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "dc13201c666f373555da8ed261992fcb12b53d922782d85b96c917bc90b8a19c",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "92a834b1-d774-44b3-b4e0-7ec69c0e3dc4/call_29",
+                  "sequence": 13,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "21021b651ba9f4600b153b282b0fca6975e620a836dd29dca4db2d9bf8178b2e",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "158679f5-318f-49ec-bd8a-e5b807d75b80",
+                  "sequence": 14,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "b0dfb9b51a900b868e780b048cd84e4dc9af8b3141854d29abd2b920a9868977",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "55ebb813-03cc-4472-a67c-3215bb145afb",
+                  "sequence": 15,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "dcbffe1c625b7e77224c6a896019e6ec8122f9abd8c0780299e2c176fdbc79a3",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6ea5d33b-d550-46ae-96a0-33c57d77c653/call_31",
+                  "sequence": 16,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "95ad0a136b8e22eb94cb38cf288293f228bcf9ca177ed54f4a40449ce070de7b",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "f385e14e-a56d-4fc3-83ee-558d673d3b47/call_33",
+                  "sequence": 17,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "6430531f2fb92e94e0c2ae32dde9a245919eebf4c4ee135ea44473b0b65b47fa",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "2f8b23e1-36dc-4fb6-84ae-c5e22b302c8f",
+                  "sequence": 18,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "992213c29ac4acc1f61764f478d8f62ae45125f52c935ab7492ea5f68a8065b7",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d4f3722a-0a8e-4388-bc24-50b2d49c8cad",
+                  "sequence": 19,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "inactive",
+            "inactive",
+            "inactive",
+            "inactive"
+          ]
+        },
+        {
+          "recordIndex": 429,
+          "mode": "active",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 21,
+          "generation": 4,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Preserve dispatch race",
+              "state": {
+                "kind": "applied",
+                "resolution": "0dccee9c-2e1a-49b0-aba7-e30c673917d3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "A task while busy",
+              "state": {
+                "kind": "applied",
+                "resolution": "b2d1536a-011f-4893-8a6a-1727da2b42ed"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Another independent task",
+              "state": {
+                "kind": "applied",
+                "resolution": "e65dbdc3-723e-4a07-8d70-472d993de3e3"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Saved before off",
+              "state": {
+                "kind": "applied",
+                "resolution": "5cd7d6f4-3e71-4eec-908c-ef9bf8e1b56b"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a31d025deeb55b09fe505e114b7a934431af0d8941e5b9eeecdaef32b4061680",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "93ad3c7e-577e-4d92-a96f-392e5469b0ec",
+                  "sequence": 12,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "dc13201c666f373555da8ed261992fcb12b53d922782d85b96c917bc90b8a19c",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "92a834b1-d774-44b3-b4e0-7ec69c0e3dc4/call_29",
+                  "sequence": 13,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "21021b651ba9f4600b153b282b0fca6975e620a836dd29dca4db2d9bf8178b2e",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "158679f5-318f-49ec-bd8a-e5b807d75b80",
+                  "sequence": 14,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "b0dfb9b51a900b868e780b048cd84e4dc9af8b3141854d29abd2b920a9868977",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "55ebb813-03cc-4472-a67c-3215bb145afb",
+                  "sequence": 15,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "dcbffe1c625b7e77224c6a896019e6ec8122f9abd8c0780299e2c176fdbc79a3",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6ea5d33b-d550-46ae-96a0-33c57d77c653/call_31",
+                  "sequence": 16,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "95ad0a136b8e22eb94cb38cf288293f228bcf9ca177ed54f4a40449ce070de7b",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "f385e14e-a56d-4fc3-83ee-558d673d3b47/call_33",
+                  "sequence": 17,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "6430531f2fb92e94e0c2ae32dde9a245919eebf4c4ee135ea44473b0b65b47fa",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "2f8b23e1-36dc-4fb6-84ae-c5e22b302c8f",
+                  "sequence": 18,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "992213c29ac4acc1f61764f478d8f62ae45125f52c935ab7492ea5f68a8065b7",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d4f3722a-0a8e-4388-bc24-50b2d49c8cad",
+                  "sequence": 19,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "293aca93d9f71377b0c95050758e0d7319ba5b223f2ace1a57fa1624d149958a",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3dbb72f5-76eb-4f3b-ab54-6ceaaf18af94",
+                  "sequence": 20,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e760e32ab19bffc9cfceeb56ffe9f303a8db5e2b664385be43bcb27d944efd43",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "cbc4a5c0-eff1-44ea-bc1a-5d6fbb5e69c7/call_38",
+                  "sequence": 21,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted",
+            "admitted",
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 441,
+          "mode": "inactive",
+          "id": "9d91a264-355f-463c-8938-2a5a99e527dc",
+          "revision": 21,
+          "generation": 4,
+          "submissions": [
+            {
+              "text": "Add greeting",
+              "state": {
+                "kind": "applied",
+                "resolution": "47a0ce7f-eeb8-4406-a513-6c6116b23bc3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Use French, please.",
+              "state": {
+                "kind": "applied",
+                "resolution": "206d2b9b-6600-4060-8c33-0336a1aef4b9"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "The report may need external service data.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Yes, that read-only access is fine.",
+              "state": {
+                "kind": "applied",
+                "resolution": "787eb63d-17c4-4382-b3eb-6ec209c40666"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Preserve dispatch race",
+              "state": {
+                "kind": "applied",
+                "resolution": "0dccee9c-2e1a-49b0-aba7-e30c673917d3"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "A task while busy",
+              "state": {
+                "kind": "applied",
+                "resolution": "b2d1536a-011f-4893-8a6a-1727da2b42ed"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "Another independent task",
+              "state": {
+                "kind": "applied",
+                "resolution": "e65dbdc3-723e-4a07-8d70-472d993de3e3"
+              },
+              "originIntent": {
+                "kind": "unclassified"
+              }
+            },
+            {
+              "text": "Saved before off",
+              "state": {
+                "kind": "applied",
+                "resolution": "5cd7d6f4-3e71-4eec-908c-ef9bf8e1b56b"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "66256b2ab97bdd864a015d35f5183739b7162b8342f2eb26534b191aadf0fd11",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d9f60950-baf0-4952-81f4-726b317cdcb5",
+                  "sequence": 1,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "c2baf38d3153c015e6e82728582155f1c976ac4dc0c46f67977833e4165de5d9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "80d0ccf7-258e-400b-862f-70105eed30cf",
+                  "sequence": 2,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "705aa1facae341c6011c8c60695cf8a5bfd8a3b41a9a7fa6387a6be348ff67ed",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "72fb3c5f-590e-4f38-af68-c178a7f383bc",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "c414592d8194cef774b1b9d74b01a0221653d39ba0bcbc81b306aeb52fbe4092",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d67fd458-c487-4071-8271-9df94c0a9ada/call_19",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "78ad099f58b96c072c13ee60766c42c0dd24a7d733a437481765d59697084f66",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a59d4418-a94c-452a-bb13-fdb02da1fb93",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "968c55d21bc3762bbcde9d8d65e2388829e3699f88e1d2c55caadcca55ce8923",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "c0da6692-4064-4e30-ae9b-fb42f6e4f394",
+                  "sequence": 6,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "1fbc2740e364c5a65ae8fdf9bca15418853c805f9abfa3ecef0a776afaa44905",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6e4e584e-baac-4325-ac03-48d2723357b5/call_22",
+                  "sequence": 7,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a9684d15391b7fcea9a711375162d93ed799d5c88da34ed2bfd5997298c83603",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "a0c53773-e613-46e3-b034-a4efa5926dc0",
+                  "sequence": 8,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e51ba46087128f848f89d907d21f52c91323e7cf5411310fc1bbe3c8053144ce",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "19d4ad11-f4a1-4cfa-97c7-485b9f0831f7/call_24",
+                  "sequence": 9,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "349e1d0ae24c6a1ce48e0a7c0acfb22852868540024b12a843e6fc2660cd0b11",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "14ca4dba-5d35-45b1-b395-eeda0b631b28",
+                  "sequence": 10,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0624bc9a2fae17195f30e03037f6ea6598684ccbc39affa7c708e46768df6e15",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3b459145-2e1c-45f7-94e6-9e11e6246d9f/call_26",
+                  "sequence": 11,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "a31d025deeb55b09fe505e114b7a934431af0d8941e5b9eeecdaef32b4061680",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "93ad3c7e-577e-4d92-a96f-392e5469b0ec",
+                  "sequence": 12,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "dc13201c666f373555da8ed261992fcb12b53d922782d85b96c917bc90b8a19c",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "92a834b1-d774-44b3-b4e0-7ec69c0e3dc4/call_29",
+                  "sequence": 13,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "21021b651ba9f4600b153b282b0fca6975e620a836dd29dca4db2d9bf8178b2e",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "158679f5-318f-49ec-bd8a-e5b807d75b80",
+                  "sequence": 14,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "b0dfb9b51a900b868e780b048cd84e4dc9af8b3141854d29abd2b920a9868977",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "55ebb813-03cc-4472-a67c-3215bb145afb",
+                  "sequence": 15,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "dcbffe1c625b7e77224c6a896019e6ec8122f9abd8c0780299e2c176fdbc79a3",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "6ea5d33b-d550-46ae-96a0-33c57d77c653/call_31",
+                  "sequence": 16,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "95ad0a136b8e22eb94cb38cf288293f228bcf9ca177ed54f4a40449ce070de7b",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "f385e14e-a56d-4fc3-83ee-558d673d3b47/call_33",
+                  "sequence": 17,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "6430531f2fb92e94e0c2ae32dde9a245919eebf4c4ee135ea44473b0b65b47fa",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "2f8b23e1-36dc-4fb6-84ae-c5e22b302c8f",
+                  "sequence": 18,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "992213c29ac4acc1f61764f478d8f62ae45125f52c935ab7492ea5f68a8065b7",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "d4f3722a-0a8e-4388-bc24-50b2d49c8cad",
+                  "sequence": 19,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "293aca93d9f71377b0c95050758e0d7319ba5b223f2ace1a57fa1624d149958a",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "3dbb72f5-76eb-4f3b-ab54-6ceaaf18af94",
+                  "sequence": 20,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "e760e32ab19bffc9cfceeb56ffe9f303a8db5e2b664385be43bcb27d944efd43",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "9d91a264-355f-463c-8938-2a5a99e527dc",
+                  "requestKey": "cbc4a5c0-eff1-44ea-bc1a-5d6fbb5e69c7/call_38",
+                  "sequence": 21,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "inactive",
+            "inactive",
+            "inactive",
+            "inactive",
+            "inactive"
+          ]
+        }
+      ],
+      "errors": [
+        {
+          "type": "extension_error",
+          "extensionPath": "<runtime>",
+          "event": "send_user_message",
+          "error": "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message."
+        }
+      ],
+      "models": [
+        {
+          "id": "controlled",
+          "name": "Controlled fixture",
+          "api": "openai-completions",
+          "provider": "fixture",
+          "baseUrl": "http://127.0.0.1:33407/v1",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 200000,
+          "maxTokens": 4096
+        },
+        {
+          "id": "controlled",
+          "name": "Controlled fixture",
+          "api": "openai-completions",
+          "provider": "fixture",
+          "baseUrl": "http://127.0.0.1:33407/v1",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 200000,
+          "maxTokens": 4096
+        },
+        {
+          "id": "controlled",
+          "name": "Controlled fixture",
+          "api": "openai-completions",
+          "provider": "fixture",
+          "baseUrl": "http://127.0.0.1:33407/v1",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 200000,
+          "maxTokens": 4096
+        },
+        {
+          "id": "controlled",
+          "name": "Controlled fixture",
+          "api": "openai-completions",
+          "provider": "fixture",
+          "baseUrl": "http://127.0.0.1:33407/v1",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 200000,
+          "maxTokens": 4096
+        }
+      ]
+    },
+    {
+      "inputTexts": [
+        " Fix literal label  ",
+        "  status \n"
+      ],
+      "inactiveNoticeIndices": [
+        74,
+        86
+      ],
+      "agentStartIndices": [
+        5,
+        41
+      ],
+      "agentSettledIndices": [
+        33,
+        67
+      ],
+      "states": [
+        {
+          "recordIndex": 34,
+          "mode": "active",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 2,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 36,
+          "mode": "active",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 2,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 68,
+          "mode": "active",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 4,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "  status \n",
+              "state": {
+                "kind": "applied",
+                "resolution": "00792087-89e2-472b-9647-da89f9c53d0c"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "13c8e913700be78ee4b00eab62674a8d659cf9f8e721635362369dfb7fded542",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "78867b19-40c1-42aa-ba5e-57bde8e2f69f",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "cc75678cdaecc835e5a147f30c92a56984de67bcd08264a1b76f83b2701de5e9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "9eded358-f70c-41ae-b633-545e728809dd/call_42",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 70,
+          "mode": "active",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 4,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "  status \n",
+              "state": {
+                "kind": "applied",
+                "resolution": "00792087-89e2-472b-9647-da89f9c53d0c"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "13c8e913700be78ee4b00eab62674a8d659cf9f8e721635362369dfb7fded542",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "78867b19-40c1-42aa-ba5e-57bde8e2f69f",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "cc75678cdaecc835e5a147f30c92a56984de67bcd08264a1b76f83b2701de5e9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "9eded358-f70c-41ae-b633-545e728809dd/call_42",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 72,
+          "mode": "active",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 4,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "  status \n",
+              "state": {
+                "kind": "applied",
+                "resolution": "00792087-89e2-472b-9647-da89f9c53d0c"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "13c8e913700be78ee4b00eab62674a8d659cf9f8e721635362369dfb7fded542",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "78867b19-40c1-42aa-ba5e-57bde8e2f69f",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "cc75678cdaecc835e5a147f30c92a56984de67bcd08264a1b76f83b2701de5e9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "9eded358-f70c-41ae-b633-545e728809dd/call_42",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 77,
+          "mode": "inactive",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 4,
+          "generation": 1,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "  status \n",
+              "state": {
+                "kind": "applied",
+                "resolution": "00792087-89e2-472b-9647-da89f9c53d0c"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "13c8e913700be78ee4b00eab62674a8d659cf9f8e721635362369dfb7fded542",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "78867b19-40c1-42aa-ba5e-57bde8e2f69f",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "cc75678cdaecc835e5a147f30c92a56984de67bcd08264a1b76f83b2701de5e9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "9eded358-f70c-41ae-b633-545e728809dd/call_42",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "inactive",
+            "inactive"
+          ]
+        },
+        {
+          "recordIndex": 82,
+          "mode": "active",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 5,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "  status \n",
+              "state": {
+                "kind": "applied",
+                "resolution": "00792087-89e2-472b-9647-da89f9c53d0c"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "13c8e913700be78ee4b00eab62674a8d659cf9f8e721635362369dfb7fded542",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "78867b19-40c1-42aa-ba5e-57bde8e2f69f",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "cc75678cdaecc835e5a147f30c92a56984de67bcd08264a1b76f83b2701de5e9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "9eded358-f70c-41ae-b633-545e728809dd/call_42",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0e99c85508773945d04a23942297988200381f1129ce05134e6b7aa758e93b85",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "67da02ed-a47e-4549-987e-5f9afd8cf4ee",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted"
+          ]
+        },
+        {
+          "recordIndex": 84,
+          "mode": "active",
+          "id": "e6c71e55-703f-4a19-8447-c3054224336c",
+          "revision": 5,
+          "generation": 2,
+          "submissions": [
+            {
+              "text": " Fix literal label  ",
+              "state": {
+                "kind": "applied",
+                "resolution": "11a9b5b8-7156-4f17-9ca9-c283bd043c22"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            },
+            {
+              "text": "  status \n",
+              "state": {
+                "kind": "applied",
+                "resolution": "00792087-89e2-472b-9647-da89f9c53d0c"
+              },
+              "originIntent": {
+                "kind": "new-task"
+              }
+            }
+          ],
+          "receipts": [
+            {
+              "fingerprint": "21d9d3d5fd63323cec04c1e37108d6b096bcb67f3e0723da28486a8f1cadbd8b",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "606c4656-00f8-4f13-86a1-0de6ecf9e690",
+                  "sequence": 1,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "21f05305aad677c1456c8d68c726132036a09d35af7cd7fbfa603cd7e7323089",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "56e0d32c-9692-45ed-92db-d9dbaeb5ac11/call_40",
+                  "sequence": 2,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "13c8e913700be78ee4b00eab62674a8d659cf9f8e721635362369dfb7fded542",
+              "result": {
+                "kind": "saved",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "78867b19-40c1-42aa-ba5e-57bde8e2f69f",
+                  "sequence": 3,
+                  "message": "Saved for interpretation. Intake only. Command text only. Attachments were not captured."
+                }
+              }
+            },
+            {
+              "fingerprint": "cc75678cdaecc835e5a147f30c92a56984de67bcd08264a1b76f83b2701de5e9",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "9eded358-f70c-41ae-b633-545e728809dd/call_42",
+                  "sequence": 4,
+                  "message": "Saved for interpretation. Intake only."
+                }
+              }
+            },
+            {
+              "fingerprint": "0e99c85508773945d04a23942297988200381f1129ce05134e6b7aa758e93b85",
+              "result": {
+                "kind": "applied",
+                "receipt": {
+                  "legatus": "e6c71e55-703f-4a19-8447-c3054224336c",
+                  "requestKey": "67da02ed-a47e-4549-987e-5f9afd8cf4ee",
+                  "sequence": 5,
+                  "message": "Legion is active. Intake only."
+                }
+              }
+            }
+          ],
+          "eligibility": [
+            "admitted",
+            "admitted"
+          ]
+        }
+      ],
+      "errors": [],
+      "models": []
+    }
+  ]
+}

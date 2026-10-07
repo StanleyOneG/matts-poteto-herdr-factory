@@ -5,7 +5,12 @@ import {
   openSync,
   fsyncSync,
   closeSync,
+  readFileSync,
+  writeSync,
+  linkSync,
+  unlinkSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
@@ -191,73 +196,251 @@ function syncDirectory(path: string) {
     closeSync(fd);
   }
 }
+export type StorageFaultPoint =
+  | "before-commit"
+  | "after-commit"
+  | "route-opened"
+  | "before-route-publish"
+  | "after-route-publish"
+  | "after-bootstrap-commit"
+  | "before-initialized-publish"
+  | "after-initialized-publish";
+export function createSnapshot(input: {
+  id: string;
+  context: string;
+}): LegatusSnapshot {
+  return SnapshotSchema.parse({
+    version: 1,
+    ...input,
+    revision: 0,
+    generation: 0,
+    attachments: [],
+    submissions: [],
+    tasks: [],
+    decisions: [],
+    amendments: [],
+    resolutions: [],
+    receipts: [],
+  });
+}
+const Initialized = z.object({
+  version: z.literal(1),
+  kind: z.literal("initialized"),
+  id: LegatusId,
+  context: z.string(),
+}).strict();
+const Route = z.object({
+  version: z.literal(1),
+  id: LegatusId,
+  context: z.string(),
+  session: z.string(),
+  kind: z.enum(["initial", "alias"]),
+}).strict();
+type Route = z.infer<typeof Route>;
+const digest = (text: string) => createHash("sha256").update(text).digest("hex");
 export class SnapshotStore {
   constructor(
     private root: string,
-    private fault?: (point: "before-commit" | "after-commit") => void,
+    private fault?: (point: StorageFaultPoint) => void,
   ) {}
-  exists(id: string) {
-    return existsSync(join(this.root, `${LegatusId.parse(id)}.sqlite`));
+  private path(id: string, suffix: string) {
+    return join(this.root, `v1.${LegatusId.parse(id)}.${suffix}`);
   }
-  async recover(
-    id: string,
+  private prefix(context: string, session: string) {
+    return `v1.${digest(context)}.${digest(session)}.`;
+  }
+  private routeName(route: Route) {
+    return `${this.prefix(route.context, route.session)}${route.id}.${route.kind}.route`;
+  }
+  private route(file: string): Route {
+    const route = Route.parse(
+      JSON.parse(readFileSync(join(this.root, file), "utf8")),
+    );
+    if (this.routeName(route) !== file.replace(/\.pending$/, ""))
+      throw new Error("Routing content does not match its identity filename.");
+    return route;
+  }
+  private files() {
+    return existsSync(this.root) ? readdirSync(this.root) : [];
+  }
+  private identity(id: string, recovery = false): Route {
+    const names = this.files();
+    const suffix = `.${LegatusId.parse(id)}.initial.route`;
+    let files = names.filter(file => file.endsWith(suffix));
+    if (!files.length && recovery)
+      files = names.filter(file => file.endsWith(`${suffix}.pending`));
+    if (!files.length && existsSync(join(this.root, `${id}.sqlite`)))
+      throw new Error("Unsupported development storage layout. Existing files are preserved; no automatic upgrade is supported.");
+    if (files.length !== 1)
+      throw new Error(`Creation identity unavailable for ${id}. Explicit recovery is required.`);
+    const file = files[0];
+    if (!file) throw new Error("Creation identity missing.");
+    const route = this.route(file);
+    if (route.id !== id || route.kind !== "initial")
+      throw new Error("Invalid creation identity.");
+    return route;
+  }
+  private publishFile(
+    file: string, content: string, route: boolean, owned: () => boolean,
+  ) {
+    if (!owned()) throw new Error("Ownership was revoked before identity publication.");
+    const final = join(this.root, file);
+    const pending = `${final}.pending`;
+    for (const path of [final, pending])
+      if (existsSync(path) && readFileSync(path, "utf8") !== content)
+        throw new Error("Immutable identity publication changed or is incomplete.");
+    if (!existsSync(final) && !existsSync(pending)) {
+      const fd = openSync(pending, "wx", 0o600);
+      try {
+        syncDirectory(this.root);
+        if (route) this.fault?.("route-opened");
+        if (!owned()) throw new Error("Ownership was revoked before writing identity.");
+        writeSync(fd, content);
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+      syncDirectory(this.root);
+    }
+    if (!existsSync(final)) {
+      this.fault?.(route ? "before-route-publish" : "before-initialized-publish");
+      if (!owned()) throw new Error("Ownership was revoked before publishing identity.");
+      linkSync(pending, final);
+      syncDirectory(this.root);
+      this.fault?.(route ? "after-route-publish" : "after-initialized-publish");
+    }
+    if (existsSync(pending)) {
+      if (!owned()) throw new Error("Ownership was revoked before reconciling publication.");
+      unlinkSync(pending);
+      syncDirectory(this.root);
+    }
+  }
+  private publish(route: Route, owned: () => boolean) {
+    this.publishFile(this.routeName(route), JSON.stringify(route), true, owned);
+  }
+  private initialized(identity: Route) {
+    const path = this.path(identity.id, "initialized");
+    if (!existsSync(path)) return false;
+    const marker = Initialized.parse(JSON.parse(readFileSync(path, "utf8")));
+    if (marker.id !== identity.id || marker.context !== identity.context)
+      throw new Error("Initialization identity mismatch.");
+    return true;
+  }
+  private async bootstrap(
+    identity: Route,
     owned: () => boolean,
-  ): Promise<LegatusSnapshot | null> {
-    if (!this.exists(id)) return null;
+  ): Promise<LegatusSnapshot> {
+    if (!owned()) throw new Error("Ownership was revoked before initialization.");
     const DB = await sqlite();
-    if (!owned()) throw new Error("Ownership was revoked before recovery.");
-    const db = new DB(join(this.root, `${LegatusId.parse(id)}.sqlite`));
+    if (!owned()) throw new Error("Ownership was revoked before opening initialization storage.");
+    const db = new DB(this.path(identity.id, "sqlite"));
+    let state: LegatusSnapshot;
     try {
       db.exec("PRAGMA synchronous=FULL; PRAGMA journal_mode=DELETE");
-      const row = z
-        .object({ value: z.string() })
-        .parse(
+      const tables = z.array(z.object({ name: z.string() })).parse(
+        db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all(),
+      );
+      if (tables.length === 0 && !this.initialized(identity)) {
+        state = createSnapshot({ id: identity.id, context: identity.context });
+        db.exec("BEGIN IMMEDIATE; CREATE TABLE snapshot (singleton INTEGER PRIMARY KEY CHECK(singleton=1), value TEXT NOT NULL)");
+        db.prepare("INSERT INTO snapshot VALUES(1, ?)").run(JSON.stringify(state));
+        if (!owned()) throw new Error("Ownership was revoked before bootstrap commit.");
+        db.exec("COMMIT");
+        syncDirectory(this.root);
+        this.fault?.("after-bootstrap-commit");
+      } else {
+        if (tables.length !== 1 || tables[0]?.name !== "snapshot")
+          throw new Error("Initialized snapshot table is missing or corrupt. History cannot be reset.");
+        const row = z.object({ value: z.string() }).parse(
           db.prepare("SELECT value FROM snapshot WHERE singleton=1").get(),
         );
-      return SnapshotSchema.parse(JSON.parse(row.value));
+        state = SnapshotSchema.parse(JSON.parse(row.value));
+        if (state.id !== identity.id || state.context !== identity.context)
+          throw new Error("Snapshot identity does not match routing.");
+        if (
+          !this.initialized(identity) &&
+          JSON.stringify(state) !== JSON.stringify(
+            createSnapshot({ id: identity.id, context: identity.context }),
+          )
+        )
+          throw new Error("Unmarked snapshot is not a recognized initial bootstrap. History cannot be reset.");
+      }
     } finally {
       db.close();
     }
+    if (!owned()) throw new Error("Ownership was revoked before initialization publication.");
+    const marker = Initialized.parse({
+      version: 1,
+      kind: "initialized",
+      id: identity.id,
+      context: identity.context,
+    });
+    this.publishFile(
+      `v1.${identity.id}.initialized`, JSON.stringify(marker), false, owned,
+    );
+    return state;
+  }
+  exists(id: string) {
+    const valid = LegatusId.parse(id);
+    return existsSync(this.path(valid, "sqlite")) ||
+      this.files().some(file => file.includes(`.${valid}.`) && file.includes(".route")) ||
+      existsSync(join(this.root, `${valid}.sqlite`));
+  }
+  async recover(
+    id: string,
+    context: string,
+    owned: () => boolean,
+  ): Promise<LegatusSnapshot | null> {
+    if (!this.exists(id)) return null;
+    if (!owned()) throw new Error("Ownership was revoked before recovery.");
+    const identity = this.identity(id, true);
+    if (identity.context !== context)
+      throw new Error("Recovery context does not match creation identity.");
+    this.publish(identity, owned);
+    return this.bootstrap(identity, owned);
   }
   async read(id: string): Promise<LegatusSnapshot | null> {
-    const valid = LegatusId.parse(id);
-    const path = join(this.root, `${valid}.sqlite`);
-    if (!existsSync(path)) return null;
+    if (!this.exists(id)) return null;
+    const identity = this.identity(id);
+    if (!this.initialized(identity))
+      throw new Error(`Initial creation is incomplete. Explicitly resume ${id}.`);
+    const path = this.path(id, "sqlite");
+    if (!existsSync(path))
+      throw new Error(`Snapshot unavailable for ${id}. Explicit recovery is required.`);
     const DB = await sqlite();
     const db = new DB(path, { readOnly: true });
     try {
       db.exec("PRAGMA query_only=ON");
-      const row = z
-        .object({ value: z.string() })
-        .parse(
-          db.prepare("SELECT value FROM snapshot WHERE singleton=1").get(),
-        );
-      return SnapshotSchema.parse(JSON.parse(row.value));
+      const row = z.object({ value: z.string() }).parse(
+        db.prepare("SELECT value FROM snapshot WHERE singleton=1").get(),
+      );
+      const state = SnapshotSchema.parse(JSON.parse(row.value));
+      if (state.id !== id || state.context !== identity.context)
+        throw new Error("Snapshot identity does not match routing.");
+      return state;
     } finally {
       db.close();
     }
   }
-  async find(
-    session: string,
-    context: string,
-  ): Promise<LegatusSnapshot | null> {
-    if (!existsSync(this.root)) return null;
-    const matches: LegatusSnapshot[] = [];
-    for (const file of readdirSync(this.root).filter((f) =>
-      /^[0-9a-f-]+\.sqlite$/.test(f),
-    )) {
-      const state = await this.read(file.slice(0, -7));
-      if (
-        state?.context === context &&
-        state.attachments.some((a) => a.session === session)
-      )
-        matches.push(state);
+  async find(session: string, context: string): Promise<LegatusSnapshot | null> {
+    const files = this.files().filter(file => file.startsWith(this.prefix(context, session)));
+    const ids = new Set<string>();
+    for (const file of files) {
+      if (file.endsWith(".pending"))
+        throw new Error(`Routing publication unavailable. Explicit recovery is required. ${file}`);
+      const route = this.route(file);
+      if (route.context !== context || route.session !== session)
+        throw new Error("Routing identity mismatch.");
+      ids.add(route.id);
     }
-    if (matches.length > 1)
-      throw new Error(
-        "Multiple Legati are attached. Use status <id> or resume <id>.",
-      );
-    return matches[0] ?? null;
+    if (ids.size > 1)
+      throw new Error("Multiple Legati are attached. Use status <id> or resume <id>.");
+    const id = ids.values().next().value;
+    if (!id) return null;
+    const state = await this.read(id);
+    if (!state || !state.attachments.some(a => a.session === session))
+      throw new Error(`Attachment is not committed. Explicitly resume ${id}.`);
+    return state;
   }
   async acquire(id: string): Promise<DatabaseSync> {
     LegatusId.parse(id);
@@ -266,11 +449,9 @@ export class SnapshotStore {
     mkdirSync(this.root, { recursive: true, mode: 0o700 });
     syncDirectory(parent);
     const DB = await sqlite();
-    const db = new DB(join(this.root, `${id}.lock`));
+    const db = new DB(this.path(id, "lock"));
     try {
-      db.exec(
-        "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; CREATE TABLE IF NOT EXISTS owner (id INTEGER); BEGIN EXCLUSIVE",
-      );
+      db.exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; CREATE TABLE IF NOT EXISTS owner (id INTEGER); BEGIN EXCLUSIVE");
       syncDirectory(this.root);
       return db;
     } catch (error) {
@@ -285,24 +466,30 @@ export class SnapshotStore {
   ) {
     const DB = await sqlite();
     if (!owned()) throw new Error("Ownership was revoked.");
-    const db = new DB(join(this.root, `${state.id}.sqlite`));
+    const session = state.attachments.at(-1)?.session;
+    if (!session) throw new Error("No session attachment to publish.");
+    if (expected === null)
+      this.publish(Route.parse({
+        version: 1, id: state.id, context: state.context, session, kind: "initial",
+      }), owned);
+    const identity = this.identity(state.id);
+    if (identity.context !== state.context)
+      throw new Error("Creation context mismatch.");
+    if (!this.initialized(identity)) await this.bootstrap(identity, owned);
+    if (!owned()) throw new Error("Ownership was revoked before attachment publication.");
+    if (session !== identity.session)
+      this.publish(Route.parse({ ...identity, session, kind: "alias" }), owned);
+    const db = new DB(this.path(state.id, "sqlite"));
     try {
-      db.exec(
-        "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS snapshot (singleton INTEGER PRIMARY KEY CHECK(singleton=1), value TEXT NOT NULL)",
-      );
-      const row = db
-        .prepare("SELECT value FROM snapshot WHERE singleton=1")
-        .get();
+      db.exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; BEGIN IMMEDIATE");
+      const row = db.prepare("SELECT value FROM snapshot WHERE singleton=1").get();
       const revision = row
         ? SnapshotSchema.parse(
             JSON.parse(z.object({ value: z.string() }).parse(row).value),
           ).revision
         : null;
-      if (revision !== expected)
-        throw new Error("Aggregate revision changed. Reopen state.");
-      db.prepare("INSERT OR REPLACE INTO snapshot VALUES(1, ?)").run(
-        JSON.stringify(state),
-      );
+      if (revision !== (expected ?? 0)) throw new Error("Aggregate revision changed. Reopen state.");
+      db.prepare("INSERT OR REPLACE INTO snapshot VALUES(1, ?)").run(JSON.stringify(state));
       this.fault?.("before-commit");
       if (!owned()) throw new Error("Ownership was revoked before commit.");
       db.exec("COMMIT");

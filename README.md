@@ -29,6 +29,8 @@ Tab completion exposes these arguments.
 | `/legion off` | Revoke intake authority immediately and preserve records. No worker draining is implemented. |
 | `/legion resume <id>` | Explicitly reopen intake under exclusive ownership. Reconcile interrupted storage if needed, then retry pending interpretation once. No factory reconciliation or execution is implemented. |
 
+Reserved arguments accept extra separator whitespace without changing their meaning. Status and doctor remain observation-only. Direct task text remains verbatim. For `task`, one separator after the keyword is structural; further whitespace belongs to the saved payload. Pi 1.0.4 splits slash commands at an ASCII space. Use a space after `/legion`; tabs are supported in the remaining arguments.
+
 A task-bearing command with failed prerequisites saves its text when storage is available, reports "Saved, not admitted," and remains inactive. A storage failure cannot issue a successful receipt.
 
 Pi 1.0.4 does not expose attachment metadata to slash-command handlers. Every task-bearing command receipt explicitly says it saved command text only and did not capture attachments. Do not attach images to task-bearing commands. Ordinary active input with visible images is rejected before a success receipt. Restate the needed information as text.
@@ -57,7 +59,13 @@ Pi extensions are trusted in-process code with filesystem access. Legion is not 
 
 Presentation evidence uses already appended, displayed decision messages on the active Pi branch. A message merely queued for later display is not evidence. This establishes what the host presented, not proof that a human read it. The model can still misunderstand a conversational answer. The runtime checks provenance, revisions, permitted effects, and exact amendment identity. It cannot prove arbitrary language meaning. T01 performs no external execution.
 
-Snapshots live under `<Pi agent directory>/legion`, not in Git or only in the Pi journal. SQLite uses rollback journaling and `synchronous=FULL`. A separate lifetime lock prevents competing owners. No PID or elapsed-time lock stealing occurs. Restart, session replacement, and fork remain inactive. Explicit resume retains the logical Legatus ID and advances its ownership generation.
+Snapshots live under `<Pi agent directory>/legion`, not in Git or only in the Pi journal. The current storage layout uses `v1.` filenames, one SQLite snapshot and lifetime lock per Legatus, immutable context/session routing records, and initialization evidence. Discovery selects the relevant routing filenames before opening a snapshot. A damaged Legatus does not block unrelated contexts or independent sessions. A matching damaged record remains unavailable until explicit recovery. An alias route is only a candidate; it does not grant an attachment or active authority.
+
+Creation publishes its identity before committing an empty bootstrap snapshot and durable initialization evidence. Task records and receipts follow that initialization. Explicit recovery can finish a recognized interrupted creation without replacing its Legatus ID. It never invents task text that did not commit. Inspect status before resubmitting an unacknowledged input. Malformed or incomplete identity metadata fails closed and requires operator investigation. An initialized snapshot with missing or corrupt data cannot be reset as a new creation.
+
+The earlier unpublished development layout is not automatically upgraded. Its files remain untouched and explicit access reports unsupported layout. Do not treat current-format discovery as migration of old records.
+
+SQLite uses rollback journaling and `synchronous=FULL`. The lifetime lock prevents competing owners. No PID or elapsed-time lock stealing occurs. Restart, session replacement, and fork remain inactive. Explicit resume retains the logical Legatus ID and advances its ownership generation.
 
 A receipt follows commit. An uncertain result includes its request key and reconciliation guidance. Observe status and the receipt before resuming or retransmitting. Status never repairs a hot journal. Explicit resume can recover it under exclusive ownership. The same request key and payload reconciles a committed result through the public module. Equal text submitted with two different keys is two submissions. Pi input has no stable transport delivery ID, so blind client retransmission is not exactly-once.
 
@@ -86,4 +94,4 @@ The trial requires Node's supported `--use-env-proxy` switch, that exact configu
 
 Process-kill tests cover SQLite cache-spill writes, acknowledgments, competing ownership, and read-only preservation on this local filesystem. They do not prove power-loss durability on other filesystems.
 
-The canonical decision trail is [t01-decisions.tsv](docs/verification/t01-decisions.tsv). [The remediation report](docs/verification/remediation-results.md) identifies the latest checked files and residual risks. [The earlier verification report](docs/verification/t01-results.md) preserves the recovery history. The adapter slice has an explicitly approved retrospective TDD sequencing exception. Earlier public-seam slices and later defect fixes retain their actual red-green evidence. Independent review belongs to the parent session.
+The canonical decision trail is [t01-decisions.tsv](docs/verification/t01-decisions.tsv). [The final corrections report](docs/verification/final-fixes-results.md) identifies the latest checked files and residual risks. [The preceding remediation report](docs/verification/remediation-results.md) preserves its result identity and representative-provider evidence. [The earlier verification report](docs/verification/t01-results.md) preserves the recovery history. The adapter slice has an explicitly approved retrospective TDD sequencing exception. Earlier public-seam slices and later defect fixes retain their actual red-green evidence. Independent review belongs to the parent session.

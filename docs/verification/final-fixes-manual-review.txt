@@ -1,0 +1,17 @@
+Writer self-review, 2026-10-07
+Baseline: c0ecd1f41854bd56a6450bc4769bc52b7e4574a7
+Reviewed actual source/verifier diff, both new test files, README, report, and retained red/green output. Read deslop again before staging. No new comments, any casts, suppressions, duplicated command parser, mutable global registry, ownership takeover, layout migration, or execution stage added.
+
+39 tests passed without skips; typecheck and build passed. Actual Pi 1.0.4 / Node 22.23.1 verification passed 17 RPC/TUI groups with 43 controlled-provider requests. Full actual runtime records: /tmp/legion-pi-lHkZb3/rpc.json and tui.txt.
+
+Inspected actual notified public states: initial active revision 1, generation 1, one receipt and zero inputs remain identical through repeated whitespace observations. No agent_start occurs before the last such observation. Repeated explicit on later creates its legitimate second receipt; that mutation is not mislabeled an observation. The main client has 11 starts and 11 settlements, 13 inactive notices, and the single intentionally injected uncorrelated delivery error. Literal client has two starts and two settlements with exact saved sources: leading-space ' Fix literal label  ' and escaped '  status \n'. Off and whitespace resume preserve both inputs.
+
+Inspected actual terminal: command completion and English doctor are present; no Emperor decision is republished between off and resume; resumed ordinary 'Use French, please.' resolves the existing question and the task becomes admitted. Retained terminal padding is unchanged raw evidence.
+
+Crash tests use SIGKILL of test-owned processes, actual saved receipts, public state/command results, and byte comparisons. Empty/malformed metadata, initialized corruption, unknown fields, uncommitted aliases, and ambiguous candidates remain unavailable. Public off during metadata callbacks prevents post-revocation writing or publication. No unacknowledged original text is invented by recovery.
+
+Prior representative-provider result matches its original /tmp/legion-provider-m0qXHe/result.json artifact; its test agent directory remains absent. It is still evidence for c0ecd1f, not a newly executed trial. Model instructions, proposal schemas, public snapshot and submit shape, and ordinary-answer validation are unchanged. No credentialed trial, auth copy, refresh, selected-model change, endpoint/transport change, fallback runner, or machine permission change occurred in these corrections.
+
+Historical integration-prevalidation.sha256 and tdd-exception.md are unchanged against baseline. Prevalidation file hash remains 2aa7ac5fd07f68547480c0567caca4dcfcbc77139875f91f17d6fd37a04e6385. The final implementation manifest validates all 16 entries. Authored files pass diff whitespace checks; terminal evidence retains real padding.
+
+No blocker found in writer self-review. Remaining risks: malformed initial metadata requires operator investigation; old unpublished layout is unsupported and preserved; local SIGKILL checks do not establish power-loss safety; prior provider sample does not prove universal natural-language semantics; existing Pi provenance/attachment/host-failure and Herdr skill limitations remain. Fresh-context independent changed-result review and final T01 acceptance remain parent-owned.

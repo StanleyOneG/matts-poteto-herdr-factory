@@ -3,6 +3,8 @@ import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
   SnapshotStore,
+  createSnapshot,
+  type StorageFaultPoint,
   SnapshotSchema,
   LegatusId,
   SubmissionId,
@@ -116,12 +118,43 @@ export type OperationResult =
   | { kind: "observed"; view: LegionView }
   | { kind: "rejected"; code: string; message: string }
   | { kind: "uncertain"; requestKey: string; message: string };
+type CommandIntent =
+  | { kind: "status"; id: string }
+  | { kind: "doctor" | "on" | "off" }
+  | { kind: "resume"; id: string }
+  | { kind: "task"; text: string }
+  | { kind: "invalid" };
+export type CommandResult = OperationResult & {
+  disposition: "observe" | "off" | "activate" | "resume" | "submit" | "none";
+};
+function commandIntent(text: string): CommandIntent {
+  const match = /^\s*(\S+)(?:\s([\s\S]*))?$/.exec(text);
+  if (!match) return { kind: "on" };
+  const token = match[1];
+  const payload = match[2] ?? "";
+  switch (token) {
+    case "status":
+      return { kind: "status", id: payload.trim() };
+    case "doctor":
+    case "on":
+    case "off":
+      return payload.trim() ? { kind: "invalid" } : { kind: token };
+    case "resume":
+      return /^\S+$/.test(payload.trim())
+        ? { kind: "resume", id: payload.trim() }
+        : { kind: "invalid" };
+    case "task":
+      return payload.trim() ? { kind: "task", text: payload } : { kind: "invalid" };
+    default:
+      return { kind: "task", text };
+  }
+}
 export type LegionOptions = {
   storagePath: string;
   context: string;
   session: string;
   preflight: () => Promise<Diagnostic[]>;
-  storageFault?: (point: "before-commit" | "after-commit") => void;
+  storageFault?: (point: StorageFaultPoint) => void;
 };
 const reject = (code: string, message: string): OperationResult => ({
   kind: "rejected",
@@ -187,24 +220,26 @@ export class Legion {
       };
     }
   }
-  command(raw: unknown): Promise<OperationResult> {
+  command(raw: unknown): Promise<CommandResult> {
     const parsed = Command.safeParse(raw);
     if (!parsed.success)
-      return Promise.resolve(reject("invalid", "Invalid command."));
-    const input = parsed.data;
-    const token = input.text.trim().split(/\s+/)[0];
-    if (
-      (token === "resume" && !/^resume\s+\S+\s*$/.test(input.text)) ||
-      (token === "task" && !input.text.slice(5).trim()) ||
-      ((token === "off" || token === "doctor" || token === "on") &&
-        input.text.trim() !== token)
-    )
-      return Promise.resolve(
-        reject(
-          "usage",
-          "Use on, task <text>, status [id], doctor, off, or resume <id>. Use task to escape reserved arguments.",
-        ),
-      );
+      return Promise.resolve({ ...reject("invalid", "Invalid command."), disposition: "none" });
+    const intent = commandIntent(parsed.data.text);
+    const dispositions = {
+      status: "observe", doctor: "observe", on: "activate", off: "off",
+      resume: "resume", task: "submit", invalid: "none",
+    } satisfies Record<CommandIntent["kind"], CommandResult["disposition"]>;
+    const disposition = dispositions[intent.kind];
+    return this.applyCommand(parsed.data, intent).then(result => ({
+      ...result, disposition: result.kind === "rejected" ? "none" : disposition,
+    }));
+  }
+  private applyCommand(
+    input: z.infer<typeof Command>,
+    intent: CommandIntent,
+  ): Promise<OperationResult> {
+    if (intent.kind === "invalid")
+      return Promise.resolve(reject("usage", "Use on, task <text>, status [id], doctor, off, or resume <id>. Use task to escape reserved arguments."));
     if (
       (input.evidence.origin !== "emperor" &&
         input.evidence.origin !== "host-command") ||
@@ -216,7 +251,7 @@ export class Legion {
           "A trusted host command is required. Host command source may be unavailable.",
         ),
       );
-    if (input.text.trim() === "off") {
+    if (intent.kind === "off") {
       this.revoke();
       return Promise.resolve({
         kind: "observed",
@@ -231,9 +266,8 @@ export class Legion {
     }
     const epoch = this.epoch;
     return this.serialize(async () => {
-      const text = input.text;
-      if (/^status(?: |$)/.test(text)) {
-        const id = text.slice(6).trim();
+      if (intent.kind === "status") {
+        const id = intent.id;
         if (!id) return { kind: "observed", view: await this.state() };
         if (!LegatusId.safeParse(id).success)
           return reject("invalid-id", "Invalid Legatus ID.");
@@ -253,7 +287,7 @@ export class Legion {
           },
         };
       }
-      if (text.trim() === "doctor")
+      if (intent.kind === "doctor")
         return {
           kind: "observed",
           view: {
@@ -264,7 +298,7 @@ export class Legion {
       if (
         this.uncertain &&
         this.uncertain.requestKey !== input.requestKey &&
-        input.text !== `resume ${this.uncertain.id}`
+        !(intent.kind === "resume" && intent.id === this.uncertain.id)
       )
         return reject(
           "reconcile",
@@ -273,10 +307,9 @@ export class Legion {
       const diagnostics = await this.options.preflight();
       if (epoch !== this.epoch)
         return reject("revoked", "Activation was revoked.");
-      const resume = /^resume\s+(.+)$/.exec(text);
-      const isActivation =
-        text.trim() === "" || text.trim() === "on" || !!resume;
-      const taskText = text.startsWith("task ") ? text.slice(5) : text;
+      const resume = intent.kind === "resume" ? intent.id : null;
+      const isActivation = intent.kind === "on" || intent.kind === "resume";
+      const taskText = intent.kind === "task" ? intent.text : "";
       const ready = diagnostics.every((d) => d.status === "ready");
       if (!ready && isActivation) {
         this.revoke();
@@ -285,7 +318,7 @@ export class Legion {
           view: { ...(await this.state()), diagnostics },
         };
       }
-      if (resume && this.binding && resume[1] !== this.selected)
+      if (resume && this.binding && resume !== this.selected)
         return reject(
           "ownership",
           "Turn intake off before resuming a different Legatus.",
@@ -293,14 +326,14 @@ export class Legion {
       let recoveryLock: DatabaseSync | null = null;
       let state: LegatusSnapshot | null;
       if (resume) {
-        const id = resume[1] ?? "";
+        const id = resume;
         if (!LegatusId.safeParse(id).success)
           return reject("invalid-id", "Invalid Legatus ID.");
         if (!this.store.exists(id))
           return reject("not-found", "Legatus records were not found.");
         try {
           if (!this.binding) recoveryLock = await this.store.acquire(id);
-          state = await this.store.recover(id, () => epoch === this.epoch);
+          state = await this.store.recover(id, this.options.context, () => epoch === this.epoch);
           if (state && this.uncertain?.id === state.id) this.uncertain = null;
         } catch (error) {
           if (recoveryLock) {
@@ -312,10 +345,15 @@ export class Legion {
             `Exclusive intake recovery is unavailable. ${String(error)}`,
           );
         }
-      } else
-        state = this.selected
-          ? await this.store.read(this.selected)
-          : await this.store.find(this.options.session, this.options.context);
+      } else {
+        try {
+          state = this.selected
+            ? await this.store.read(this.selected)
+            : await this.store.find(this.options.session, this.options.context);
+        } catch (error) {
+          return reject("unavailable", `Intake records are unavailable. ${String(error)}`);
+        }
+      }
       if (resume && !state)
         return reject("not-found", "Legatus records were not found.");
       if (state && state.context !== this.options.context) {
@@ -331,20 +369,7 @@ export class Legion {
       const expectedRevision = state?.revision ?? null;
       const snapshot =
         state ??
-        SnapshotSchema.parse({
-          version: 1,
-          id: randomUUID(),
-          context: this.options.context,
-          revision: 0,
-          generation: 0,
-          attachments: [],
-          submissions: [],
-          tasks: [],
-          decisions: [],
-          amendments: [],
-          resolutions: [],
-          receipts: [],
-        });
+        createSnapshot({ id: randomUUID(), context: this.options.context });
       const fingerprint = createHash("sha256")
         .update(JSON.stringify(input))
         .digest("hex");

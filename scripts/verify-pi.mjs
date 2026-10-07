@@ -6,6 +6,7 @@ import {
   mkdir,
   writeFile,
   readFile,
+  readdir,
   symlink,
   access,
   rm,
@@ -660,10 +661,28 @@ try {
     "Fixture prerequisites are actually loaded and compatible",
   );
   noTurn(live, observeStart);
+  const whitespaceStart = live.records.length;
+  const whitespaceEntries = (await live.rpc("get_entries")).entries;
+  for (const message of ["/legion  status", "/legion   status   ", "/legion \tstatus\t ", "/legion   doctor   ", "/legion \tdoctor\t"]) {
+    await live.prompt(message);
+    await new Promise(r => setTimeout(r, 100));
+    assert.equal(await live.state(), null, "Whitespace observations must remain inactive without creating intake");
+    noTurn(live, whitespaceStart);
+    assert.deepEqual((await live.rpc("get_entries")).entries, whitespaceEntries, "Whitespace observations do not add conversation entries");
+  }
   await live.prompt("/legion on");
   const active = await live.state();
   assert.equal(active.mode, "active");
-  await live.prompt("/legion on");
+  const activeEntries = (await live.rpc("get_entries")).entries;
+  const activeFiles = await readdir(join(agent, "legion"));
+  const activeBytes = await Promise.all(activeFiles.map(async file => [file, await readFile(join(agent, "legion", file))]));
+  for (const message of ["/legion  status  ", `/legion   status  ${active.snapshot.id}   `, `/legion \tstatus\t${active.snapshot.id}\t`, "/legion  doctor  "]) {
+    await live.prompt(message);
+    assert.deepEqual(await live.state(), active, "Active whitespace observations preserve ownership, receipts, tasks and generation");
+  }
+  assert.deepEqual((await live.rpc("get_entries")).entries, activeEntries);
+  assert.deepEqual(await Promise.all((await readdir(join(agent, "legion"))).map(async file => [file, await readFile(join(agent, "legion", file))])), activeBytes, "Whitespace observations preserve all storage bytes");
+  await live.prompt("/legion \ton \t");
   assert.equal((await live.state()).snapshot.id, active.snapshot.id);
   noTurn(live, observeStart);
   handler = (body) =>
@@ -1088,6 +1107,26 @@ try {
     "real fork revokes intake, stays inactive, and preserves logical records",
   );
   await live.close();
+  handler = body => propose(body, data => ({ kind: "new-task", source: data.sources[0], goal: "Literal retained", acceptance: [], questions: [] }));
+  const literal = client();
+  for (const [message, text] of [["/legion  Fix literal label  ", " Fix literal label  "], ["/legion  \ttask\t  status \n", "  status \n"]]) {
+    const literalStart = literal.records.length;
+    await literal.prompt(message);
+    await until(() => literal.records.slice(literalStart).some(r => r.type === "agent_settled"), "literal command task settles");
+    assert.equal((await literal.state()).snapshot.submissions.at(-1).text, text);
+    assert.equal((await literal.state()).snapshot.submissions.at(-1).originIntent.kind, "new-task");
+  }
+  const literalView = await literal.state();
+  const literalObserveStart = literal.records.length;
+  await literal.prompt("/legion \toff \t");
+  assert.equal((await literal.state()).mode, "inactive");
+  await literal.prompt(`/legion \tresume\t${literalView.snapshot.id}  `);
+  assert.equal((await literal.state()).snapshot.id, literalView.snapshot.id);
+  assert.equal((await literal.state()).snapshot.submissions.length, 2);
+  noTurn(literal, literalObserveStart);
+  await literal.prompt("/legion off");
+  await literal.close();
+  checks.push("real whitespace observations stay model-free and byte-preserving; reserved on/off/resume route consistently; direct and task-escaped literal text remains exact");
 
   await writeFile(join(root, "rpc.json"), JSON.stringify(logs));
   assert.equal(hash(await readFile(hostSettings)), hostBefore);
