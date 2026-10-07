@@ -1,0 +1,3 @@
+(node:1543813) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"passed":true,"root":"/tmp/t02-spec-race-rnAbp4","cuts":70,"held":46,"startedAfterOff":false,"replacement":"rejected while unsettled"}

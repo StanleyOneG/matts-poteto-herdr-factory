@@ -1,0 +1,17 @@
+TAP version 13
+# Subtest: independent processes overlap same-task claims behind a barrier and retain one actual workspace after restart
+not ok 1 - independent processes overlap same-task claims behind a barrier and retain one actual workspace after restart
+  ---
+  duration_ms: 360.391662
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:1:7449'
+  failureType: 'testCodeFailure'
+  error: 'Unexpected end of JSON input'
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    JSON.parse (<anonymous>)
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:317:118)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...

@@ -1,0 +1,5 @@
+(node:1544035) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"offMode":"stopping","unavailable":"Error: file is not a database","gitPending":true,"root":"/tmp/t02-spec-race-3daqFI"}
+{"afterRestoringReadableSnapshot":"stopping"}
+{"passed":true,"settledMode":"inactive"}

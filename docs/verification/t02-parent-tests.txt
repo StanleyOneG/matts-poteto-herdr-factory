@@ -1,0 +1,502 @@
+
+> pi-legion@0.1.0 test
+> tsx --test tests/*.test.ts
+
+TAP version 13
+# (node:1554075) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: unreadable storage cannot hide stopping or release an unsettled invocation
+ok 1 - unreadable storage cannot hide stopping or release an unsettled invocation
+  ---
+  duration_ms: 104.599125
+  type: 'test'
+  ...
+# Subtest: off at authorization await boundaries never starts discovery after revocation or releases an unsettled owner
+ok 2 - off at authorization await boundaries never starts discovery after revocation or releases an unsettled owner
+  ---
+  duration_ms: 514.808957
+  type: 'test'
+  ...
+# Subtest: off drains held Git locate and preserves intake ownership until settlement
+ok 3 - off drains held Git locate and preserves intake ownership until settlement
+  ---
+  duration_ms: 27.474262
+  type: 'test'
+  ...
+# Subtest: off drains held Git parent and preserves intake ownership until settlement
+ok 4 - off drains held Git parent and preserves intake ownership until settlement
+  ---
+  duration_ms: 25.755593
+  type: 'test'
+  ...
+# Subtest: off drains held Git inspect and preserves intake ownership until settlement
+ok 5 - off drains held Git inspect and preserves intake ownership until settlement
+  ---
+  duration_ms: 60.378984
+  type: 'test'
+  ...
+# Subtest: concurrent exact request delivery returns one immutable receipt without a duplicate effect
+ok 6 - concurrent exact request delivery returns one immutable receipt without a duplicate effect
+  ---
+  duration_ms: 60.333435
+  type: 'test'
+  ...
+# Subtest: affected decisions during Git preserve the branch and control only the next affected effect
+ok 7 - affected decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 73.861715
+  type: 'test'
+  ...
+# Subtest: unrelated decisions during Git preserve the branch and control only the next affected effect
+ok 8 - unrelated decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 77.28306
+  type: 'test'
+  ...
+# Subtest: one owner cannot substitute another local task for an already bound external identity
+ok 9 - one owner cannot substitute another local task for an already bound external identity
+  ---
+  duration_ms: 81.451511
+  type: 'test'
+  ...
+# Subtest: explicit resume recovers only known interrupted ledger publication without a Git effect
+ok 10 - explicit resume recovers only known interrupted ledger publication without a Git effect
+  ---
+  duration_ms: 69.754859
+  type: 'test'
+  ...
+# Subtest: revocation at durable dispatch never starts the Git invocation
+ok 11 - revocation at durable dispatch never starts the Git invocation
+  ---
+  duration_ms: 43.835784
+  type: 'test'
+  ...
+# Subtest: matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+ok 12 - matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+  ---
+  duration_ms: 73.042156
+  type: 'test'
+  ...
+# Subtest: uncertain deferred publication revokes execution even when the request survived
+ok 13 - uncertain deferred publication revokes execution even when the request survived
+  ---
+  duration_ms: 31.129332
+  type: 'test'
+  ...
+# Subtest: off revokes immediately, drains the child, and retains a visible approval hold
+ok 14 - off revokes immediately, drains the child, and retains a visible approval hold
+  ---
+  duration_ms: 69.254346
+  type: 'test'
+  ...
+# Subtest: explicit reconciliation retries a proven failed branch at the original plan
+ok 15 - explicit reconciliation retries a proven failed branch at the original plan
+  ---
+  duration_ms: 75.16901
+  type: 'test'
+  ...
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 16 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 50.300681
+  type: 'test'
+  ...
+# Subtest: unavailable assignment authority retains its exact pending request and gives explicit fresh authorization guidance
+ok 17 - unavailable assignment authority retains its exact pending request and gives explicit fresh authorization guidance
+  ---
+  duration_ms: 53.925539
+  type: 'test'
+  ...
+# Subtest: simultaneous distinct Legati elect one same-task owner and retain the losing blocker after restart
+ok 18 - simultaneous distinct Legati elect one same-task owner and retain the losing blocker after restart
+  ---
+  duration_ms: 70.176004
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 19 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 68.118841
+  type: 'test'
+  ...
+# (node:1554076) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: cross-process first "on" has one association and no competing owner
+ok 20 - cross-process first "on" has one association and no competing owner
+  ---
+  duration_ms: 2055.75254
+  type: 'test'
+  ...
+# Subtest: cross-process first "  Exact original task\\n" has one association and no competing owner
+ok 21 - cross-process first "  Exact original task\\n" has one association and no competing owner
+  ---
+  duration_ms: 1780.735699
+  type: 'test'
+  ...
+# Subtest: cross-process activation versus resume of a different ID has one lifetime association owner
+ok 22 - cross-process activation versus resume of a different ID has one lifetime association owner
+  ---
+  duration_ms: 1851.424645
+  type: 'test'
+  ...
+# Subtest: an interrupted initial owner releases both leases on death, with independent associations and byte-preserving status
+ok 23 - an interrupted initial owner releases both leases on death, with independent associations and byte-preserving status
+  ---
+  duration_ms: 449.778493
+  type: 'test'
+  ...
+# Subtest: failed partial acquisition and uncertain writes release only their handles and never a prior owner's leases
+ok 24 - failed partial acquisition and uncertain writes release only their handles and never a prior owner's leases
+  ---
+  duration_ms: 28.8647
+  type: 'test'
+  ...
+# Subtest: off during association-only acquisition cannot activate or leak the unadopted lease
+ok 25 - off during association-only acquisition cannot activate or leak the unadopted lease
+  ---
+  duration_ms: 9.753295
+  type: 'test'
+  ...
+# (node:1554077) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a hot journal blocks only matching discovery and preserves unrelated contexts and independent same-context sessions
+ok 26 - a hot journal blocks only matching discovery and preserves unrelated contexts and independent same-context sessions
+  ---
+  duration_ms: 620.655361
+  type: 'test'
+  ...
+# Subtest: first creation before-route-publish explicitly recovers one identity without inventing unacknowledged input
+ok 27 - first creation before-route-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 396.276608
+  type: 'test'
+  ...
+# Subtest: first creation after-route-publish explicitly recovers one identity without inventing unacknowledged input
+ok 28 - first creation after-route-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 395.441759
+  type: 'test'
+  ...
+# Subtest: first creation after-bootstrap-commit explicitly recovers one identity without inventing unacknowledged input
+ok 29 - first creation after-bootstrap-commit explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 357.71969
+  type: 'test'
+  ...
+# Subtest: first creation before-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+ok 30 - first creation before-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 382.893379
+  type: 'test'
+  ...
+# Subtest: first creation after-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+ok 31 - first creation after-initialized-publish explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 324.889886
+  type: 'test'
+  ...
+# Subtest: first creation before-commit explicitly recovers one identity without inventing unacknowledged input
+ok 32 - first creation before-commit explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 362.576118
+  type: 'test'
+  ...
+# Subtest: first creation after-commit explicitly recovers one identity without inventing unacknowledged input
+ok 33 - first creation after-commit explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 529.118854
+  type: 'test'
+  ...
+# Subtest: first creation after-receipt explicitly recovers one identity without inventing unacknowledged input
+ok 34 - first creation after-receipt explicitly recovers one identity without inventing unacknowledged input
+  ---
+  duration_ms: 623.359569
+  type: 'test'
+  ...
+# Subtest: incomplete metadata fails closed only for its routed identity and cannot be overwritten by recovery
+ok 35 - incomplete metadata fails closed only for its routed identity and cannot be overwritten by recovery
+  ---
+  duration_ms: 369.737689
+  type: 'test'
+  ...
+# Subtest: alias before-route-publish never grants attachment before commit and explicit resume reconciles one identity
+ok 36 - alias before-route-publish never grants attachment before commit and explicit resume reconciles one identity
+  ---
+  duration_ms: 306.769225
+  type: 'test'
+  ...
+# Subtest: alias after-route-publish never grants attachment before commit and explicit resume reconciles one identity
+ok 37 - alias after-route-publish never grants attachment before commit and explicit resume reconciles one identity
+  ---
+  duration_ms: 327.881992
+  type: 'test'
+  ...
+# Subtest: alias before-commit never grants attachment before commit and explicit resume reconciles one identity
+ok 38 - alias before-commit never grants attachment before commit and explicit resume reconciles one identity
+  ---
+  duration_ms: 299.964759
+  type: 'test'
+  ...
+# Subtest: initialized missing data and malformed identity never reset acknowledged history; legacy files do not poison current routes
+ok 39 - initialized missing data and malformed identity never reset acknowledged history; legacy files do not poison current routes
+  ---
+  duration_ms: 24.730264
+  type: 'test'
+  ...
+# Subtest: missing initialization evidence cannot reclassify an acknowledged snapshot as first creation
+ok 40 - missing initialization evidence cannot reclassify an acknowledged snapshot as first creation
+  ---
+  duration_ms: 12.321393
+  type: 'test'
+  ...
+# Subtest: explicit recovery from the wrong context cannot publish or bootstrap another context's initial identity
+ok 41 - explicit recovery from the wrong context cannot publish or bootstrap another context's initial identity
+  ---
+  duration_ms: 366.791617
+  type: 'test'
+  ...
+# Subtest: unknown route fields fail closed for the affected identity without blocking an independent session
+ok 42 - unknown route fields fail closed for the affected identity without blocking an independent session
+  ---
+  duration_ms: 11.770372
+  type: 'test'
+  ...
+# Subtest: multiple scoped candidate identities remain unavailable until an explicit identity is selected
+ok 43 - multiple scoped candidate identities remain unavailable until an explicit identity is selected
+  ---
+  duration_ms: 23.634664
+  type: 'test'
+  ...
+# Subtest: off during route-opened prevents publication after the lifetime lease is revoked
+ok 44 - off during route-opened prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 5.241195
+  type: 'test'
+  ...
+# Subtest: off during before-route-publish prevents publication after the lifetime lease is revoked
+ok 45 - off during before-route-publish prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 12.188939
+  type: 'test'
+  ...
+# Subtest: off during before-initialized-publish prevents publication after the lifetime lease is revoked
+ok 46 - off during before-initialized-publish prevents publication after the lifetime lease is revoked
+  ---
+  duration_ms: 15.025283
+  type: 'test'
+  ...
+# (node:1554083) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: activation preserves logical identity and exact task text across restart without activating
+ok 47 - activation preserves logical identity and exact task text across restart without activating
+  ---
+  duration_ms: 33.114765
+  type: 'test'
+  ...
+# Subtest: direct interpretation admits a scoped task without tickets or external execution
+ok 48 - direct interpretation admits a scoped task without tickets or external execution
+  ---
+  duration_ms: 23.920001
+  type: 'test'
+  ...
+# Subtest: a product question blocks affected work and accepts an ordinary answer durably
+ok 49 - a product question blocks affected work and accepts an ordinary answer durably
+  ---
+  duration_ms: 43.960552
+  type: 'test'
+  ...
+# Subtest: routing clarification advances original and answer atomically without changing an assignment
+ok 50 - routing clarification advances original and answer atomically without changing an assignment
+  ---
+  duration_ms: 70.72792
+  type: 'test'
+  ...
+# Subtest: protected amendments accept conversational approval of only the presented immutable change
+ok 51 - protected amendments accept conversational approval of only the presented immutable change
+  ---
+  duration_ms: 98.05792
+  type: 'test'
+  ...
+# Subtest: independent tasks are admitted while affected work is blocked and routine choices remain delegated
+ok 52 - independent tasks are admitted while affected work is blocked and routine choices remain delegated
+  ---
+  duration_ms: 48.617812
+  type: 'test'
+  ...
+# Subtest: off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+ok 53 - off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+  ---
+  duration_ms: 29.289097
+  type: 'test'
+  ...
+# Subtest: uncertain acknowledgment reconciles the committed receipt without duplicate intake
+ok 54 - uncertain acknowledgment reconciles the committed receipt without duplicate intake
+  ---
+  duration_ms: 17.136184
+  type: 'test'
+  ...
+# Subtest: read-only status of another Legatus never redirects the active owner
+ok 55 - read-only status of another Legatus never redirects the active owner
+  ---
+  duration_ms: 30.879749
+  type: 'test'
+  ...
+# Subtest: ambiguous protected answers retain immutable revisions and permit later conversational decline
+ok 56 - ambiguous protected answers retain immutable revisions and permit later conversational decline
+  ---
+  duration_ms: 64.08101
+  type: 'test'
+  ...
+# Subtest: every prerequisite failure is diagnosed read-only and task-bearing failure preserves input inactive
+ok 57 - every prerequisite failure is diagnosed read-only and task-bearing failure preserves input inactive
+  ---
+  duration_ms: 480.903709
+  type: 'test'
+  ...
+# Subtest: a committed request reconciles after off and restart while equal text with a new key remains distinct
+ok 58 - a committed request reconciles after off and restart while equal text with a new key remains distinct
+  ---
+  duration_ms: 22.46082
+  type: 'test'
+  ...
+# Subtest: stale protected decisions require a newly presented revision before resolving
+ok 59 - stale protected decisions require a newly presented revision before resolving
+  ---
+  duration_ms: 69.83072
+  type: 'test'
+  ...
+# Subtest: read-only status reconciles uncertainty so explicit resume can recover intake
+ok 60 - read-only status reconciles uncertainty so explicit resume can recover intake
+  ---
+  duration_ms: 17.835186
+  type: 'test'
+  ...
+# Subtest: reserved arguments require valid command syntax and task escapes retain their literal text
+ok 61 - reserved arguments require valid command syntax and task escapes retain their literal text
+  ---
+  duration_ms: 10.316222
+  type: 'test'
+  ...
+# Subtest: product clarification without affected tasks rejects without consuming original input while empty routing remains answerable
+ok 62 - product clarification without affected tasks rejects without consuming original input while empty routing remains answerable
+  ---
+  duration_ms: 36.456022
+  type: 'test'
+  ...
+# Subtest: lock startup census fresh has one public owner and rejected contender every round
+ok 63 - lock startup census fresh has one public owner and rejected contender every round
+  ---
+  duration_ms: 5282.692996
+  type: 'test'
+  ...
+# Subtest: lock startup census task has one public owner and rejected contender every round
+ok 64 - lock startup census task has one public owner and rejected contender every round
+  ---
+  duration_ms: 4114.340006
+  type: 'test'
+  ...
+# Subtest: lock startup census initialized has one public owner and rejected contender every round
+ok 65 - lock startup census initialized has one public owner and rejected contender every round
+  ---
+  duration_ms: 6125.14179
+  type: 'test'
+  ...
+# (node:1554090) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real process death before-commit preserves receipts and ownership without read-only recovery
+ok 66 - real process death before-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 518.694865
+  type: 'test'
+  ...
+# Subtest: real process death after-commit preserves receipts and ownership without read-only recovery
+ok 67 - real process death after-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 601.632532
+  type: 'test'
+  ...
+# (node:1554096) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a preexisting branch is retained without adoption or a replacement resource
+ok 68 - a preexisting branch is retained without adoption or a replacement resource
+  ---
+  duration_ms: 570.255257
+  type: 'test'
+  ...
+# Subtest: a preexisting empty-directory is retained without adoption or a replacement resource
+ok 69 - a preexisting empty-directory is retained without adoption or a replacement resource
+  ---
+  duration_ms: 402.700866
+  type: 'test'
+  ...
+# Subtest: a preexisting occupied-directory is retained without adoption or a replacement resource
+ok 70 - a preexisting occupied-directory is retained without adoption or a replacement resource
+  ---
+  duration_ms: 354.885531
+  type: 'test'
+  ...
+# Subtest: a preexisting symlink is retained without adoption or a replacement resource
+ok 71 - a preexisting symlink is retained without adoption or a replacement resource
+  ---
+  duration_ms: 296.114738
+  type: 'test'
+  ...
+# Subtest: a preexisting registered-worktree is retained without adoption or a replacement resource
+ok 72 - a preexisting registered-worktree is retained without adoption or a replacement resource
+  ---
+  duration_ms: 350.619769
+  type: 'test'
+  ...
+# Subtest: corrupt authority observation changes no ledger bytes and never reports unreserved
+ok 73 - corrupt authority observation changes no ledger bytes and never reports unreserved
+  ---
+  duration_ms: 704.934082
+  type: 'test'
+  ...
+# Subtest: missing initialized ledger history is unavailable and cannot become an empty ownership authority
+ok 74 - missing initialized ledger history is unavailable and cannot become an empty ownership authority
+  ---
+  duration_ms: 744.609895
+  type: 'test'
+  ...
+# {"schedule":"release-together","root":"/tmp/legion-real-git-N3wiRU","ready":[{"pid":1554673,"owner":"ef7ea825-ed19-490e-b357-95c74947ac81","task":"ba62035e-4ce4-4fdc-aeb0-b9dd29d52524","parent":"f03b966596f7e16032a74c2016d501b1aa622dbc"},{"pid":1554674,"owner":"a5323e9c-602c-4c48-9237-6b30163d0c7d","task":"75d6f40b-d9e4-4bb7-acfd-1be4b6ce7fd6","parent":"f03b966596f7e16032a74c2016d501b1aa622dbc"}],"results":[{"kind":"reserved","owner":"ef7ea825-ed19-490e-b357-95c74947ac81","id":"dbffbc2d-e492-40a5-bddf-e4693177fb49","branch":"refs/heads/legion/f80808b0-d6e6-4728-9b25-a4211cf628f2","path":"/tmp/legion-real-git-N3wiRU/workspaces/f80808b0-d6e6-4728-9b25-a4211cf628f2","workspace":{"kind":"ready"},"message":"Task reserved. Workspace ready. No worker started."},{"kind":"uncertain","requestKey":"overlap-b/1791409008221/workspace","message":"Assignment authority or operation outcome could not be established. Preserve all recorded resources. Error: database is locked. Inspect /legion status a5323e9c-602c-4c48-9237-6b30163d0c7d. If inactive, explicitly /legion resume a5323e9c-602c-4c48-9237-6b30163d0c7d, then issue a fresh /legion reserve 75d6f40b-d9e4-4bb7-acfd-1be4b6ce7fd6@1 --parent refs/heads/intended --source https://github.com/Fixture/Project/issues/9. Preserve the exact pending request overlap-b/1791409008221/workspace and its saved payload. No automatic retry was performed.","pending":{"id":"overlap-b/1791409008221/workspace","fingerprint":"92e7f2c520e85486d8c0dfa71d370e4661226ba18c900656f70c7154963ebdb6","intent":{"kind":"reserve","task":{"id":"75d6f40b-d9e4-4bb7-acfd-1be4b6ce7fd6","revision":1},"parent":"refs/heads/intended","source":"https://github.com/Fixture/Project/issues/9"}}}],"reservation":{"id":"dbffbc2d-e492-40a5-bddf-e4693177fb49","owner":"ef7ea825-ed19-490e-b357-95c74947ac81","plan":{"branch":"refs/heads/legion/f80808b0-d6e6-4728-9b25-a4211cf628f2","path":"/tmp/legion-real-git-N3wiRU/workspaces/f80808b0-d6e6-4728-9b25-a4211cf628f2"}},"recovered":{"kind":"ownership-blocked","owner":"ef7ea825-ed19-490e-b357-95c74947ac81","id":"dbffbc2d-e492-40a5-bddf-e4693177fb49","branch":"refs/heads/legion/f80808b0-d6e6-4728-9b25-a4211cf628f2","path":"/tmp/legion-real-git-N3wiRU/workspaces/f80808b0-d6e6-4728-9b25-a4211cf628f2","message":"Task is reserved by another Legatus. No workspace was created for this request."},"branches":"refs/heads/legion/f80808b0-d6e6-4728-9b25-a4211cf628f2","worktrees":["worktree /tmp/legion-real-git-N3wiRU/repo","worktree /tmp/legion-real-git-N3wiRU/unrelated","worktree /tmp/legion-real-git-N3wiRU/workspaces/f80808b0-d6e6-4728-9b25-a4211cf628f2"]}
+# Subtest: independent same-task processes release-together preserve one owner and recover the losing blocker
+ok 75 - independent same-task processes release-together preserve one owner and recover the losing blocker
+  ---
+  duration_ms: 2295.478325
+  type: 'test'
+  ...
+# {"schedule":"hold-first-dispatch","root":"/tmp/legion-real-git-M3Lkfq","ready":[{"pid":1554947,"owner":"ec7ba372-092e-4530-b407-38845b36f3e0","task":"bcb81d38-50c2-4cf6-b03a-a6cfd3edff3c","parent":"61016c4d0adc696be40b8c469f4aad5466731343"},{"pid":1554948,"owner":"3b4d6ad1-63e6-43ed-84c8-c83bdff9bccc","task":"78506048-b39f-46a2-9f57-fe5ca7b297d4","parent":"61016c4d0adc696be40b8c469f4aad5466731343"}],"results":[{"kind":"reserved","owner":"ec7ba372-092e-4530-b407-38845b36f3e0","id":"9cd0ccd9-be8a-4c6b-8330-028e03e726ff","branch":"refs/heads/legion/ae403696-d070-4830-92e4-0f5756a52e37","path":"/tmp/legion-real-git-M3Lkfq/workspaces/ae403696-d070-4830-92e4-0f5756a52e37","workspace":{"kind":"ready"},"message":"Task reserved. Workspace ready. No worker started."},{"kind":"ownership-blocked","owner":"ec7ba372-092e-4530-b407-38845b36f3e0","id":"9cd0ccd9-be8a-4c6b-8330-028e03e726ff","branch":"refs/heads/legion/ae403696-d070-4830-92e4-0f5756a52e37","path":"/tmp/legion-real-git-M3Lkfq/workspaces/ae403696-d070-4830-92e4-0f5756a52e37","message":"Task is reserved by another Legatus. No workspace was created for this request."}],"reservation":{"id":"9cd0ccd9-be8a-4c6b-8330-028e03e726ff","owner":"ec7ba372-092e-4530-b407-38845b36f3e0","plan":{"branch":"refs/heads/legion/ae403696-d070-4830-92e4-0f5756a52e37","path":"/tmp/legion-real-git-M3Lkfq/workspaces/ae403696-d070-4830-92e4-0f5756a52e37"}},"overlappingBlocker":{"kind":"ownership-blocked","owner":"ec7ba372-092e-4530-b407-38845b36f3e0","id":"9cd0ccd9-be8a-4c6b-8330-028e03e726ff","branch":"refs/heads/legion/ae403696-d070-4830-92e4-0f5756a52e37","path":"/tmp/legion-real-git-M3Lkfq/workspaces/ae403696-d070-4830-92e4-0f5756a52e37","message":"Task is reserved by another Legatus. No workspace was created for this request."},"recovered":{"kind":"ownership-blocked","owner":"ec7ba372-092e-4530-b407-38845b36f3e0","id":"9cd0ccd9-be8a-4c6b-8330-028e03e726ff","branch":"refs/heads/legion/ae403696-d070-4830-92e4-0f5756a52e37","path":"/tmp/legion-real-git-M3Lkfq/workspaces/ae403696-d070-4830-92e4-0f5756a52e37","message":"Task is reserved by another Legatus. No workspace was created for this request."},"branches":"refs/heads/legion/ae403696-d070-4830-92e4-0f5756a52e37","worktrees":["worktree /tmp/legion-real-git-M3Lkfq/repo","worktree /tmp/legion-real-git-M3Lkfq/unrelated","worktree /tmp/legion-real-git-M3Lkfq/workspaces/ae403696-d070-4830-92e4-0f5756a52e37"]}
+# Subtest: independent same-task processes hold-first-dispatch preserve one owner and recover the losing blocker
+ok 76 - independent same-task processes hold-first-dispatch preserve one owner and recover the losing blocker
+  ---
+  duration_ms: 2003.297988
+  type: 'test'
+  ...
+# Subtest: process observers through linked, nested, and symlink checkouts contend while an independent clone does not
+ok 77 - process observers through linked, nested, and symlink checkouts contend while an independent clone does not
+  ---
+  duration_ms: 3558.393451
+  type: 'test'
+  ...
+# Subtest: a surviving Git child keeps its unknown reservation before and after its delayed branch appears
+ok 78 - a surviving Git child keeps its unknown reservation before and after its delayed branch appears
+  ---
+  duration_ms: 1539.091416
+  type: 'test'
+  ...
+# Subtest: different assignments use distinct actual worktrees at the intended parent without touching dirty work
+ok 79 - different assignments use distinct actual worktrees at the intended parent without touching dirty work
+  ---
+  duration_ms: 1661.768797
+  type: 'test'
+  ...
+1..79
+# tests 79
+# suites 0
+# pass 79
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15790.200185

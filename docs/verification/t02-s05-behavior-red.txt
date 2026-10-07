@@ -1,0 +1,61 @@
+Recovered verbatim from this run tool result at 2026-10-07T19:06:28.868Z
+TAP version 13
+# (node:1510314) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: different assignments use distinct actual worktrees at the intended parent without touching dirty work
+not ok 1 - different assignments use distinct actual worktrees at the intended parent without touching dirty work
+  ---
+  duration_ms: 428.845868
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:48:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   code: 'unknown-operation',
+    +   kind: 'held',
+    +   message: 'Post-operation observation unavailable. Error: Guarded Git observation unavailable. ',
+    +   operation: {
+    +     id: '4fa90ba4-3e3e-42a2-9417-1ee3e72b56b6',
+    +     reservation: 'af180b05-50f6-422a-a951-b1fdc42ae804',
+    +     step: 'worktree'
+    +   }
+    -   kind: 'ready'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    kind: 'ready'
+  actual:
+    kind: 'held'
+    code: 'unknown-operation'
+    message: 'Post-operation observation unavailable. Error: Guarded Git observation unavailable. '
+    operation:
+      id: '4fa90ba4-3e3e-42a2-9417-1ee3e72b56b6'
+      reservation: 'af180b05-50f6-422a-a951-b1fdc42ae804'
+      step: 'worktree'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:60:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 652.930996
+
+> pi-legion@0.1.0 typecheck
+> tsc --noEmit
+
+
+
+Command exited with code 1

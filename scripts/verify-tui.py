@@ -39,12 +39,12 @@ try:
     wait('Reply normally in chat')
     off_start = len(raw)
     os.write(master, b'/legion off\r')
-    wait('Legion is inactive.', start=off_start)
+    wait('Legion inactive. Reservations retained.', start=off_start)
     open(os.path.join(fixture['root'], 'tui-off'), 'w').write('off')
     wait('TUI inactive settlement.', start=off_start)
     inactive_start = len(raw)
     os.write(master, b'/legion off\r')
-    wait('Legion is inactive.', start=inactive_start)
+    wait('Legion inactive. Reservations retained.', start=inactive_start)
     assert 'Emperor decision' not in plain(off_start), 'Inactive off, settlement and refresh republished an unactionable question'
     legatus = re.findall(r'Legatus ([0-9a-f-]{36})', plain())[0]
     resume_start = len(raw)

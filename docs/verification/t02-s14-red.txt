@@ -1,0 +1,102 @@
+TAP version 13
+# (node:1517019) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: concurrent exact request delivery returns one immutable receipt without a duplicate effect
+not ok 1 - concurrent exact request delivery returns one immutable receipt without a duplicate effect
+  ---
+  duration_ms: 49.310823
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/assignments.test.ts:47:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'uncertain'
+    - 'reserved'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'reserved'
+  actual: 'uncertain'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/assignments.test.ts:52:46)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: affected decisions during Git preserve the branch and control only the next affected effect
+ok 2 - affected decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 33.50995
+  type: 'test'
+  ...
+# Subtest: unrelated decisions during Git preserve the branch and control only the next affected effect
+ok 3 - unrelated decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 31.260442
+  type: 'test'
+  ...
+# Subtest: one owner cannot substitute another local task for an already bound external identity
+ok 4 - one owner cannot substitute another local task for an already bound external identity
+  ---
+  duration_ms: 29.032543
+  type: 'test'
+  ...
+# Subtest: explicit resume recovers only known interrupted ledger publication without a Git effect
+ok 5 - explicit resume recovers only known interrupted ledger publication without a Git effect
+  ---
+  duration_ms: 27.942524
+  type: 'test'
+  ...
+# Subtest: revocation at durable dispatch never starts the Git invocation
+ok 6 - revocation at durable dispatch never starts the Git invocation
+  ---
+  duration_ms: 16.935392
+  type: 'test'
+  ...
+# Subtest: matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+ok 7 - matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+  ---
+  duration_ms: 30.709389
+  type: 'test'
+  ...
+# Subtest: uncertain deferred publication revokes execution even when the request survived
+ok 8 - uncertain deferred publication revokes execution even when the request survived
+  ---
+  duration_ms: 11.800849
+  type: 'test'
+  ...
+# Subtest: off revokes immediately, drains the child, and retains a visible approval hold
+ok 9 - off revokes immediately, drains the child, and retains a visible approval hold
+  ---
+  duration_ms: 23.021528
+  type: 'test'
+  ...
+# Subtest: explicit reconciliation retries a proven failed branch at the original plan
+ok 10 - explicit reconciliation retries a proven failed branch at the original plan
+  ---
+  duration_ms: 29.899666
+  type: 'test'
+  ...
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 11 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 20.299977
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 12 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 24.387459
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 11
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 548.501861

@@ -1,0 +1,84 @@
+TAP version 13
+# (node:1515630) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: one owner cannot substitute another local task for an already bound external identity
+not ok 1 - one owner cannot substitute another local task for an already bound external identity
+  ---
+  duration_ms: 62.838711
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/assignments.test.ts:47:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'uncertain'
+    - 'rejected'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'rejected'
+  actual: 'uncertain'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/assignments.test.ts:61:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: explicit resume recovers only known interrupted ledger publication without a Git effect
+ok 2 - explicit resume recovers only known interrupted ledger publication without a Git effect
+  ---
+  duration_ms: 31.078719
+  type: 'test'
+  ...
+# Subtest: revocation at durable dispatch never starts the Git invocation
+ok 3 - revocation at durable dispatch never starts the Git invocation
+  ---
+  duration_ms: 21.275029
+  type: 'test'
+  ...
+# Subtest: matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+ok 4 - matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+  ---
+  duration_ms: 27.346407
+  type: 'test'
+  ...
+# Subtest: uncertain deferred publication revokes execution even when the request survived
+ok 5 - uncertain deferred publication revokes execution even when the request survived
+  ---
+  duration_ms: 10.57279
+  type: 'test'
+  ...
+# Subtest: off revokes immediately, drains the child, and retains a visible approval hold
+ok 6 - off revokes immediately, drains the child, and retains a visible approval hold
+  ---
+  duration_ms: 25.699192
+  type: 'test'
+  ...
+# Subtest: explicit reconciliation retries a proven failed branch at the original plan
+ok 7 - explicit reconciliation retries a proven failed branch at the original plan
+  ---
+  duration_ms: 33.712374
+  type: 'test'
+  ...
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 8 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 18.046767
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 9 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 22.230314
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 8
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 471.865758

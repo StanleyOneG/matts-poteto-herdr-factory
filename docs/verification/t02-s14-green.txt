@@ -1,0 +1,84 @@
+TAP version 13
+# (node:1517128) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: concurrent exact request delivery returns one immutable receipt without a duplicate effect
+ok 1 - concurrent exact request delivery returns one immutable receipt without a duplicate effect
+  ---
+  duration_ms: 51.165056
+  type: 'test'
+  ...
+# Subtest: affected decisions during Git preserve the branch and control only the next affected effect
+ok 2 - affected decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 32.495748
+  type: 'test'
+  ...
+# Subtest: unrelated decisions during Git preserve the branch and control only the next affected effect
+ok 3 - unrelated decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 29.334083
+  type: 'test'
+  ...
+# Subtest: one owner cannot substitute another local task for an already bound external identity
+ok 4 - one owner cannot substitute another local task for an already bound external identity
+  ---
+  duration_ms: 30.098175
+  type: 'test'
+  ...
+# Subtest: explicit resume recovers only known interrupted ledger publication without a Git effect
+ok 5 - explicit resume recovers only known interrupted ledger publication without a Git effect
+  ---
+  duration_ms: 28.466335
+  type: 'test'
+  ...
+# Subtest: revocation at durable dispatch never starts the Git invocation
+ok 6 - revocation at durable dispatch never starts the Git invocation
+  ---
+  duration_ms: 16.129019
+  type: 'test'
+  ...
+# Subtest: matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+ok 7 - matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+  ---
+  duration_ms: 23.451582
+  type: 'test'
+  ...
+# Subtest: uncertain deferred publication revokes execution even when the request survived
+ok 8 - uncertain deferred publication revokes execution even when the request survived
+  ---
+  duration_ms: 10.430101
+  type: 'test'
+  ...
+# Subtest: off revokes immediately, drains the child, and retains a visible approval hold
+ok 9 - off revokes immediately, drains the child, and retains a visible approval hold
+  ---
+  duration_ms: 18.33029
+  type: 'test'
+  ...
+# Subtest: explicit reconciliation retries a proven failed branch at the original plan
+ok 10 - explicit reconciliation retries a proven failed branch at the original plan
+  ---
+  duration_ms: 30.847413
+  type: 'test'
+  ...
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 11 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 18.907735
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 12 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 23.358324
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 535.908299

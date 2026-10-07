@@ -1,0 +1,4108 @@
+{
+  "root": "/tmp/legion-t02-permission-rLZf3S",
+  "cwd": "/tmp/legion-t02-permission-rLZf3S/repo",
+  "parent": "1570b7b7cbfee92827dc28153c221a8df11896de",
+  "version": "1.0.4",
+  "hostBefore": "296596038ff5d0b578264865abad78583dbf1db3583b8ee7a681eb486be7384c",
+  "scenarios": [
+    {
+      "mode": "denied",
+      "override": false,
+      "records": [
+        {
+          "id": "1",
+          "type": "response",
+          "command": "get_state",
+          "success": true,
+          "data": {
+            "model": {
+              "id": "controlled",
+              "name": "Probe fixture",
+              "api": "openai-completions",
+              "provider": "fixture",
+              "baseUrl": "http://127.0.0.1:44991/v1",
+              "reasoning": false,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "contextWindow": 200000,
+              "maxTokens": 4096
+            },
+            "thinkingLevel": "off",
+            "isStreaming": false,
+            "isCompacting": false,
+            "steeringMode": "one-at-a-time",
+            "followUpMode": "one-at-a-time",
+            "sessionId": "01a117af-2e56-77c3-9ecd-721b29b0a6f4",
+            "autoCompactionEnabled": true,
+            "messageCount": 0,
+            "pendingMessageCount": 0
+          }
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "138c46b2-3ee5-46be-b5b9-dcfc22a4a939",
+          "method": "notify",
+          "message": "{\"stage\":\"direct\",\"hasExecuteTool\":\"undefined\",\"result\":{\"stdout\":\"git version 2.55.0\\n\",\"stderr\":\"\",\"code\":0,\"killed\":false},\"hooks\":[]}",
+          "notifyType": "info"
+        },
+        {
+          "id": "2",
+          "type": "response",
+          "command": "prompt",
+          "success": true,
+          "data": {
+            "disposition": "handled"
+          }
+        },
+        {
+          "id": "3",
+          "type": "response",
+          "command": "prompt",
+          "success": true,
+          "data": {
+            "disposition": "started"
+          }
+        },
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "system",
+            "content": "",
+            "sections": {
+              "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+              "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+              "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+              "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+              "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+            },
+            "timestamp": 1791398719198,
+            "toolsAdded": [
+              {
+                "name": "read",
+                "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to read (relative or absolute)"
+                    },
+                    "offset": {
+                      "type": "number",
+                      "description": "Line number to start reading from (1-indexed)"
+                    },
+                    "limit": {
+                      "type": "number",
+                      "description": "Maximum number of lines to read"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "bash",
+                "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "command"
+                  ],
+                  "properties": {
+                    "command": {
+                      "type": "string",
+                      "description": "Shell command to execute"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "description": "Timeout in seconds (optional, no default timeout)"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "edit",
+                "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "edits"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to edit (relative or absolute)"
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "oldText",
+                          "newText"
+                        ],
+                        "properties": {
+                          "oldText": {
+                            "type": "string",
+                            "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                          },
+                          "newText": {
+                            "type": "string",
+                            "description": "Replacement text for this targeted edit."
+                          }
+                        }
+                      },
+                      "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "write",
+                "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "content"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to write (relative or absolute)"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Content to write to the file"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "permission_probe",
+                "description": "Test-owned probe",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "system",
+            "content": "",
+            "sections": {
+              "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+              "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+              "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+              "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+              "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+            },
+            "timestamp": 1791398719198,
+            "toolsAdded": [
+              {
+                "name": "read",
+                "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to read (relative or absolute)"
+                    },
+                    "offset": {
+                      "type": "number",
+                      "description": "Line number to start reading from (1-indexed)"
+                    },
+                    "limit": {
+                      "type": "number",
+                      "description": "Maximum number of lines to read"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "bash",
+                "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "command"
+                  ],
+                  "properties": {
+                    "command": {
+                      "type": "string",
+                      "description": "Shell command to execute"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "description": "Timeout in seconds (optional, no default timeout)"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "edit",
+                "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "edits"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to edit (relative or absolute)"
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "oldText",
+                          "newText"
+                        ],
+                        "properties": {
+                          "oldText": {
+                            "type": "string",
+                            "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                          },
+                          "newText": {
+                            "type": "string",
+                            "description": "Replacement text for this targeted edit."
+                          }
+                        }
+                      },
+                      "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "write",
+                "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "content"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to write (relative or absolute)"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Content to write to the file"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "permission_probe",
+                "description": "Test-owned probe",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Run the test-owned permission probe."
+              }
+            ],
+            "timestamp": 1791398719197
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Run the test-owned permission probe."
+              }
+            ],
+            "timestamp": 1791398719197
+          }
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_denied",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "denied"
+                },
+                "partialArgs": "{\"mode\":\"denied\"}",
+                "streamIndex": 0
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "pending",
+            "timestamp": 1791398719216
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_start",
+            "contentIndex": 0,
+            "id": "probe_denied",
+            "toolName": "permission_probe"
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_delta",
+            "contentIndex": 0,
+            "delta": "{\"mode\":\"denied\"}"
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_end",
+            "contentIndex": 0,
+            "toolCall": {
+              "type": "toolCall",
+              "id": "probe_denied",
+              "name": "permission_probe",
+              "arguments": {
+                "mode": "denied"
+              }
+            }
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_denied",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "denied"
+                }
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "toolUse",
+            "timestamp": 1791398719216,
+            "responseId": "probe",
+            "rawStopReason": "tool_calls",
+            "thinkingLevel": "off"
+          }
+        },
+        {
+          "type": "tool_execution_start",
+          "toolCallId": "probe_denied",
+          "toolName": "permission_probe",
+          "args": {
+            "mode": "denied"
+          }
+        },
+        {
+          "type": "tool_execution_start",
+          "toolCallId": "probe_denied/1",
+          "toolName": "bash",
+          "args": {
+            "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+          },
+          "parentToolCallId": "probe_denied"
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "probe_denied/1",
+          "toolName": "bash",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "TEST-OWNED bash denied"
+              }
+            ],
+            "details": {}
+          },
+          "isError": true,
+          "parentToolCallId": "probe_denied"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "c2dc1e7e-643a-424d-b861-a5b212d22166",
+          "method": "notify",
+          "message": "{\"stage\":\"nested\",\"mode\":\"denied\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_denied/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"TEST-OWNED bash denied\"}],\"details\":{}},\"isError\":true},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_denied\",\"input\":{\"mode\":\"denied\"}},{\"name\":\"bash\",\"id\":\"probe_denied/1\",\"input\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}",
+          "notifyType": "info"
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "probe_denied",
+          "toolName": "permission_probe",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"denied\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_denied/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"TEST-OWNED bash denied\"}],\"details\":{}},\"isError\":true},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_denied\",\"input\":{\"mode\":\"denied\"}},{\"name\":\"bash\",\"id\":\"probe_denied/1\",\"input\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "denied",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_denied/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "TEST-OWNED bash denied"
+                    }
+                  ],
+                  "details": {}
+                },
+                "isError": true
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_denied",
+                  "input": {
+                    "mode": "denied"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_denied/1",
+                  "input": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            }
+          },
+          "isError": false
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "toolResult",
+            "toolCallId": "probe_denied",
+            "toolName": "permission_probe",
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"denied\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_denied/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"TEST-OWNED bash denied\"}],\"details\":{}},\"isError\":true},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_denied\",\"input\":{\"mode\":\"denied\"}},{\"name\":\"bash\",\"id\":\"probe_denied/1\",\"input\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "denied",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_denied/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "TEST-OWNED bash denied"
+                    }
+                  ],
+                  "details": {}
+                },
+                "isError": true
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_denied",
+                  "input": {
+                    "mode": "denied"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_denied/1",
+                  "input": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            },
+            "isError": false,
+            "timestamp": 1791398719247,
+            "nestedCalls": {
+              "calls": [
+                {
+                  "id": "probe_denied/1",
+                  "name": "bash",
+                  "status": "error",
+                  "arguments": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  },
+                  "durationMs": 1,
+                  "error": "TEST-OWNED bash denied"
+                }
+              ],
+              "complete": true
+            }
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "toolResult",
+            "toolCallId": "probe_denied",
+            "toolName": "permission_probe",
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"denied\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_denied/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"TEST-OWNED bash denied\"}],\"details\":{}},\"isError\":true},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_denied\",\"input\":{\"mode\":\"denied\"}},{\"name\":\"bash\",\"id\":\"probe_denied/1\",\"input\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "denied",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_denied/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "TEST-OWNED bash denied"
+                    }
+                  ],
+                  "details": {}
+                },
+                "isError": true
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_denied",
+                  "input": {
+                    "mode": "denied"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_denied/1",
+                  "input": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            },
+            "isError": false,
+            "timestamp": 1791398719247,
+            "nestedCalls": {
+              "calls": [
+                {
+                  "id": "probe_denied/1",
+                  "name": "bash",
+                  "status": "error",
+                  "arguments": {
+                    "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  },
+                  "durationMs": 1,
+                  "error": "TEST-OWNED bash denied"
+                }
+              ],
+              "complete": true
+            }
+          }
+        },
+        {
+          "type": "turn_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_denied",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "denied"
+                }
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "toolUse",
+            "timestamp": 1791398719216,
+            "responseId": "probe",
+            "rawStopReason": "tool_calls",
+            "thinkingLevel": "off"
+          },
+          "toolResults": [
+            {
+              "role": "toolResult",
+              "toolCallId": "probe_denied",
+              "toolName": "permission_probe",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"stage\":\"nested\",\"mode\":\"denied\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_denied/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"TEST-OWNED bash denied\"}],\"details\":{}},\"isError\":true},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_denied\",\"input\":{\"mode\":\"denied\"}},{\"name\":\"bash\",\"id\":\"probe_denied/1\",\"input\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+                }
+              ],
+              "details": {
+                "stage": "nested",
+                "mode": "denied",
+                "result": {
+                  "toolCall": {
+                    "type": "toolCall",
+                    "id": "probe_denied/1",
+                    "name": "bash",
+                    "arguments": {
+                      "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  },
+                  "result": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "TEST-OWNED bash denied"
+                      }
+                    ],
+                    "details": {}
+                  },
+                  "isError": true
+                },
+                "hooks": [
+                  {
+                    "name": "permission_probe",
+                    "id": "probe_denied",
+                    "input": {
+                      "mode": "denied"
+                    }
+                  },
+                  {
+                    "name": "bash",
+                    "id": "probe_denied/1",
+                    "input": {
+                      "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  }
+                ]
+              },
+              "isError": false,
+              "timestamp": 1791398719247,
+              "nestedCalls": {
+                "calls": [
+                  {
+                    "id": "probe_denied/1",
+                    "name": "bash",
+                    "status": "error",
+                    "arguments": {
+                      "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    },
+                    "durationMs": 1,
+                    "error": "TEST-OWNED bash denied"
+                  }
+                ],
+                "complete": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "pending",
+            "timestamp": 1791398719248
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_start",
+            "contentIndex": 0
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_delta",
+            "contentIndex": 0,
+            "delta": "Probe finished."
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_end",
+            "contentIndex": 0,
+            "content": "Probe finished."
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "stop",
+            "timestamp": 1791398719248,
+            "responseId": "probe",
+            "rawStopReason": "stop",
+            "thinkingLevel": "off"
+          }
+        },
+        {
+          "type": "turn_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "stop",
+            "timestamp": 1791398719248,
+            "responseId": "probe",
+            "rawStopReason": "stop",
+            "thinkingLevel": "off"
+          },
+          "toolResults": []
+        },
+        {
+          "type": "agent_end",
+          "messages": [
+            {
+              "role": "system",
+              "content": "",
+              "sections": {
+                "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+                "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+                "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+                "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+                "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+              },
+              "timestamp": 1791398719198,
+              "toolsAdded": [
+                {
+                  "name": "read",
+                  "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to read (relative or absolute)"
+                      },
+                      "offset": {
+                        "type": "number",
+                        "description": "Line number to start reading from (1-indexed)"
+                      },
+                      "limit": {
+                        "type": "number",
+                        "description": "Maximum number of lines to read"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "command"
+                    ],
+                    "properties": {
+                      "command": {
+                        "type": "string",
+                        "description": "Shell command to execute"
+                      },
+                      "timeout": {
+                        "type": "number",
+                        "description": "Timeout in seconds (optional, no default timeout)"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "edit",
+                  "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "edits"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit (relative or absolute)"
+                      },
+                      "edits": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "oldText",
+                            "newText"
+                          ],
+                          "properties": {
+                            "oldText": {
+                              "type": "string",
+                              "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                            },
+                            "newText": {
+                              "type": "string",
+                              "description": "Replacement text for this targeted edit."
+                            }
+                          }
+                        },
+                        "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "write",
+                  "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "content"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to write (relative or absolute)"
+                      },
+                      "content": {
+                        "type": "string",
+                        "description": "Content to write to the file"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "permission_probe",
+                  "description": "Test-owned probe",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Run the test-owned permission probe."
+                }
+              ],
+              "timestamp": 1791398719197
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "toolCall",
+                  "id": "probe_denied",
+                  "name": "permission_probe",
+                  "arguments": {
+                    "mode": "denied"
+                  }
+                }
+              ],
+              "api": "openai-completions",
+              "provider": "fixture",
+              "model": "controlled",
+              "usage": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 0,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "toolUse",
+              "timestamp": 1791398719216,
+              "responseId": "probe",
+              "rawStopReason": "tool_calls",
+              "thinkingLevel": "off"
+            },
+            {
+              "role": "toolResult",
+              "toolCallId": "probe_denied",
+              "toolName": "permission_probe",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"stage\":\"nested\",\"mode\":\"denied\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_denied/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"TEST-OWNED bash denied\"}],\"details\":{}},\"isError\":true},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_denied\",\"input\":{\"mode\":\"denied\"}},{\"name\":\"bash\",\"id\":\"probe_denied/1\",\"input\":{\"command\":\"git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+                }
+              ],
+              "details": {
+                "stage": "nested",
+                "mode": "denied",
+                "result": {
+                  "toolCall": {
+                    "type": "toolCall",
+                    "id": "probe_denied/1",
+                    "name": "bash",
+                    "arguments": {
+                      "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  },
+                  "result": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "TEST-OWNED bash denied"
+                      }
+                    ],
+                    "details": {}
+                  },
+                  "isError": true
+                },
+                "hooks": [
+                  {
+                    "name": "permission_probe",
+                    "id": "probe_denied",
+                    "input": {
+                      "mode": "denied"
+                    }
+                  },
+                  {
+                    "name": "bash",
+                    "id": "probe_denied/1",
+                    "input": {
+                      "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  }
+                ]
+              },
+              "isError": false,
+              "timestamp": 1791398719247,
+              "nestedCalls": {
+                "calls": [
+                  {
+                    "id": "probe_denied/1",
+                    "name": "bash",
+                    "status": "error",
+                    "arguments": {
+                      "command": "git branch nested-denied 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    },
+                    "durationMs": 1,
+                    "error": "TEST-OWNED bash denied"
+                  }
+                ],
+                "complete": true
+              }
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Probe finished."
+                }
+              ],
+              "api": "openai-completions",
+              "provider": "fixture",
+              "model": "controlled",
+              "usage": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 0,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "stop",
+              "timestamp": 1791398719248,
+              "responseId": "probe",
+              "rawStopReason": "stop",
+              "thinkingLevel": "off"
+            }
+          ],
+          "willRetry": false
+        },
+        {
+          "type": "agent_settled"
+        }
+      ],
+      "stderr": ""
+    },
+    {
+      "mode": "allowed",
+      "override": false,
+      "records": [
+        {
+          "id": "1",
+          "type": "response",
+          "command": "get_state",
+          "success": true,
+          "data": {
+            "model": {
+              "id": "controlled",
+              "name": "Probe fixture",
+              "api": "openai-completions",
+              "provider": "fixture",
+              "baseUrl": "http://127.0.0.1:44991/v1",
+              "reasoning": false,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "contextWindow": 200000,
+              "maxTokens": 4096
+            },
+            "thinkingLevel": "off",
+            "isStreaming": false,
+            "isCompacting": false,
+            "steeringMode": "one-at-a-time",
+            "followUpMode": "one-at-a-time",
+            "sessionId": "01a117af-2fdb-75a2-8043-f6df21363474",
+            "autoCompactionEnabled": true,
+            "messageCount": 0,
+            "pendingMessageCount": 0
+          }
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "b816f641-a25b-4cd2-81e5-a3d0d8e102a4",
+          "method": "notify",
+          "message": "{\"stage\":\"direct\",\"hasExecuteTool\":\"undefined\",\"result\":{\"stdout\":\"git version 2.55.0\\n\",\"stderr\":\"\",\"code\":0,\"killed\":false},\"hooks\":[]}",
+          "notifyType": "info"
+        },
+        {
+          "id": "2",
+          "type": "response",
+          "command": "prompt",
+          "success": true,
+          "data": {
+            "disposition": "handled"
+          }
+        },
+        {
+          "id": "3",
+          "type": "response",
+          "command": "prompt",
+          "success": true,
+          "data": {
+            "disposition": "started"
+          }
+        },
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "system",
+            "content": "",
+            "sections": {
+              "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+              "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+              "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+              "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+              "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+            },
+            "timestamp": 1791398719508,
+            "toolsAdded": [
+              {
+                "name": "read",
+                "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to read (relative or absolute)"
+                    },
+                    "offset": {
+                      "type": "number",
+                      "description": "Line number to start reading from (1-indexed)"
+                    },
+                    "limit": {
+                      "type": "number",
+                      "description": "Maximum number of lines to read"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "bash",
+                "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "command"
+                  ],
+                  "properties": {
+                    "command": {
+                      "type": "string",
+                      "description": "Shell command to execute"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "description": "Timeout in seconds (optional, no default timeout)"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "edit",
+                "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "edits"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to edit (relative or absolute)"
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "oldText",
+                          "newText"
+                        ],
+                        "properties": {
+                          "oldText": {
+                            "type": "string",
+                            "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                          },
+                          "newText": {
+                            "type": "string",
+                            "description": "Replacement text for this targeted edit."
+                          }
+                        }
+                      },
+                      "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "write",
+                "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "content"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to write (relative or absolute)"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Content to write to the file"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "permission_probe",
+                "description": "Test-owned probe",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "system",
+            "content": "",
+            "sections": {
+              "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+              "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+              "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+              "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+              "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+            },
+            "timestamp": 1791398719508,
+            "toolsAdded": [
+              {
+                "name": "read",
+                "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to read (relative or absolute)"
+                    },
+                    "offset": {
+                      "type": "number",
+                      "description": "Line number to start reading from (1-indexed)"
+                    },
+                    "limit": {
+                      "type": "number",
+                      "description": "Maximum number of lines to read"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "bash",
+                "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "command"
+                  ],
+                  "properties": {
+                    "command": {
+                      "type": "string",
+                      "description": "Shell command to execute"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "description": "Timeout in seconds (optional, no default timeout)"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "edit",
+                "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "edits"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to edit (relative or absolute)"
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "oldText",
+                          "newText"
+                        ],
+                        "properties": {
+                          "oldText": {
+                            "type": "string",
+                            "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                          },
+                          "newText": {
+                            "type": "string",
+                            "description": "Replacement text for this targeted edit."
+                          }
+                        }
+                      },
+                      "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "write",
+                "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "content"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to write (relative or absolute)"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Content to write to the file"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "permission_probe",
+                "description": "Test-owned probe",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Run the test-owned permission probe."
+              }
+            ],
+            "timestamp": 1791398719508
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Run the test-owned permission probe."
+              }
+            ],
+            "timestamp": 1791398719508
+          }
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_allowed",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "allowed"
+                },
+                "partialArgs": "{\"mode\":\"allowed\"}",
+                "streamIndex": 0
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "pending",
+            "timestamp": 1791398719518
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_start",
+            "contentIndex": 0,
+            "id": "probe_allowed",
+            "toolName": "permission_probe"
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_delta",
+            "contentIndex": 0,
+            "delta": "{\"mode\":\"allowed\"}"
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_end",
+            "contentIndex": 0,
+            "toolCall": {
+              "type": "toolCall",
+              "id": "probe_allowed",
+              "name": "permission_probe",
+              "arguments": {
+                "mode": "allowed"
+              }
+            }
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_allowed",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "allowed"
+                }
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "toolUse",
+            "timestamp": 1791398719518,
+            "responseId": "probe",
+            "rawStopReason": "tool_calls",
+            "thinkingLevel": "off"
+          }
+        },
+        {
+          "type": "tool_execution_start",
+          "toolCallId": "probe_allowed",
+          "toolName": "permission_probe",
+          "args": {
+            "mode": "allowed"
+          }
+        },
+        {
+          "type": "tool_execution_start",
+          "toolCallId": "probe_allowed/1",
+          "toolName": "bash",
+          "args": {
+            "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+          },
+          "parentToolCallId": "probe_allowed"
+        },
+        {
+          "type": "tool_execution_update",
+          "toolCallId": "probe_allowed/1",
+          "toolName": "bash",
+          "args": {
+            "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+          },
+          "partialResult": {
+            "content": []
+          },
+          "parentToolCallId": "probe_allowed"
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "probe_allowed/1",
+          "toolName": "bash",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "(no output)"
+              }
+            ],
+            "structuredContent": {
+              "output": "",
+              "truncated": false,
+              "exit_code": 0,
+              "wall_time_seconds": 0
+            }
+          },
+          "isError": false,
+          "parentToolCallId": "probe_allowed"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "ad52b914-b8b4-409b-b7a0-8f82a31ff6aa",
+          "method": "notify",
+          "message": "{\"stage\":\"nested\",\"mode\":\"allowed\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_allowed/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"(no output)\"}],\"structuredContent\":{\"output\":\"\",\"truncated\":false,\"exit_code\":0,\"wall_time_seconds\":0}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_allowed\",\"input\":{\"mode\":\"allowed\"}},{\"name\":\"bash\",\"id\":\"probe_allowed/1\",\"input\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}",
+          "notifyType": "info"
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "probe_allowed",
+          "toolName": "permission_probe",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"allowed\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_allowed/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"(no output)\"}],\"structuredContent\":{\"output\":\"\",\"truncated\":false,\"exit_code\":0,\"wall_time_seconds\":0}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_allowed\",\"input\":{\"mode\":\"allowed\"}},{\"name\":\"bash\",\"id\":\"probe_allowed/1\",\"input\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "allowed",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_allowed/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "(no output)"
+                    }
+                  ],
+                  "structuredContent": {
+                    "output": "",
+                    "truncated": false,
+                    "exit_code": 0,
+                    "wall_time_seconds": 0
+                  }
+                },
+                "isError": false
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_allowed",
+                  "input": {
+                    "mode": "allowed"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_allowed/1",
+                  "input": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            }
+          },
+          "isError": false
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "toolResult",
+            "toolCallId": "probe_allowed",
+            "toolName": "permission_probe",
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"allowed\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_allowed/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"(no output)\"}],\"structuredContent\":{\"output\":\"\",\"truncated\":false,\"exit_code\":0,\"wall_time_seconds\":0}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_allowed\",\"input\":{\"mode\":\"allowed\"}},{\"name\":\"bash\",\"id\":\"probe_allowed/1\",\"input\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "allowed",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_allowed/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "(no output)"
+                    }
+                  ],
+                  "structuredContent": {
+                    "output": "",
+                    "truncated": false,
+                    "exit_code": 0,
+                    "wall_time_seconds": 0
+                  }
+                },
+                "isError": false
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_allowed",
+                  "input": {
+                    "mode": "allowed"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_allowed/1",
+                  "input": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            },
+            "isError": false,
+            "timestamp": 1791398719551,
+            "nestedCalls": {
+              "calls": [
+                {
+                  "id": "probe_allowed/1",
+                  "name": "bash",
+                  "status": "ok",
+                  "arguments": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  },
+                  "durationMs": 10
+                }
+              ],
+              "complete": true
+            }
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "toolResult",
+            "toolCallId": "probe_allowed",
+            "toolName": "permission_probe",
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"allowed\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_allowed/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"(no output)\"}],\"structuredContent\":{\"output\":\"\",\"truncated\":false,\"exit_code\":0,\"wall_time_seconds\":0}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_allowed\",\"input\":{\"mode\":\"allowed\"}},{\"name\":\"bash\",\"id\":\"probe_allowed/1\",\"input\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "allowed",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_allowed/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "(no output)"
+                    }
+                  ],
+                  "structuredContent": {
+                    "output": "",
+                    "truncated": false,
+                    "exit_code": 0,
+                    "wall_time_seconds": 0
+                  }
+                },
+                "isError": false
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_allowed",
+                  "input": {
+                    "mode": "allowed"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_allowed/1",
+                  "input": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            },
+            "isError": false,
+            "timestamp": 1791398719551,
+            "nestedCalls": {
+              "calls": [
+                {
+                  "id": "probe_allowed/1",
+                  "name": "bash",
+                  "status": "ok",
+                  "arguments": {
+                    "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  },
+                  "durationMs": 10
+                }
+              ],
+              "complete": true
+            }
+          }
+        },
+        {
+          "type": "turn_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_allowed",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "allowed"
+                }
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "toolUse",
+            "timestamp": 1791398719518,
+            "responseId": "probe",
+            "rawStopReason": "tool_calls",
+            "thinkingLevel": "off"
+          },
+          "toolResults": [
+            {
+              "role": "toolResult",
+              "toolCallId": "probe_allowed",
+              "toolName": "permission_probe",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"stage\":\"nested\",\"mode\":\"allowed\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_allowed/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"(no output)\"}],\"structuredContent\":{\"output\":\"\",\"truncated\":false,\"exit_code\":0,\"wall_time_seconds\":0}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_allowed\",\"input\":{\"mode\":\"allowed\"}},{\"name\":\"bash\",\"id\":\"probe_allowed/1\",\"input\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+                }
+              ],
+              "details": {
+                "stage": "nested",
+                "mode": "allowed",
+                "result": {
+                  "toolCall": {
+                    "type": "toolCall",
+                    "id": "probe_allowed/1",
+                    "name": "bash",
+                    "arguments": {
+                      "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  },
+                  "result": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "(no output)"
+                      }
+                    ],
+                    "structuredContent": {
+                      "output": "",
+                      "truncated": false,
+                      "exit_code": 0,
+                      "wall_time_seconds": 0
+                    }
+                  },
+                  "isError": false
+                },
+                "hooks": [
+                  {
+                    "name": "permission_probe",
+                    "id": "probe_allowed",
+                    "input": {
+                      "mode": "allowed"
+                    }
+                  },
+                  {
+                    "name": "bash",
+                    "id": "probe_allowed/1",
+                    "input": {
+                      "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  }
+                ]
+              },
+              "isError": false,
+              "timestamp": 1791398719551,
+              "nestedCalls": {
+                "calls": [
+                  {
+                    "id": "probe_allowed/1",
+                    "name": "bash",
+                    "status": "ok",
+                    "arguments": {
+                      "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    },
+                    "durationMs": 10
+                  }
+                ],
+                "complete": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "pending",
+            "timestamp": 1791398719554
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_start",
+            "contentIndex": 0
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_delta",
+            "contentIndex": 0,
+            "delta": "Probe finished."
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_end",
+            "contentIndex": 0,
+            "content": "Probe finished."
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "stop",
+            "timestamp": 1791398719554,
+            "responseId": "probe",
+            "rawStopReason": "stop",
+            "thinkingLevel": "off"
+          }
+        },
+        {
+          "type": "turn_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "stop",
+            "timestamp": 1791398719554,
+            "responseId": "probe",
+            "rawStopReason": "stop",
+            "thinkingLevel": "off"
+          },
+          "toolResults": []
+        },
+        {
+          "type": "agent_end",
+          "messages": [
+            {
+              "role": "system",
+              "content": "",
+              "sections": {
+                "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+                "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+                "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+                "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+                "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+              },
+              "timestamp": 1791398719508,
+              "toolsAdded": [
+                {
+                  "name": "read",
+                  "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to read (relative or absolute)"
+                      },
+                      "offset": {
+                        "type": "number",
+                        "description": "Line number to start reading from (1-indexed)"
+                      },
+                      "limit": {
+                        "type": "number",
+                        "description": "Maximum number of lines to read"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "command"
+                    ],
+                    "properties": {
+                      "command": {
+                        "type": "string",
+                        "description": "Shell command to execute"
+                      },
+                      "timeout": {
+                        "type": "number",
+                        "description": "Timeout in seconds (optional, no default timeout)"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "edit",
+                  "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "edits"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit (relative or absolute)"
+                      },
+                      "edits": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "oldText",
+                            "newText"
+                          ],
+                          "properties": {
+                            "oldText": {
+                              "type": "string",
+                              "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                            },
+                            "newText": {
+                              "type": "string",
+                              "description": "Replacement text for this targeted edit."
+                            }
+                          }
+                        },
+                        "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "write",
+                  "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "content"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to write (relative or absolute)"
+                      },
+                      "content": {
+                        "type": "string",
+                        "description": "Content to write to the file"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "permission_probe",
+                  "description": "Test-owned probe",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Run the test-owned permission probe."
+                }
+              ],
+              "timestamp": 1791398719508
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "toolCall",
+                  "id": "probe_allowed",
+                  "name": "permission_probe",
+                  "arguments": {
+                    "mode": "allowed"
+                  }
+                }
+              ],
+              "api": "openai-completions",
+              "provider": "fixture",
+              "model": "controlled",
+              "usage": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 0,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "toolUse",
+              "timestamp": 1791398719518,
+              "responseId": "probe",
+              "rawStopReason": "tool_calls",
+              "thinkingLevel": "off"
+            },
+            {
+              "role": "toolResult",
+              "toolCallId": "probe_allowed",
+              "toolName": "permission_probe",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"stage\":\"nested\",\"mode\":\"allowed\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_allowed/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"(no output)\"}],\"structuredContent\":{\"output\":\"\",\"truncated\":false,\"exit_code\":0,\"wall_time_seconds\":0}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_allowed\",\"input\":{\"mode\":\"allowed\"}},{\"name\":\"bash\",\"id\":\"probe_allowed/1\",\"input\":{\"command\":\"git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+                }
+              ],
+              "details": {
+                "stage": "nested",
+                "mode": "allowed",
+                "result": {
+                  "toolCall": {
+                    "type": "toolCall",
+                    "id": "probe_allowed/1",
+                    "name": "bash",
+                    "arguments": {
+                      "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  },
+                  "result": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "(no output)"
+                      }
+                    ],
+                    "structuredContent": {
+                      "output": "",
+                      "truncated": false,
+                      "exit_code": 0,
+                      "wall_time_seconds": 0
+                    }
+                  },
+                  "isError": false
+                },
+                "hooks": [
+                  {
+                    "name": "permission_probe",
+                    "id": "probe_allowed",
+                    "input": {
+                      "mode": "allowed"
+                    }
+                  },
+                  {
+                    "name": "bash",
+                    "id": "probe_allowed/1",
+                    "input": {
+                      "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  }
+                ]
+              },
+              "isError": false,
+              "timestamp": 1791398719551,
+              "nestedCalls": {
+                "calls": [
+                  {
+                    "id": "probe_allowed/1",
+                    "name": "bash",
+                    "status": "ok",
+                    "arguments": {
+                      "command": "git branch nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    },
+                    "durationMs": 10
+                  }
+                ],
+                "complete": true
+              }
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Probe finished."
+                }
+              ],
+              "api": "openai-completions",
+              "provider": "fixture",
+              "model": "controlled",
+              "usage": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 0,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "stop",
+              "timestamp": 1791398719554,
+              "responseId": "probe",
+              "rawStopReason": "stop",
+              "thinkingLevel": "off"
+            }
+          ],
+          "willRetry": false
+        },
+        {
+          "type": "agent_settled"
+        }
+      ],
+      "stderr": ""
+    },
+    {
+      "mode": "override",
+      "override": true,
+      "records": [
+        {
+          "id": "1",
+          "type": "response",
+          "command": "get_state",
+          "success": true,
+          "data": {
+            "model": {
+              "id": "controlled",
+              "name": "Probe fixture",
+              "api": "openai-completions",
+              "provider": "fixture",
+              "baseUrl": "http://127.0.0.1:44991/v1",
+              "reasoning": false,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              },
+              "contextWindow": 200000,
+              "maxTokens": 4096
+            },
+            "thinkingLevel": "off",
+            "isStreaming": false,
+            "isCompacting": false,
+            "steeringMode": "one-at-a-time",
+            "followUpMode": "one-at-a-time",
+            "sessionId": "01a117af-310f-7285-bf08-6d1715f91dff",
+            "autoCompactionEnabled": true,
+            "messageCount": 0,
+            "pendingMessageCount": 0
+          }
+        },
+        {
+          "id": "2",
+          "type": "response",
+          "command": "prompt",
+          "success": true,
+          "data": {
+            "disposition": "started"
+          }
+        },
+        {
+          "type": "agent_start"
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "system",
+            "content": "",
+            "sections": {
+              "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+              "tools": "<tools>\n- read: Read file contents\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+              "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+              "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+              "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+            },
+            "timestamp": 1791398719814,
+            "toolsAdded": [
+              {
+                "name": "read",
+                "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to read (relative or absolute)"
+                    },
+                    "offset": {
+                      "type": "number",
+                      "description": "Line number to start reading from (1-indexed)"
+                    },
+                    "limit": {
+                      "type": "number",
+                      "description": "Maximum number of lines to read"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "bash",
+                "description": "Test override",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command"
+                  ]
+                }
+              },
+              {
+                "name": "edit",
+                "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "edits"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to edit (relative or absolute)"
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "oldText",
+                          "newText"
+                        ],
+                        "properties": {
+                          "oldText": {
+                            "type": "string",
+                            "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                          },
+                          "newText": {
+                            "type": "string",
+                            "description": "Replacement text for this targeted edit."
+                          }
+                        }
+                      },
+                      "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "write",
+                "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "content"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to write (relative or absolute)"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Content to write to the file"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "permission_probe",
+                "description": "Test-owned probe",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "system",
+            "content": "",
+            "sections": {
+              "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+              "tools": "<tools>\n- read: Read file contents\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+              "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+              "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+              "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+            },
+            "timestamp": 1791398719814,
+            "toolsAdded": [
+              {
+                "name": "read",
+                "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to read (relative or absolute)"
+                    },
+                    "offset": {
+                      "type": "number",
+                      "description": "Line number to start reading from (1-indexed)"
+                    },
+                    "limit": {
+                      "type": "number",
+                      "description": "Maximum number of lines to read"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "bash",
+                "description": "Test override",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "command": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command"
+                  ]
+                }
+              },
+              {
+                "name": "edit",
+                "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "edits"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to edit (relative or absolute)"
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "oldText",
+                          "newText"
+                        ],
+                        "properties": {
+                          "oldText": {
+                            "type": "string",
+                            "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                          },
+                          "newText": {
+                            "type": "string",
+                            "description": "Replacement text for this targeted edit."
+                          }
+                        }
+                      },
+                      "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "write",
+                "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                "parameters": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "content"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Path to the file to write (relative or absolute)"
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Content to write to the file"
+                    }
+                  }
+                },
+                "constrainedSampling": {
+                  "type": "json_schema",
+                  "strict": "prefer"
+                }
+              },
+              {
+                "name": "permission_probe",
+                "description": "Test-owned probe",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Run the test-owned permission probe."
+              }
+            ],
+            "timestamp": 1791398719812
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Run the test-owned permission probe."
+              }
+            ],
+            "timestamp": 1791398719812
+          }
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_override",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "override"
+                },
+                "partialArgs": "{\"mode\":\"override\"}",
+                "streamIndex": 0
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "pending",
+            "timestamp": 1791398719826
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_start",
+            "contentIndex": 0,
+            "id": "probe_override",
+            "toolName": "permission_probe"
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_delta",
+            "contentIndex": 0,
+            "delta": "{\"mode\":\"override\"}"
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "toolcall_end",
+            "contentIndex": 0,
+            "toolCall": {
+              "type": "toolCall",
+              "id": "probe_override",
+              "name": "permission_probe",
+              "arguments": {
+                "mode": "override"
+              }
+            }
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_override",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "override"
+                }
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "toolUse",
+            "timestamp": 1791398719826,
+            "responseId": "probe",
+            "rawStopReason": "tool_calls",
+            "thinkingLevel": "off"
+          }
+        },
+        {
+          "type": "tool_execution_start",
+          "toolCallId": "probe_override",
+          "toolName": "permission_probe",
+          "args": {
+            "mode": "override"
+          }
+        },
+        {
+          "type": "tool_execution_start",
+          "toolCallId": "probe_override/1",
+          "toolName": "bash",
+          "args": {
+            "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+          },
+          "parentToolCallId": "probe_override"
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "probe_override/1",
+          "toolName": "bash",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "OVERRIDE ONLY. No command executed."
+              }
+            ],
+            "details": {
+              "override": true
+            }
+          },
+          "isError": false,
+          "parentToolCallId": "probe_override"
+        },
+        {
+          "type": "extension_ui_request",
+          "id": "3bb667dc-1f80-4b69-b6a1-28d6826751d3",
+          "method": "notify",
+          "message": "{\"stage\":\"nested\",\"mode\":\"override\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_override/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"OVERRIDE ONLY. No command executed.\"}],\"details\":{\"override\":true}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_override\",\"input\":{\"mode\":\"override\"}},{\"name\":\"bash\",\"id\":\"probe_override/1\",\"input\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}",
+          "notifyType": "info"
+        },
+        {
+          "type": "tool_execution_end",
+          "toolCallId": "probe_override",
+          "toolName": "permission_probe",
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"override\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_override/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"OVERRIDE ONLY. No command executed.\"}],\"details\":{\"override\":true}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_override\",\"input\":{\"mode\":\"override\"}},{\"name\":\"bash\",\"id\":\"probe_override/1\",\"input\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "override",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_override/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "OVERRIDE ONLY. No command executed."
+                    }
+                  ],
+                  "details": {
+                    "override": true
+                  }
+                },
+                "isError": false
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_override",
+                  "input": {
+                    "mode": "override"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_override/1",
+                  "input": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            }
+          },
+          "isError": false
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "toolResult",
+            "toolCallId": "probe_override",
+            "toolName": "permission_probe",
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"override\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_override/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"OVERRIDE ONLY. No command executed.\"}],\"details\":{\"override\":true}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_override\",\"input\":{\"mode\":\"override\"}},{\"name\":\"bash\",\"id\":\"probe_override/1\",\"input\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "override",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_override/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "OVERRIDE ONLY. No command executed."
+                    }
+                  ],
+                  "details": {
+                    "override": true
+                  }
+                },
+                "isError": false
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_override",
+                  "input": {
+                    "mode": "override"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_override/1",
+                  "input": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            },
+            "isError": false,
+            "timestamp": 1791398719853,
+            "nestedCalls": {
+              "calls": [
+                {
+                  "id": "probe_override/1",
+                  "name": "bash",
+                  "status": "ok",
+                  "arguments": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  },
+                  "durationMs": 1
+                }
+              ],
+              "complete": true
+            }
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "toolResult",
+            "toolCallId": "probe_override",
+            "toolName": "permission_probe",
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"stage\":\"nested\",\"mode\":\"override\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_override/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"OVERRIDE ONLY. No command executed.\"}],\"details\":{\"override\":true}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_override\",\"input\":{\"mode\":\"override\"}},{\"name\":\"bash\",\"id\":\"probe_override/1\",\"input\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+              }
+            ],
+            "details": {
+              "stage": "nested",
+              "mode": "override",
+              "result": {
+                "toolCall": {
+                  "type": "toolCall",
+                  "id": "probe_override/1",
+                  "name": "bash",
+                  "arguments": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                },
+                "result": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "OVERRIDE ONLY. No command executed."
+                    }
+                  ],
+                  "details": {
+                    "override": true
+                  }
+                },
+                "isError": false
+              },
+              "hooks": [
+                {
+                  "name": "permission_probe",
+                  "id": "probe_override",
+                  "input": {
+                    "mode": "override"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "id": "probe_override/1",
+                  "input": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  }
+                }
+              ]
+            },
+            "isError": false,
+            "timestamp": 1791398719853,
+            "nestedCalls": {
+              "calls": [
+                {
+                  "id": "probe_override/1",
+                  "name": "bash",
+                  "status": "ok",
+                  "arguments": {
+                    "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                  },
+                  "durationMs": 1
+                }
+              ],
+              "complete": true
+            }
+          }
+        },
+        {
+          "type": "turn_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolCall",
+                "id": "probe_override",
+                "name": "permission_probe",
+                "arguments": {
+                  "mode": "override"
+                }
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "toolUse",
+            "timestamp": 1791398719826,
+            "responseId": "probe",
+            "rawStopReason": "tool_calls",
+            "thinkingLevel": "off"
+          },
+          "toolResults": [
+            {
+              "role": "toolResult",
+              "toolCallId": "probe_override",
+              "toolName": "permission_probe",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"stage\":\"nested\",\"mode\":\"override\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_override/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"OVERRIDE ONLY. No command executed.\"}],\"details\":{\"override\":true}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_override\",\"input\":{\"mode\":\"override\"}},{\"name\":\"bash\",\"id\":\"probe_override/1\",\"input\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+                }
+              ],
+              "details": {
+                "stage": "nested",
+                "mode": "override",
+                "result": {
+                  "toolCall": {
+                    "type": "toolCall",
+                    "id": "probe_override/1",
+                    "name": "bash",
+                    "arguments": {
+                      "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  },
+                  "result": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "OVERRIDE ONLY. No command executed."
+                      }
+                    ],
+                    "details": {
+                      "override": true
+                    }
+                  },
+                  "isError": false
+                },
+                "hooks": [
+                  {
+                    "name": "permission_probe",
+                    "id": "probe_override",
+                    "input": {
+                      "mode": "override"
+                    }
+                  },
+                  {
+                    "name": "bash",
+                    "id": "probe_override/1",
+                    "input": {
+                      "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  }
+                ]
+              },
+              "isError": false,
+              "timestamp": 1791398719853,
+              "nestedCalls": {
+                "calls": [
+                  {
+                    "id": "probe_override/1",
+                    "name": "bash",
+                    "status": "ok",
+                    "arguments": {
+                      "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    },
+                    "durationMs": 1
+                  }
+                ],
+                "complete": true
+              }
+            }
+          ]
+        },
+        {
+          "type": "turn_start"
+        },
+        {
+          "type": "message_start",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "pending",
+            "timestamp": 1791398719855
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_start",
+            "contentIndex": 0
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_delta",
+            "contentIndex": 0,
+            "delta": "Probe finished."
+          }
+        },
+        {
+          "type": "message_update",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0
+            }
+          },
+          "assistantMessageEvent": {
+            "type": "text_end",
+            "contentIndex": 0,
+            "content": "Probe finished."
+          }
+        },
+        {
+          "type": "message_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "stop",
+            "timestamp": 1791398719855,
+            "responseId": "probe",
+            "rawStopReason": "stop",
+            "thinkingLevel": "off"
+          }
+        },
+        {
+          "type": "turn_end",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "Probe finished."
+              }
+            ],
+            "api": "openai-completions",
+            "provider": "fixture",
+            "model": "controlled",
+            "usage": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "totalTokens": 0,
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "total": 0
+              }
+            },
+            "stopReason": "stop",
+            "timestamp": 1791398719855,
+            "responseId": "probe",
+            "rawStopReason": "stop",
+            "thinkingLevel": "off"
+          },
+          "toolResults": []
+        },
+        {
+          "type": "agent_end",
+          "messages": [
+            {
+              "role": "system",
+              "content": "",
+              "sections": {
+                "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+                "tools": "<tools>\n- read: Read file contents\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+                "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+                "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /home/vscode/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+                "cwd": "<cwd>\n/tmp/legion-t02-permission-rLZf3S/repo\n</cwd>"
+              },
+              "timestamp": 1791398719814,
+              "toolsAdded": [
+                {
+                  "name": "read",
+                  "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to read (relative or absolute)"
+                      },
+                      "offset": {
+                        "type": "number",
+                        "description": "Line number to start reading from (1-indexed)"
+                      },
+                      "limit": {
+                        "type": "number",
+                        "description": "Maximum number of lines to read"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "bash",
+                  "description": "Test override",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "command": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "command"
+                    ]
+                  }
+                },
+                {
+                  "name": "edit",
+                  "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "edits"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit (relative or absolute)"
+                      },
+                      "edits": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "oldText",
+                            "newText"
+                          ],
+                          "properties": {
+                            "oldText": {
+                              "type": "string",
+                              "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."
+                            },
+                            "newText": {
+                              "type": "string",
+                              "description": "Replacement text for this targeted edit."
+                            }
+                          }
+                        },
+                        "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "write",
+                  "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "content"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "Path to the file to write (relative or absolute)"
+                      },
+                      "content": {
+                        "type": "string",
+                        "description": "Content to write to the file"
+                      }
+                    }
+                  },
+                  "constrainedSampling": {
+                    "type": "json_schema",
+                    "strict": "prefer"
+                  }
+                },
+                {
+                  "name": "permission_probe",
+                  "description": "Test-owned probe",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Run the test-owned permission probe."
+                }
+              ],
+              "timestamp": 1791398719812
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "toolCall",
+                  "id": "probe_override",
+                  "name": "permission_probe",
+                  "arguments": {
+                    "mode": "override"
+                  }
+                }
+              ],
+              "api": "openai-completions",
+              "provider": "fixture",
+              "model": "controlled",
+              "usage": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 0,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "toolUse",
+              "timestamp": 1791398719826,
+              "responseId": "probe",
+              "rawStopReason": "tool_calls",
+              "thinkingLevel": "off"
+            },
+            {
+              "role": "toolResult",
+              "toolCallId": "probe_override",
+              "toolName": "permission_probe",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"stage\":\"nested\",\"mode\":\"override\",\"result\":{\"toolCall\":{\"type\":\"toolCall\",\"id\":\"probe_override/1\",\"name\":\"bash\",\"arguments\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}},\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"OVERRIDE ONLY. No command executed.\"}],\"details\":{\"override\":true}},\"isError\":false},\"hooks\":[{\"name\":\"permission_probe\",\"id\":\"probe_override\",\"input\":{\"mode\":\"override\"}},{\"name\":\"bash\",\"id\":\"probe_override/1\",\"input\":{\"command\":\"git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de\"}}]}"
+                }
+              ],
+              "details": {
+                "stage": "nested",
+                "mode": "override",
+                "result": {
+                  "toolCall": {
+                    "type": "toolCall",
+                    "id": "probe_override/1",
+                    "name": "bash",
+                    "arguments": {
+                      "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  },
+                  "result": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "OVERRIDE ONLY. No command executed."
+                      }
+                    ],
+                    "details": {
+                      "override": true
+                    }
+                  },
+                  "isError": false
+                },
+                "hooks": [
+                  {
+                    "name": "permission_probe",
+                    "id": "probe_override",
+                    "input": {
+                      "mode": "override"
+                    }
+                  },
+                  {
+                    "name": "bash",
+                    "id": "probe_override/1",
+                    "input": {
+                      "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    }
+                  }
+                ]
+              },
+              "isError": false,
+              "timestamp": 1791398719853,
+              "nestedCalls": {
+                "calls": [
+                  {
+                    "id": "probe_override/1",
+                    "name": "bash",
+                    "status": "ok",
+                    "arguments": {
+                      "command": "git branch nested-override 1570b7b7cbfee92827dc28153c221a8df11896de"
+                    },
+                    "durationMs": 1
+                  }
+                ],
+                "complete": true
+              }
+            },
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Probe finished."
+                }
+              ],
+              "api": "openai-completions",
+              "provider": "fixture",
+              "model": "controlled",
+              "usage": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 0,
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "total": 0
+                }
+              },
+              "stopReason": "stop",
+              "timestamp": 1791398719855,
+              "responseId": "probe",
+              "rawStopReason": "stop",
+              "thinkingLevel": "off"
+            }
+          ],
+          "willRetry": false
+        },
+        {
+          "type": "agent_settled"
+        }
+      ],
+      "stderr": ""
+    }
+  ],
+  "branches": "refs/heads/main 1570b7b7cbfee92827dc28153c221a8df11896de\nrefs/heads/nested-allowed 1570b7b7cbfee92827dc28153c221a8df11896de\n",
+  "hostAfter": "296596038ff5d0b578264865abad78583dbf1db3583b8ee7a681eb486be7384c",
+  "scriptSha256": "b5c5293caf7f4878a6bad61c9312befc278e770b1288e0b64f6bf305b8ac5baf",
+  "extensionSha256": "dd5480b655e2bb8d830fe88d8bdfa62e9c2e68505091670a989e97ef1ed58d3b"
+}
