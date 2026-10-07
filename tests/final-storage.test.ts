@@ -108,9 +108,23 @@ test("incomplete metadata fails closed only for its routed identity and cannot b
   const before = await bytes(root);
   assert.ok((await subject.state()).unavailable);
   assert.deepEqual(await bytes(root), before);
+  assert.equal((await command(subject, options.session, "doctor", "observe-operational-journals")).kind, "observed");
+  assert.deepEqual(await bytes(root), before, "Doctor preserves every byte including both operational crash journals");
   assert.equal((await command(subject, options.session, "on", "do-not-replace")).kind, "rejected");
   assert.equal((await command(subject, options.session, `resume ${id}`, "do-not-invent-metadata")).kind, "rejected");
-  assert.deepEqual(await bytes(root), before);
+  const associationJournal = [...before.keys()].find(file =>
+    file.startsWith("association.v1.") && file.endsWith(".lock-journal"),
+  );
+  assert.ok(associationJournal);
+  const expected = new Map(before);
+  expected.delete(associationJournal);
+  assert.deepEqual(await bytes(root), expected, "Mutation may reconcile only its association lease journal; all authoritative and other lease bytes remain exact");
+  const afterMutation = await bytes(root);
+  const inactive = await subject.state();
+  assert.equal(inactive.mode, "inactive");
+  assert.equal(inactive.snapshot, null);
+  assert.ok(inactive.unavailable);
+  assert.deepEqual(await bytes(root), afterMutation, "Subsequent observation preserves all remaining files and bytes");
   const independent = new Legion({ ...options, session: "independent" });
   assert.equal((await command(independent, "independent", "on", "independent-on")).kind, "applied");
   await command(independent, "independent", "off", "independent-off");

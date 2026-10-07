@@ -1,0 +1,1 @@
+{"root":"/tmp/legion-lock-census-8jb8zJ","scenario":"task","rounds":1500,"winners":[923,577],"rejected":[577,923],"zeroOwners":0,"dualOwners":0}

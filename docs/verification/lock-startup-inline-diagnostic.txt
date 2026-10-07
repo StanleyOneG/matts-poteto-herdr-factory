@@ -1,0 +1,1 @@
+{"root":"/tmp/legion-lock-census-QyGudi","scenario":"initialized","rounds":1800,"winners":[1064,736],"rejected":[736,1064],"zeroOwners":0,"dualOwners":0}

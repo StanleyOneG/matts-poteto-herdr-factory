@@ -1,0 +1,19 @@
+{"root":"/tmp/legion-lock-census-wwMuEF","scenario":"fresh","rounds":1000,"winners":[647,313],"rejected":[353,687],"zeroOwners":40,"dualOwners":0}
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Every simultaneous activation must leave one owner, not two rejected contenders
+
+40 !== 0
+
+    at file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/census-lock-startup.mjs:75:10 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 40,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1

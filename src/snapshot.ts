@@ -466,7 +466,7 @@ export class SnapshotStore {
     const DB = await sqlite();
     const db = new DB(path);
     try {
-      db.exec("PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; CREATE TABLE IF NOT EXISTS owner (id INTEGER); BEGIN EXCLUSIVE");
+      db.exec("BEGIN IMMEDIATE");
       syncDirectory(this.root);
       return db;
     } catch (error) {
