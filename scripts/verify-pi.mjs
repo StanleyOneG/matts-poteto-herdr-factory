@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
 import { Legion } from "../src/intake.ts";
 import {
@@ -7,6 +8,7 @@ import {
   readFile,
   symlink,
   access,
+  rm,
 } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { resolve, join } from "node:path";
@@ -383,10 +385,23 @@ try {
   );
   await writeFile(
     join(fixturePackage, "extension.ts"),
-    `export default function(pi) {
+    `export default async function(pi) {
     let race = false;
+    const fs = await import('node:fs');
+    pi.registerProvider('held-auth', { ...${JSON.stringify(models.providers.fixture)}, oauth: {
+      name: 'Test-owned held authentication',
+      login: async () => { throw new Error('Fixture login is forbidden'); },
+      refreshToken: async credential => {
+        fs.writeFileSync(${JSON.stringify(join(root, "auth-check-started"))}, 'checking');
+        while (!fs.existsSync(${JSON.stringify(join(root, "auth-check-release"))})) await new Promise(r => setTimeout(r, 20));
+        return { ...credential, expires: Date.now() + 3600000 };
+      },
+      getApiKey: credential => credential.access,
+    } });
+    pi.registerCommand('fixture-restore-auth', { handler: async () => { pi.registerProvider('fixture', ${JSON.stringify(models.providers.fixture)}); } });
     pi.registerCommand('fixture-host-command', { handler: async () => { pi.sendUserMessage('/legion task Host-command fixture input', {expandPromptTemplates: true}); } });
     pi.registerCommand('fixture-extension-input', { handler: async () => { pi.sendUserMessage('Injected ordinary answer'); } });
+    pi.registerCommand('fixture-uncorrelated-error', { handler: async () => { pi.sendUserMessage('Unrelated host message during a running turn'); } });
     pi.registerCommand('fixture-stale', { handler: async () => { pi.sendUserMessage('Legion intake dispatch expired'); } });
     pi.registerCommand('fixture-race', { handler: async () => { race = true; } });
     pi.on('input', async event => {
@@ -403,6 +418,103 @@ try {
   settings.defaultThinkingLevel = "off";
   settings.lastChangelogVersion = "1.0.4";
   await writeFile(join(agent, "settings.json"), JSON.stringify(settings));
+  handler = (body) => propose(body, (data) => ({ kind: "new-task", source: data.sources[0], goal: "Held authentication task", acceptance: [], questions: [] }));
+  for (const interrupt of ["resume", "off", "busy", "settled"]) {
+    await rm(join(root, "auth-check-started"), { force: true });
+    await rm(join(root, "auth-check-release"), { force: true });
+    await writeFile(join(agent, "auth.json"), JSON.stringify({ "held-auth": { type: "oauth", access: "test-owned-not-a-secret", refresh: "test-owned-refresh", expires: 0 } }));
+    const checking = client(["--provider", "held-auth", "--model", "controlled"]);
+    const checkStart = checking.records.length;
+    const requestsBeforeCheck = requests;
+    await checking.prompt(`/legion Held auth ${interrupt}`);
+    await until(() => existsSync(join(root, "auth-check-started")), "authentication check is actually held");
+    const checkingView = await checking.state();
+    let releaseOrdinary;
+    let ordinaryWaiting = false;
+    if (interrupt === "busy" || interrupt === "settled") {
+      await checking.rpc("set_model", { provider: "fixture", modelId: "controlled" });
+      const ordinaryHeld = new Promise(r => { releaseOrdinary = r; });
+      handler = async body => {
+        if (JSON.stringify(body.messages.at(-1)?.content).includes("Injected ordinary answer")) {
+          ordinaryWaiting = true;
+          if (interrupt === "busy") await ordinaryHeld;
+          return { content: "Unrelated turn settled." };
+        }
+        return propose(body, data => ({ kind: "new-task", source: data.sources[0], goal: "Deferred held-auth task", acceptance: [], questions: [] }));
+      };
+      await checking.prompt("/fixture-extension-input");
+      await until(() => ordinaryWaiting, "unrelated turn starts while local auth check is held");
+    } else if (interrupt === "resume") await checking.prompt(`/legion resume ${checkingView.snapshot.id}`);
+    else await checking.prompt("/legion off");
+    await new Promise((r) => setTimeout(r, 100));
+    if (interrupt !== "busy" && interrupt !== "settled") {
+      noTurn(checking, checkStart);
+      assert.equal(requests, requestsBeforeCheck, "Held local authentication must not forward or overlap a turn");
+    }
+    if (interrupt === "settled")
+      await until(() => checking.records.slice(checkStart).some(r => r.type === "agent_settled"), "unrelated run settles before local auth completes");
+    await writeFile(join(root, "auth-check-release"), "released");
+    if (interrupt === "busy") {
+      await until(() => checking.records.slice(checkStart).some(r => r.method === "notify" && r.message.includes("Interpretation deferred. Inputs remain saved.")), "busy race after local auth check is consumed before forwarding");
+      assert.equal(requests, requestsBeforeCheck + 1, "Only the unrelated request runs before settlement");
+      releaseOrdinary();
+      await until(() => checking.records.slice(checkStart).filter(r => r.type === "agent_settled").length === 2, "deferred auth-check input gets a fresh interpretation after settlement");
+      assert.equal((await checking.state()).tasks[0].eligibility, "admitted");
+    } else if (interrupt === "settled") {
+      await until(() => checking.records.slice(checkStart).filter(r => r.type === "agent_settled").length === 2, "unrelated settlement preserves the locally checking dispatch");
+      assert.equal((await checking.state()).tasks[0].eligibility, "admitted");
+    } else if (interrupt === "resume") {
+      await until(() => checking.records.slice(checkStart).some((r) => r.type === "agent_settled"), "one held-check dispatch settles after resume");
+      assert.equal(checking.records.slice(checkStart).filter((r) => r.type === "agent_start").length, 1);
+      assert.equal((await checking.state()).tasks[0].eligibility, "admitted");
+    } else {
+      await new Promise((r) => setTimeout(r, 200));
+      noTurn(checking, checkStart);
+      const cancelled = await checking.state();
+      assert.equal(cancelled.mode, "inactive");
+      assert.equal(cancelled.snapshot.submissions[0].text, "Held auth off");
+      assert.equal(cancelled.snapshot.submissions[0].state.kind, "pending");
+      const recheckStart = checking.records.length;
+      await checking.prompt(`/legion resume ${cancelled.snapshot.id}`);
+      await until(() => checking.records.slice(recheckStart).some((r) => r.type === "agent_settled"), "off during checking retains input for explicit resume");
+      assert.equal((await checking.state()).tasks[0].eligibility, "admitted");
+    }
+    await checking.prompt("/legion off");
+    await checking.close();
+  }
+  await writeFile(join(agent, "auth.json"), "{}");
+  checks.push("held auth refuses overlapping resume; off preserves input; busy and unrelated-settlement races preserve fresh dispatch");
+  handler = (body) => propose(body, (data) => ({ kind: "new-task", source: data.sources[0], goal: "Authentication restored", acceptance: [], questions: [] }));
+  await writeFile(join(agent, "models.json"), JSON.stringify({ providers: { fixture: { ...models.providers.fixture, apiKey: undefined } } }));
+  const missingAuth = client(["--provider", "fixture", "--model", "controlled"]);
+  const missingModel = await missingAuth.rpc("get_state");
+  assert.equal(missingModel.model?.provider, "fixture");
+  const missingStart = missingAuth.records.length;
+  await missingAuth.prompt("/legion Keep exact missing-auth input");
+  await until(() => missingAuth.records.slice(missingStart).some((r) => r.method === "notify" && r.message?.includes("Intake stalled before delivery. Authentication is unavailable.")), "real missing-auth failure before agent_start");
+  noTurn(missingAuth, missingStart);
+  assert.equal(missingAuth.records.slice(missingStart).filter((r) => r.type === "agent_settled").length, 0);
+  const missingView = await missingAuth.state();
+  assert.equal(missingView.snapshot.submissions[0].text, "Keep exact missing-auth input");
+  assert.equal(missingView.snapshot.submissions[0].state.kind, "pending");
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(missingAuth.records.slice(missingStart).filter((r) => r.method === "notify" && r.message?.includes("Intake stalled before delivery.")).length, 1, "No autonomous missing-auth retries");
+  assert.equal(missingAuth.records.slice(missingStart).filter((r) => r.type === "extension_error").length, 0, "Known auth failure is consumed before host delivery");
+  await writeFile(join(agent, "models.json"), JSON.stringify(models));
+  await missingAuth.prompt("/fixture-restore-auth");
+  await missingAuth.rpc("get_state");
+  const retryStart = missingAuth.records.length;
+  await missingAuth.prompt(`/legion resume ${missingView.snapshot.id}`);
+  await until(() => missingAuth.records.slice(retryStart).some((r) => r.type === "agent_settled"), "explicit resume retries a pre-start authentication failure");
+  const recoveredAuth = await missingAuth.state();
+  assert.equal(recoveredAuth.snapshot.submissions[0].text, "Keep exact missing-auth input");
+  assert.equal(recoveredAuth.snapshot.submissions[0].state.kind, "applied");
+  assert.equal(recoveredAuth.tasks[0].eligibility, "admitted");
+  await missingAuth.prompt("/legion off");
+  await missingAuth.close();
+  await writeFile(join(agent, "auth.json"), "{}");
+  await writeFile(join(agent, "models.json"), JSON.stringify(models));
+  checks.push("real missing authentication leaves original pending, no autonomous retry, explicit resume retries after isolated authentication restoration");
   const fixtureSettingsHash = hash(
     await readFile(join(agent, "settings.json")),
   );
@@ -487,6 +599,42 @@ try {
   checks.push(
     "supported host-command provenance is source-unavailable and trusted extensions can invoke commands",
   );
+  handler = async (body) => {
+    const result = propose(body, (data) => {
+      const decision = data.state.snapshot.decisions.find((d) => d.state.kind === "open");
+      if (decision)
+        return { kind: "answer", source: data.sources[0], decision: { id: decision.id, revision: 1 }, effect: { kind: "record-clarification", target: decision.history[0].affected[0], answer: data.state.snapshot.submissions.find((s) => s.id === data.sources[0].id).text } };
+      return { kind: "new-task", source: data.sources[0], goal: "TUI greeting", acceptance: [], questions: [{ question: "Which language?", recommendation: "Use English" }] };
+    });
+    if (!result.tool && interpretation(body).state.snapshot.decisions.length === 0) {
+      await until(() => existsSync(join(root, "tui-off")), "TUI switches off before settlement");
+      return { content: "TUI inactive settlement." };
+    }
+    return result;
+  };
+  await writeFile(
+    join(root, "fixture.json"),
+    JSON.stringify({ env, cwd, root }),
+  );
+  const tui = spawn(
+    "python3",
+    [resolve("scripts/verify-tui.py"), join(root, "fixture.json")],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let tuiOut = "";
+  tui.stdout.on("data", (b) => {
+    tuiOut += b;
+  });
+  tui.stderr.on("data", (b) => {
+    tuiOut += b;
+  });
+  await new Promise((r, reject) =>
+    tui.once("exit", (code) => (code === 0 ? r() : reject(new Error(tuiOut)))),
+  );
+  checks.push(
+    "real PTY completion, English doctor, off before settlement, inactive refresh without duplicate questions, explicit resume and ordinary answering",
+  );
+
   const live = client();
   const modelBefore = await live.rpc("get_state");
   const observeStart = live.records.length;
@@ -537,11 +685,19 @@ try {
   );
   const blocked = await live.state();
   assert.equal(blocked.tasks[0].eligibility, "blocked");
-  handler = () => ({
-    content: "Extension-origin text is not an Emperor answer.",
-  });
+  let releaseInactive;
+  const inactiveHeld = new Promise((r) => { releaseInactive = r; });
+  let inactiveWaiting = false;
+  handler = async () => {
+    inactiveWaiting = true;
+    await inactiveHeld;
+    return { content: "Extension-origin text is not an Emperor answer." };
+  };
   const extensionStart = live.records.length;
   await live.prompt("/fixture-extension-input");
+  await until(() => inactiveWaiting, "ordinary run held before off");
+  await live.prompt("/legion off");
+  releaseInactive();
   await until(
     () =>
       live.records
@@ -551,9 +707,15 @@ try {
   );
   const extensionView = await live.state();
   assert.equal(extensionView.snapshot.submissions.length, 1);
-  assert.equal(extensionView.tasks[0].eligibility, "blocked");
+  assert.equal(extensionView.mode, "inactive");
+  assert.equal(extensionView.snapshot.decisions[0].state.kind, "open");
+  await live.prompt("/legion off");
+  assert.equal((await live.rpc("get_entries")).entries.filter((e) => e.type === "custom_message" && e.customType === "legion-decision").length, 1, "Off, inactive settlement and inactive refresh must not republish questions");
+  await live.prompt(`/legion resume ${blocked.snapshot.id}`);
+  assert.equal((await live.state()).tasks[0].eligibility, "blocked");
+  assert.equal((await live.rpc("get_entries")).entries.filter((e) => e.type === "custom_message" && e.customType === "legion-decision").length, 1, "Resume retains a current actionable question without duplication");
   checks.push(
-    "extension-origin ordinary input cannot create a submission or answer a decision",
+    "extension-origin input cannot answer; off, inactive settlement and refresh retain one question; resume retains actionable presentation",
   );
   const entries = await live.rpc("get_entries");
   assert.ok(
@@ -836,6 +998,13 @@ try {
   const offStart = live.records.length;
   await live.prompt("/legion Saved before off");
   await until(() => offWaiting, "held interpretation before off");
+  const startedView = await live.state();
+  const startedRequests = requests;
+  await live.prompt("/legion off");
+  await live.prompt(`/legion resume ${startedView.snapshot.id}`);
+  await live.prompt("/fixture-uncorrelated-error");
+  await until(() => live.records.slice(offStart).some((r) => r.type === "extension_error" && r.error.includes("Agent is already processing")), "uncorrelated host delivery fails during the started run");
+  assert.equal(requests, startedRequests, "Off and explicit resume cannot dispatch over a genuinely started turn");
   await live.prompt("/legion off");
   releaseOff();
   await until(
@@ -866,7 +1035,7 @@ try {
   assert.equal(stopped.mode, "inactive");
   assert.equal(stopped.snapshot.submissions.at(-1).state.kind, "pending");
   checks.push(
-    "off preserves input, late proposals rejected, non-intake tools remain blocked until settlement",
+    "started turn retains guards through off, explicit resume and an uncorrelated delivery error until settlement; late proposals reject",
   );
   handler = (body) =>
     propose(body, (data) => ({
@@ -919,38 +1088,6 @@ try {
     "real fork revokes intake, stays inactive, and preserves logical records",
   );
   await live.close();
-  handler = (body) =>
-    propose(body, (data) => ({
-      kind: "new-task",
-      source: data.sources[0],
-      goal: "TUI greeting",
-      acceptance: [],
-      questions: [
-        { question: "Which language?", recommendation: "Use English" },
-      ],
-    }));
-  await writeFile(
-    join(root, "fixture.json"),
-    JSON.stringify({ env, cwd, root }),
-  );
-  const tui = spawn(
-    "python3",
-    [resolve("scripts/verify-tui.py"), join(root, "fixture.json")],
-    { stdio: ["ignore", "pipe", "pipe"] },
-  );
-  let tuiOut = "";
-  tui.stdout.on("data", (b) => {
-    tuiOut += b;
-  });
-  tui.stderr.on("data", (b) => {
-    tuiOut += b;
-  });
-  await new Promise((r, reject) =>
-    tui.once("exit", (code) => (code === 0 ? r() : reject(new Error(tuiOut)))),
-  );
-  checks.push(
-    "real PTY command completion, English doctor, decision and recommendation rendering",
-  );
 
   await writeFile(join(root, "rpc.json"), JSON.stringify(logs));
   assert.equal(hash(await readFile(hostSettings)), hostBefore);

@@ -1,5 +1,7 @@
 # Legion T01 verification result
 
+This is a historical report. [The authorized remediation report](remediation-results.md) records the subsequent fixes and successful representative provider trial.
+
 This report records the recovery implementation before the post-comment commit stage. [The post-comment report](pre-review-results.md) records the subsequent verifier correction and final checks.
 
 ## Result under review

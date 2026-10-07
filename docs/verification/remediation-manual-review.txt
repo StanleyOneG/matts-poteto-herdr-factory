@@ -1,0 +1,8 @@
+Held auth resume 1 1 []
+Held auth off 1 1 []
+Held auth busy 2 2 ['Interpretation deferred. Inputs remain saved.']
+Held auth settled 2 2 []
+Keep exact missing-auth input 1 1 ['Intake stalled before delivery. Authentication is unavailable. Inputs remain saved. Restore authentication, then explicitly resume intake.']
+Add greeting 11 11 ['Interpretation deferred. Inputs remain saved.', 'Intake stalled. No valid proposal committed. Inputs remain saved. Resume intake explicitly to retry.']
+Manual TUI review passed. No inactive question; resumed answer resolved and task admitted.
+Manual provider review passed. Public eligibility, exact resolution, prior presentation, RPC provenance and isolation assertions verified.

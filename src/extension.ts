@@ -43,6 +43,13 @@ type Run =
       data: LegionView;
     }
   | {
+      kind: "pre-start";
+      stage: "checking" | "failed" | "forwarded" | "prepared";
+      marker: string;
+      evidence: RunEvidence;
+      data: LegionView;
+    }
+  | {
       kind: "running";
       marker: string;
       evidence: RunEvidence;
@@ -140,7 +147,14 @@ export default function (pi: ExtensionAPI) {
     }
   }
   async function showDecisions(ctx: ExtensionContext, view: LegionView) {
-    if (!view.snapshot) return;
+    if (
+      !view.snapshot ||
+      view.mode !== "active" ||
+      binding?.legatus !== view.snapshot.id ||
+      binding.session !== ctx.sessionManager.getSessionId() ||
+      binding.generation !== view.snapshot.generation
+    )
+      return;
     const presented = evidence(ctx).presented;
     for (const decision of view.snapshot.decisions) {
       const revision = decision.history.at(-1);
@@ -252,7 +266,12 @@ export default function (pi: ExtensionAPI) {
   }
   async function off(ctx: ExtensionContext) {
     binding = null;
-    if (run?.kind === "dispatch") run = null;
+    if (
+      run?.kind === "dispatch" ||
+      (run?.kind === "pre-start" &&
+        (run.stage === "checking" || run.stage === "failed"))
+    )
+      run = null;
     if (legion)
       await legion.command({
         text: "off",
@@ -308,7 +327,12 @@ export default function (pi: ExtensionAPI) {
       const caller = { ...evidence(ctx), origin: "host-command" };
       if (text.trim() === "off") {
         binding = null;
-        if (run?.kind === "dispatch") run = null;
+        if (
+          run?.kind === "dispatch" ||
+          (run?.kind === "pre-start" &&
+            (run.stage === "checking" || run.stage === "failed"))
+        )
+          run = null;
       }
       try {
         const result = await current.command({
@@ -320,8 +344,22 @@ export default function (pi: ExtensionAPI) {
         if (legion !== current || /^(?:status|doctor)(?:\s|$)/.test(text))
           return;
         await refresh(ctx);
-        if (/^resume\s+/.test(text) && result.kind === "applied")
+        if (/^resume\s+/.test(text) && result.kind === "applied") {
+          if (
+            ctx.isIdle() &&
+            !ctx.hasPendingMessages() &&
+            (run?.kind === "dispatch" ||
+              (run?.kind === "pre-start" && run.stage === "failed"))
+          )
+            run = null;
           attempted.clear();
+          if (run?.kind === "pre-start" && run.stage === "forwarded")
+            report(
+              ctx,
+              "Intake delivery is unresolved. Resume cannot retire a forwarded prompt. If it never starts or settles, restart Pi before resuming the saved Legatus.",
+              "warning",
+            );
+        }
         if (text.trim() !== "doctor" && !/^status(?: |$)/.test(text))
           schedule(ctx);
       } catch (error) {
@@ -355,7 +393,42 @@ export default function (pi: ExtensionAPI) {
         report(ctx, "Interpretation deferred. Inputs remain saved.", "info");
         return { action: "handled" };
       }
-      run = { ...pending, kind: "running", proposed: false };
+      const checking: Run = { ...pending, kind: "pre-start", stage: "checking" };
+      run = checking;
+      let authenticated = false;
+      try {
+        const model = ctx.model;
+        if (model) {
+          const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+          authenticated =
+            auth.ok &&
+            (!!auth.apiKey || ctx.modelRegistry.hasConfiguredAuth(model));
+        }
+      } catch {}
+      if (
+        run !== checking ||
+        !binding ||
+        binding.session !== checking.evidence.session ||
+        binding.generation !== checking.evidence.generation
+      )
+        return { action: "handled" };
+      if (!authenticated) {
+        run = { ...checking, stage: "failed" };
+        report(
+          ctx,
+          "Intake stalled before delivery. Authentication is unavailable. Inputs remain saved. Restore authentication, then explicitly resume intake.",
+          "warning",
+        );
+        return { action: "handled" };
+      }
+      if (!ctx.isIdle() || ctx.hasPendingMessages()) {
+        for (const source of checking.evidence.sources)
+          attempted.delete(`${source.id}/${source.revision}`);
+        run = null;
+        report(ctx, "Interpretation deferred. Inputs remain saved.", "info");
+        return { action: "handled" };
+      }
+      run = { ...checking, stage: "forwarded" };
       return { action: "continue" };
     }
     const current = legion;
@@ -393,11 +466,13 @@ export default function (pi: ExtensionAPI) {
   });
   pi.on("before_agent_start", (event, ctx) => {
     if (
-      run?.kind !== "running" ||
+      run?.kind !== "pre-start" ||
+      run.stage !== "forwarded" ||
       event.prompt !== run.marker ||
       run.evidence.session !== ctx.sessionManager.getSessionId()
     )
       return;
+    run = { ...run, stage: "prepared" };
     return {
       systemPrompt: `${event.systemPrompt}\n\n${instructions}`,
       message: {
@@ -408,8 +483,20 @@ export default function (pi: ExtensionAPI) {
       },
     };
   });
+  pi.on("agent_start", (_event, ctx) => {
+    if (
+      run?.kind === "pre-start" &&
+      run.stage === "prepared" &&
+      run.evidence.session === ctx.sessionManager.getSessionId()
+    )
+      run = { ...run, kind: "running", proposed: false };
+  });
   pi.on("tool_call", (event) => {
-    if (run?.kind === "running" && event.toolName !== "legion_intake")
+    if (
+      (run?.kind === "running" ||
+        (run?.kind === "pre-start" && run.stage === "prepared")) &&
+      event.toolName !== "legion_intake"
+    )
       return {
         block: true,
         reason:
@@ -455,7 +542,11 @@ export default function (pi: ExtensionAPI) {
   });
   pi.on("agent_settled", async (_event, ctx) => {
     const previous = run;
-    run = null;
+    if (
+      previous?.kind === "running" &&
+      previous.evidence.session === ctx.sessionManager.getSessionId()
+    )
+      run = null;
     if (previous?.kind === "running" && !previous.proposed)
       report(
         ctx,

@@ -1,0 +1,14 @@
+
+> pi-legion@0.1.0 verify:pi
+> node --import tsx scripts/verify-pi.mjs
+
+Evidence /tmp/legion-pi-N6TpL1
+file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:117
+    if (Date.now() > deadline) throw new Error(`Timed out. ${description}`);
+                                     ^
+
+Error: Timed out. explicit resume retries a pre-start authentication failure
+    at until (file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:117:38)
+    at async file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:427:3
+
+Node.js v22.23.1

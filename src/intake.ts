@@ -40,14 +40,24 @@ export const ProposalSchema = z.discriminatedUnion("kind", [
     acceptance: z.array(z.string()),
     questions: z.array(Question),
   }),
-  z.object({
-    kind: z.literal("clarify"),
-    source: SubmissionRef,
-    purpose: z.enum(["routing", "product"]),
-    affected: z.array(TaskRef),
-    question: z.string().min(1),
-    recommendation: z.string().min(1),
-  }),
+  z.discriminatedUnion("purpose", [
+    z.object({
+      kind: z.literal("clarify"),
+      source: SubmissionRef,
+      purpose: z.literal("routing"),
+      affected: z.array(TaskRef),
+      question: z.string().min(1),
+      recommendation: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("clarify"),
+      source: SubmissionRef,
+      purpose: z.literal("product"),
+      affected: z.tuple([TaskRef], TaskRef),
+      question: z.string().min(1),
+      recommendation: z.string().min(1),
+    }),
+  ]),
   z.object({
     kind: z.literal("propose-amendment"),
     source: SubmissionRef,

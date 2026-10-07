@@ -1,0 +1,1 @@
+{"node":"v22.23.1","without":{"flags":[],"exit":0,"configuredProxyReached":false},"with":{"flags":["--use-env-proxy"],"exit":0,"configuredProxyReached":true}}

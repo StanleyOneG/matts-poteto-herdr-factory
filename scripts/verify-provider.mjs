@@ -37,6 +37,12 @@ const env = {
   PI_TELEMETRY: "0",
   TERM: "xterm-256color",
 };
+const transportNames = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"].filter((name) => process.env[name] !== undefined);
+const subjectEnv = { ...env, NODE_OPTIONS: "--use-env-proxy" };
+for (const name of transportNames) subjectEnv[name] = process.env[name];
+let testAuthenticationUnchanged = null;
+let testSettingsUnchanged = null;
+let evidenceContainsNoSecrets = false;
 let child;
 let seq = 0;
 let buffer = "";
@@ -50,7 +56,11 @@ function redact(text) {
   for (const key of ["access", "refresh", "accountId"])
     if (typeof credential[key] === "string" && credential[key].length)
       clean = clean.split(credential[key]).join("[redacted]");
-  return clean.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").slice(0, 500);
+  for (const name of transportNames)
+    if (process.env[name]) clean = clean.split(process.env[name]).join("[redacted]");
+  if (/<(?:html|!doctype)/i.test(clean)) return "Provider returned an HTML error body.";
+  if (/proxy|fetch failed|network|TLS|certificate/i.test(clean)) return "Provider transport failed.";
+  return "Provider request failed. Raw error body not retained.";
 }
 let diagnostics = [];
 let verdict = "NOT VERIFIED";
@@ -115,7 +125,7 @@ try {
   await writeFile(join(agent, "models-store.json"), JSON.stringify({ [provider]: { ...catalog, models: catalog.models.filter((m) => m.id === model) } }), { mode: 0o600 });
   await writeFile(join(agent, "auth.json"), JSON.stringify({ [provider]: credential }), { mode: 0o600 });
   const isolatedSettingsHash = hash(await readFile(join(agent, "settings.json")));
-  child = spawn("pi", ["--mode", "rpc", "--no-context-files", "--provider", provider, "--model", model], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+  child = spawn("pi", ["--mode", "rpc", "--no-context-files", "--provider", provider, "--model", model], { cwd, env: subjectEnv, stdio: ["pipe", "pipe", "pipe"] });
   child.on("error", () => { protocolFailed = true; });
   child.stderr.on("data", () => {});
   child.stdout.setEncoding("utf8");
@@ -185,7 +195,16 @@ try {
       await new Promise((r) => child.once("exit", r));
     }
   }
+  try {
+    testAuthenticationUnchanged = JSON.stringify(JSON.parse(await readFile(join(agent, "auth.json"), "utf8"))) === JSON.stringify({ [provider]: credential });
+    const isolated = JSON.parse(await readFile(join(agent, "settings.json"), "utf8"));
+    testSettingsUnchanged = isolated.defaultProvider === provider && isolated.defaultModel === model;
+  } catch {}
   await rm(agent, { recursive: true, force: true });
+  if (testAuthenticationUnchanged === false) {
+    verdict = "NOT VERIFIED";
+    failure = "Test authentication changed. No representative acceptance claim is allowed.";
+  }
   const originalsUnchanged = {};
   for (const [name, bytes] of originals)
     originalsUnchanged[name] = hash(await readFile(join(host, name))) === hash(bytes);
@@ -193,7 +212,12 @@ try {
     verdict = "NOT VERIFIED";
     failure = "Host configuration changed during the trial. Investigate before claiming isolation.";
   }
-  const result = { result: verdict, provider, model, root, originalsUnchanged, testAuthenticationRemoved: true, reasoningOrCompleteProviderResponsesRetained: false, failure, diagnostics, providerOutcomes, checkpoints };
+  const result = { result: verdict, provider, model, node: process.version, transportVariables: transportNames, nodeOptions: "--use-env-proxy", root, originalsUnchanged, testAuthenticationUnchanged, testSettingsUnchanged, testAuthenticationRemoved: true, reasoningOrCompleteProviderResponsesRetained: false, failure, diagnostics, providerOutcomes, checkpoints };
+  const serialized = JSON.stringify(result);
+  const secrets = [credential.access, credential.refresh, credential.accountId, ...transportNames.map((name) => process.env[name])].filter((value) => typeof value === "string" && value.length);
+  evidenceContainsNoSecrets = secrets.every((value) => !serialized.includes(value));
+  assert.equal(evidenceContainsNoSecrets, true, "Sanitized evidence must not contain authentication or transport values.");
+  result.evidenceContainsNoSecrets = evidenceContainsNoSecrets;
   await writeFile(join(root, "result.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify({ ...result, checkpoints: checkpoints.map((c) => ({ input: c.input, tools: c.tools, eligibility: c.state.tasks.map((t) => t.eligibility) })) }));
   console.error(`Evidence ${join(root, "result.json")}`);

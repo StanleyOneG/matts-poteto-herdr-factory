@@ -1,5 +1,7 @@
 # Post-comment verification
 
+This is a historical report. [The authorized remediation report](remediation-results.md) records the subsequent fixes and successful representative provider trial.
+
 Pi users receive the inherited T01 durable text intake. T01 still stops before task execution or a Tribunus launch. Maintainers receive the initial package, public command, submit, and state contract, tests, rerunnable runtime checks, and the actual TDD chronology.
 
 ## Review disposition

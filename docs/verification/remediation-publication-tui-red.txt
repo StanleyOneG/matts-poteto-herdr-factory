@@ -1,0 +1,23 @@
+
+> pi-legion@0.1.0 verify:pi
+> node --import tsx scripts/verify-pi.mjs
+
+(node:1356789) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Evidence /tmp/legion-pi-qvizDo
+file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:552
+    tui.once("exit", (code) => (code === 0 ? r() : reject(new Error(tuiOut)))),
+                                                          ^
+
+Error: Traceback (most recent call last):
+  File "/workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-tui.py", line 48, in <module>
+    assert 'Emperor decision' not in plain(off_start), 'Inactive off, settlement and refresh republished an unactionable question'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Inactive off, settlement and refresh republished an unactionable question
+
+    at ChildProcess.<anonymous> (file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:552:59)
+    at Object.onceWrapper (node:events:634:26)
+    at ChildProcess.emit (node:events:519:28)
+    at ChildProcess._handle.onexit (node:internal/child_process:293:12)
+
+Node.js v22.23.1

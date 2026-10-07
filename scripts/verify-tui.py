@@ -40,7 +40,23 @@ try:
     off_start = len(raw)
     os.write(master, b'/legion off\r')
     wait('Legion is inactive.', start=off_start)
-    print('passed real TUI completion, diagnostics, decisions, and off')
+    open(os.path.join(fixture['root'], 'tui-off'), 'w').write('off')
+    wait('TUI inactive settlement.', start=off_start)
+    inactive_start = len(raw)
+    os.write(master, b'/legion off\r')
+    wait('Legion is inactive.', start=inactive_start)
+    assert 'Emperor decision' not in plain(off_start), 'Inactive off, settlement and refresh republished an unactionable question'
+    legatus = re.findall(r'Legatus ([0-9a-f-]{36})', plain())[0]
+    resume_start = len(raw)
+    os.write(master, ('/legion resume ' + legatus + '\r').encode())
+    wait('Legion is active.', start=resume_start)
+    os.write(master, b'Use French, please.\r')
+    wait('Intake recorded.', start=resume_start)
+    status_start = len(raw)
+    os.write(master, b'/legion status\r')
+    wait('"eligibility":"admitted"', start=status_start)
+    assert '"answer":"UseFrench,please."' in re.sub(r'\s+', '', plain(status_start)), 'Resumed ordinary answer must resolve the pending question'
+    print('passed real TUI completion, diagnostics, off, inactive settlement, no duplicate questions, explicit resume, and ordinary answer')
 finally:
     open(os.path.join(fixture['root'], 'tui.txt'), 'w').write(plain())
     os.killpg(p.pid, signal.SIGTERM)

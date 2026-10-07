@@ -974,3 +974,63 @@ test("reserved arguments require valid command syntax and task escapes retain th
   );
   await command("off");
 });
+test("product clarification without affected tasks rejects without consuming original input while empty routing remains answerable", async () => {
+  const { legion, command, interpret } = await fixture();
+  await command("on");
+  await legion.submit({
+    kind: "message",
+    requestKey: "unclassified",
+    text: "A greeting, perhaps",
+    evidence: { ...evidence, generation: (await legion.state()).snapshot?.generation },
+  });
+  const original = (await legion.state()).snapshot?.submissions[0];
+  assert.ok(original);
+  const clarification = {
+    kind: "clarify",
+    source: { id: original.id, revision: 1 },
+    purpose: "product",
+    affected: [],
+    question: "Which language?",
+    recommendation: "Use English",
+  };
+  assert.equal((await interpret(clarification)).kind, "rejected");
+  let view = await legion.state();
+  assert.deepEqual(view.snapshot?.decisions, []);
+  assert.equal(view.snapshot?.submissions[0]?.text, "A greeting, perhaps");
+  assert.equal(view.snapshot?.submissions[0]?.state.kind, "pending");
+  assert.equal(
+    (await interpret({ ...clarification, purpose: "routing", question: "Is this a new task?" })).kind,
+    "applied",
+  );
+  view = await legion.state();
+  const decision = view.snapshot?.decisions[0];
+  assert.ok(decision);
+  await legion.submit({
+    kind: "message",
+    requestKey: "route-answer",
+    text: "Yes, a separate task.",
+    evidence: {
+      ...evidence,
+      generation: view.snapshot?.generation,
+      presented: [{ decision: { id: decision.id, revision: 1 }, amendment: null }],
+    },
+  });
+  const answer = (await legion.state()).snapshot?.submissions[1];
+  assert.ok(answer);
+  assert.equal(
+    (await interpret({
+      kind: "answer",
+      source: { id: answer.id, revision: 1 },
+      decision: { id: decision.id, revision: 1 },
+      effect: {
+        kind: "resolve-routing",
+        original: { id: original.id, revision: 1 },
+        routing: { kind: "new-task" },
+      },
+    })).kind,
+    "applied",
+  );
+  assert.equal((await legion.state()).snapshot?.submissions[0]?.state.kind, "pending");
+  assert.equal((await legion.state()).snapshot?.submissions[0]?.revision, 2);
+  await command("off");
+});
