@@ -1,0 +1,28 @@
+Recovery self-review. This is not independent acceptance.
+All four application files and all tests were read. They match the timeout backup. No application implementation changed in recovery.
+Existing real RPC and PTY scripts were read and rerun. Actual result.json and TUI decision/recommendation rendering were inspected.
+Typecheck, all 17 tests, and build passed again after documentation completion.
+The implementation checksum manifest verified all 15 entries against current files.
+git diff --check passed. git diff --cached --quiet passed. No staged files.
+The opt-in provider verifier passed node --check. Its selected-provider execution failed before any tool proposal. No success is claimed.
+The failed direct input remains pending in the public provider result. The provider error contains an HTML prefix. No HTTP status or root cause is inferred.
+Provider trials removed their private agent directories. No live interrupted test subjects remain. All original authentication/configuration comparisons were equal.
+Credential scan found no current Codex access token, refresh token, or account ID in modified/untracked repository files or retained provider result files.
+The later protocol-error cleanup guard in the provider verifier was syntax-checked. The remote provider was not retried after the captured terminal provider errors.
+No blocker found by self-review beyond representative-provider evidence, unchanged-installation Herdr skill readiness, and pending independent review. Supported API and semantic limits remain documented.
+Parent comment review and Standards/Spec review are pending. The approved narrow retrospective integration TDD exception is unchanged.
+Inspected files.
+src/extension.ts
+src/intake.ts
+src/preflight.ts
+src/snapshot.ts
+tests/intake.test.ts
+tests/persistence.test.ts
+tests/owner-worker.ts
+scripts/verify-pi.mjs
+scripts/verify-tui.py
+scripts/verify-provider.mjs
+README.md
+docs/verification/tdd-exception.md
+docs/verification/t01-results.md
+docs/verification/t01-decisions.tsv

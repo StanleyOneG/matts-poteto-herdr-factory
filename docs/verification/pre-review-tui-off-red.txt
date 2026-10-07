@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+AssertionError: The reported passing terminal log has no off receipt after its decision.

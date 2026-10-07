@@ -1,0 +1,114 @@
+
+> pi-legion@0.1.0 test
+> tsx --test tests/*.test.ts
+
+TAP version 13
+# (node:1346641) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: activation preserves logical identity and exact task text across restart without activating
+ok 1 - activation preserves logical identity and exact task text across restart without activating
+  ---
+  duration_ms: 22.804072
+  type: 'test'
+  ...
+# Subtest: direct interpretation admits a scoped task without tickets or external execution
+ok 2 - direct interpretation admits a scoped task without tickets or external execution
+  ---
+  duration_ms: 10.600043
+  type: 'test'
+  ...
+# Subtest: a product question blocks affected work and accepts an ordinary answer durably
+ok 3 - a product question blocks affected work and accepts an ordinary answer durably
+  ---
+  duration_ms: 15.167379
+  type: 'test'
+  ...
+# Subtest: routing clarification advances original and answer atomically without changing an assignment
+ok 4 - routing clarification advances original and answer atomically without changing an assignment
+  ---
+  duration_ms: 19.070457
+  type: 'test'
+  ...
+# Subtest: protected amendments accept conversational approval of only the presented immutable change
+ok 5 - protected amendments accept conversational approval of only the presented immutable change
+  ---
+  duration_ms: 27.118879
+  type: 'test'
+  ...
+# Subtest: independent tasks are admitted while affected work is blocked and routine choices remain delegated
+ok 6 - independent tasks are admitted while affected work is blocked and routine choices remain delegated
+  ---
+  duration_ms: 12.393522
+  type: 'test'
+  ...
+# Subtest: off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+ok 7 - off revokes delayed activation and explicit resume preserves identity with exclusive ownership
+  ---
+  duration_ms: 5.097302
+  type: 'test'
+  ...
+# Subtest: uncertain acknowledgment reconciles the committed receipt without duplicate intake
+ok 8 - uncertain acknowledgment reconciles the committed receipt without duplicate intake
+  ---
+  duration_ms: 4.364998
+  type: 'test'
+  ...
+# Subtest: read-only status of another Legatus never redirects the active owner
+ok 9 - read-only status of another Legatus never redirects the active owner
+  ---
+  duration_ms: 5.17857
+  type: 'test'
+  ...
+# Subtest: ambiguous protected answers retain immutable revisions and permit later conversational decline
+ok 10 - ambiguous protected answers retain immutable revisions and permit later conversational decline
+  ---
+  duration_ms: 16.861724
+  type: 'test'
+  ...
+# Subtest: every prerequisite failure is diagnosed read-only and task-bearing failure preserves input inactive
+ok 11 - every prerequisite failure is diagnosed read-only and task-bearing failure preserves input inactive
+  ---
+  duration_ms: 43.935572
+  type: 'test'
+  ...
+# Subtest: a committed request reconciles after off and restart while equal text with a new key remains distinct
+ok 12 - a committed request reconciles after off and restart while equal text with a new key remains distinct
+  ---
+  duration_ms: 5.278125
+  type: 'test'
+  ...
+# Subtest: stale protected decisions require a newly presented revision before resolving
+ok 13 - stale protected decisions require a newly presented revision before resolving
+  ---
+  duration_ms: 18.736403
+  type: 'test'
+  ...
+# Subtest: read-only status reconciles uncertainty so explicit resume can recover intake
+ok 14 - read-only status reconciles uncertainty so explicit resume can recover intake
+  ---
+  duration_ms: 3.686937
+  type: 'test'
+  ...
+# (node:1346642) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real process death before-commit preserves receipts and ownership without read-only recovery
+ok 15 - real process death before-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 270.632206
+  type: 'test'
+  ...
+# Subtest: real process death after-commit preserves receipts and ownership without read-only recovery
+ok 16 - real process death after-commit preserves receipts and ownership without read-only recovery
+  ---
+  duration_ms: 258.11717
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 765.412276

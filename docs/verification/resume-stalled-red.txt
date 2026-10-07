@@ -1,0 +1,14 @@
+
+> pi-legion@0.1.0 verify:pi
+> node scripts/verify-pi.mjs
+
+Evidence /tmp/legion-pi-wuzrXE
+file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:57
+  while (!predicate()) { if (Date.now() > deadline) throw new Error(`Timed out. ${description}`); await new Promise(r => setTimeout(r, 20)); }
+                                                          ^
+
+Error: Timed out. explicit resume retries saved stalled input
+    at until (file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:57:59)
+    at async file:///workspaces/astraprojects/matts-poteto-herdr-factory/scripts/verify-pi.mjs:229:3
+
+Node.js v22.23.1

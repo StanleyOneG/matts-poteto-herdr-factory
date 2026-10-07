@@ -1,0 +1,3 @@
+Old capture has no off receipt after the first decision. New capture has the receipt and ends with Legion inactive.
+Actual RPC logs have no extension_error events.
+14 real-runtime groups pass with 24 controlled-provider requests.

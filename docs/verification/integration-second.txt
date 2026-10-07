@@ -1,0 +1,6 @@
+
+> pi-legion@0.1.0 verify:pi
+> node scripts/verify-pi.mjs
+
+{"result":"passed","root":"/tmp/legion-pi-GHiIGr","pi":"1.0.4","node":"v22.23.1","herdr":"0.9.1","protocol":22,"providerRequests":5,"checks":["install, literal inactive, missing resources, saved not admitted before provider, model-free doctor/status","unrelated sessions inactive, records reopen by logical ID without Pi journal","actual loaded dependencies, repeated activation, correlated direct interpretation, decision chat rendering, ordinary conversational answer, selected model/settings unchanged"]}
+Evidence /tmp/legion-pi-GHiIGr
