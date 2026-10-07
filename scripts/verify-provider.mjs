@@ -63,6 +63,7 @@ function redact(text) {
   return "Provider request failed. Raw error body not retained.";
 }
 let diagnostics = [];
+let bundledHerdrSkill = null;
 let verdict = "NOT VERIFIED";
 let failure = null;
 async function rpc(type, fields = {}) {
@@ -114,8 +115,6 @@ try {
   await mkdir(skillRoot);
   for (const name of ["matt-tdd", "implement", "code-review"])
     await symlink(resolve(".agents/skills", name), join(skillRoot, name), "dir");
-  await mkdir(join(skillRoot, "herdr"));
-  await writeFile(join(skillRoot, "herdr/SKILL.md"), execFileSync("herdr", ["--skill"]));
   const localHerdr = JSON.parse(execFileSync("herdr", ["status", "server", "--json"]).toString());
   await mkdir(join(root, ".config/herdr"), { recursive: true });
   await symlink(localHerdr.socket, join(root, ".config/herdr/herdr.sock"));
@@ -146,6 +145,12 @@ try {
       }
     }
   });
+  bundledHerdrSkill = (await rpc("get_commands")).commands.find((command) => command.name === "skill:herdr");
+  assert.equal(bundledHerdrSkill?.source, "skill");
+  assert.equal(bundledHerdrSkill.sourceInfo?.origin, "package");
+  assert.equal(bundledHerdrSkill.sourceInfo?.baseDir, resolve("."));
+  assert.equal(bundledHerdrSkill.sourceInfo?.path, resolve("skills/herdr/SKILL.md"));
+  assert.equal(hash(await readFile(bundledHerdrSkill.sourceInfo.path)), "b16ba0d9a22adbaf259d2022cd323801f8e51d530c94cb0cd23a69069292506b");
   const before = await rpc("get_state");
   assert.equal(before.model.provider, provider);
   assert.equal(before.model.id, model);
@@ -212,7 +217,7 @@ try {
     verdict = "NOT VERIFIED";
     failure = "Host configuration changed during the trial. Investigate before claiming isolation.";
   }
-  const result = { result: verdict, provider, model, node: process.version, transportVariables: transportNames, nodeOptions: "--use-env-proxy", root, originalsUnchanged, testAuthenticationUnchanged, testSettingsUnchanged, testAuthenticationRemoved: true, reasoningOrCompleteProviderResponsesRetained: false, failure, diagnostics, providerOutcomes, checkpoints };
+  const result = { result: verdict, provider, model, node: process.version, transportVariables: transportNames, nodeOptions: "--use-env-proxy", root, originalsUnchanged, testAuthenticationUnchanged, testSettingsUnchanged, testAuthenticationRemoved: true, reasoningOrCompleteProviderResponsesRetained: false, failure, diagnostics, bundledHerdrSkill, providerOutcomes, checkpoints };
   const serialized = JSON.stringify(result);
   const secrets = [credential.access, credential.refresh, credential.accountId, ...transportNames.map((name) => process.env[name])].filter((value) => typeof value === "string" && value.length);
   evidenceContainsNoSecrets = secrets.every((value) => !serialized.includes(value));

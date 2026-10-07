@@ -52,3 +52,9 @@ Reviewed by `openai-codex/gpt-6-astra` and `openai-codex/gpt-6.1-sol`.
 - SIGKILL checks establish behavior on the tested local filesystem, not universal power-loss durability. Temporary evidence paths can expire.
 
 No product decisions remain open within T01. Merge and deployment remain the user's decisions. The local branch retains the implementation commits. Publication uses a separate PR branch, not a push to primary. The Origin CLI is unavailable, so publication uses the repository's documented `gh` CLI.
+
+## Follow-up for the bundled Herdr skill
+
+[The static bundle verification](herdr-skill-results.md) checks the later package resource change against base `15e3c7ef720f66175dc0c39dcf15a95b650e990d`. The package now supplies the exact official v0.9.3 Herdr skill through native Pi discovery, with its license and attribution. An isolated npm-tarball installation passes discovery and the existing RPC/TUI behavior checks without generating a user Herdr skill fixture. This supersedes the missing-skill setup warning above for the new package. User filters, same-name skills, and other prerequisites still require `/legion doctor`.
+
+The earlier reviewed commit, manifest, and results above remain historical evidence. They did not test the bundled files. Fresh independent review found no blocking issues in this follow-up. The parent inspected the diff, compared the upstream bytes, and reran all 48 tests, typecheck, build, and 20 isolated runtime groups successfully.

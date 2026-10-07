@@ -34,7 +34,16 @@ const env = {
 const hostSettings = join(homedir(), ".pi/agent/settings.json");
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 const hostBefore = hash(await readFile(hostSettings));
-execFileSync("pi", ["install", resolve(".")], { cwd, env });
+const [packed] = JSON.parse(
+  execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", root]).toString(),
+);
+for (const path of ["skills/herdr/SKILL.md", "skills/herdr/LICENSE", "skills/herdr/ATTRIBUTION.md"])
+  assert.ok(packed.files.some((file) => file.path === path), `Published package includes ${path}`);
+const distribution = join(root, "distribution");
+execFileSync("npm", ["install", join(root, packed.filename), "--prefix", distribution, "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund"], { env });
+const legionPackage = join(distribution, "node_modules/pi-legion");
+assert.equal(hash(await readFile(join(legionPackage, "skills/herdr/LICENSE"))), "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4");
+execFileSync("pi", ["install", legionPackage], { cwd, env });
 const logs = [];
 const clients = [];
 function client(extra = [], overrides = {}) {
@@ -201,6 +210,19 @@ function propose(body, choose) {
 }
 const checks = [];
 try {
+  const bundled = client();
+  const herdrSkill = (await bundled.rpc("get_commands")).commands.find((command) => command.name === "skill:herdr");
+  assert.equal(herdrSkill?.source, "skill");
+  assert.equal(herdrSkill.sourceInfo?.origin, "package");
+  assert.equal(herdrSkill.sourceInfo?.baseDir, legionPackage);
+  assert.equal(herdrSkill.sourceInfo?.path, join(legionPackage, "skills/herdr/SKILL.md"));
+  assert.equal(hash(await readFile(herdrSkill.sourceInfo.path)), "b16ba0d9a22adbaf259d2022cd323801f8e51d530c94cb0cd23a69069292506b");
+  noTurn(bundled, 0);
+  await bundled.close();
+  checks.push("npm tarball includes exact official Herdr skill, Apache-2.0 license and attribution; isolated install discovers package-native skill without a user fixture");
+  const initialSettings = JSON.parse(await readFile(join(agent, "settings.json"), "utf8"));
+  initialSettings.packages = initialSettings.packages.map((source) => ({ source, skills: [] }));
+  await writeFile(join(agent, "settings.json"), JSON.stringify(initialSettings));
   const c = client(["--session-id", randomUUID()]);
   assert.ok(
     (await c.rpc("get_commands")).commands.some((c) => c.name === "legion"),
@@ -277,11 +299,12 @@ try {
     await readFile(join(agent, "settings.json"), "utf8"),
   );
   const actualPackages = installedButUnloaded.packages;
-  installedButUnloaded.packages = actualPackages.map((source) =>
-    resolve(agent, source) === pstack || resolve(agent, source) === subagents
+  installedButUnloaded.packages = actualPackages.map((entry) => {
+    const source = typeof entry === "string" ? entry : entry.source;
+    return resolve(agent, source) === pstack || resolve(agent, source) === subagents
       ? { source, extensions: [] }
-      : source,
-  );
+      : entry;
+  });
   await writeFile(
     join(agent, "settings.json"),
     JSON.stringify(installedButUnloaded),
@@ -335,22 +358,23 @@ try {
   await mkdir(join(root, ".config/herdr"), { recursive: true });
   await symlink(localHerdr.socket, join(root, ".config/herdr/herdr.sock"));
   const missingHerdrSkill = client();
+  assert.equal((await missingHerdrSkill.rpc("get_commands")).commands.some((command) => command.name === "skill:herdr"), false);
   await missingHerdrSkill.prompt("/legion doctor");
   assert.ok(
     missingHerdrSkill.records.some(
       (r) =>
         r.method === "notify" && r.message.includes("Skill herdr missing."),
     ),
-    "Real loaded packages do not fabricate Herdr skill discovery",
+    "Explicit package filtering disables the bundled Herdr skill",
   );
   noTurn(missingHerdrSkill, 0);
   await missingHerdrSkill.close();
-  const herdrDir = join(skillRoot, "herdr");
-  await mkdir(herdrDir);
-  await writeFile(
-    join(herdrDir, "SKILL.md"),
-    execFileSync("herdr", ["--skill"]).toString(),
+  installedButUnloaded.packages = actualPackages.map((entry) =>
+    typeof entry === "object" && resolve(agent, entry.source) === legionPackage
+      ? entry.source
+      : entry,
   );
+  await writeFile(join(agent, "settings.json"), JSON.stringify(installedButUnloaded));
   const models = {
     providers: {
       fixture: {
@@ -1208,6 +1232,10 @@ try {
     node: process.version,
     herdr: localHerdr.version,
     protocol: localHerdr.protocol,
+    bundledHerdrSkill: {
+      ...herdrSkill,
+      sha256: hash(await readFile(herdrSkill.sourceInfo.path)),
+    },
     providerRequests: requests,
     checks,
   };

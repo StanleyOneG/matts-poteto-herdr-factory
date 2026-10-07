@@ -8,11 +8,15 @@
   ],
   "files": [
     "src",
+    "skills",
     "README.md"
   ],
   "pi": {
     "extensions": [
       "./src/extension.ts"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "engines": {

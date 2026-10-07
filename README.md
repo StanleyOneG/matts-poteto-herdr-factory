@@ -13,7 +13,9 @@ Installation and startup remain inactive. Activation retains your selected model
 
 The tested runtime combination is Pi 1.0.4, Node 22.23.1, pstack 0.6.0, pi-subagents 0.76.1, and local Herdr 0.9.1 with protocol 22. Other versions remain unverified. Loaded resources must include the Herdr skill, pstack's `poteto-mode`, the pi-subagents root tool, `matt-tdd`, `implement`, and `code-review`. Files or installed packages alone do not establish that an extension loaded. Legion does not substitute pstack's `tdd` or `teach` for Matt's renamed resources.
 
-The inspected user installation lacks a discoverable Herdr skill. The verification fixture supplies that skill through native discovery in an isolated configuration. Its pass does not make the unchanged user installation ready. Legion never installs prerequisites or rewrites upstream resources.
+The package bundles the unmodified official Herdr skill from v0.9.3 through native Pi discovery. [Its attribution](skills/herdr/ATTRIBUTION.md) records the source and hash. Package filters or a same-name user skill can change discovery, so run `/legion doctor` before activation. Legion does not install other prerequisites or change user settings.
+
+Maintainers manually replace the bundled skill and its license and update the attribution and verification hashes when updating the extension. There are no automatic upstream checks or skill updates.
 
 ## Command reference
 
@@ -88,7 +90,7 @@ npm run build
 npm run verify:pi
 ```
 
-The runtime check requires `pi`, `herdr`, Python 3 with PTY support, and an already running local Herdr server. It uses a disposable repository, isolated HOME and Pi directories, and a controlled loopback provider with no inherited credentials. It reads local Herdr status and never controls unrelated panes. Set `PI_TEST_PSTACK` and `PI_TEST_SUBAGENTS` if their installed package paths differ from the standard Pi npm directory. The check prints its evidence directory and preserves concise RPC and terminal logs there.
+The runtime check requires npm, `pi`, `herdr`, Python 3 with PTY support, and an already running local Herdr server. It packs and installs the npm tarball in a disposable directory, checks the bundled skill and license hashes, and verifies package-native skill discovery. npm can fetch package dependencies during this test. The check uses a disposable repository, isolated HOME and Pi directories, and a controlled loopback provider with no inherited credentials. It reads local Herdr status and never controls unrelated panes. Set `PI_TEST_PSTACK` and `PI_TEST_SUBAGENTS` if their installed package paths differ from the standard Pi npm directory. The check prints its evidence directory and preserves concise RPC and terminal logs there.
 
 The controlled provider verifies runtime plumbing. The corrected authorized `openai-codex/gpt-6-astra` trial passed direct admission, material ambiguity, and an ordinary conversational answer through public records and eligibility. It used the existing configured proxy with Node's test-only `--use-env-proxy` switch. The earlier failed trial remains historical evidence. This representative sample does not prove universal language correctness. No alternative model or runner was used.
 
