@@ -1,0 +1,24 @@
+TAP version 13
+# (node:1509215) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 1 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 49.774891
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 2 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 29.499543
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 306.446665

@@ -1,4 +1,21 @@
 import { randomUUID, createHash } from "node:crypto";
+import { join } from "node:path";
+import {
+  AssignmentLedger,
+  AssignmentConflict,
+  sharedIdentity,
+  persistentRoot,
+  type ClaimView,
+  type Reservation,
+  type ReservationReceipt,
+  type WorkspaceState,
+  type AssignmentFaultPoint,
+} from "./assignments.js";
+import type {
+  WorkspaceRepository,
+  GitOutcome,
+  WorkspaceObservation,
+} from "./git-workspace.js";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
@@ -18,6 +35,7 @@ import {
   AmendmentId,
   type LegatusSnapshot,
   type CommittedResult,
+  WorkspaceRequest,
 } from "./snapshot.js";
 
 export type Diagnostic = {
@@ -103,29 +121,51 @@ const Message = z.object({
   evidence: InputEvidence,
 });
 export type LegionView = {
-  mode: "inactive" | "active";
+  mode: "inactive" | "active" | "stopping";
   snapshot: LegatusSnapshot | null;
   tasks: Array<
     LegatusSnapshot["tasks"][number] & {
       eligibility: "admitted" | "inactive" | "blocked";
+      claim: ClaimView;
     }
   >;
   diagnostics: Diagnostic[];
   unavailable: string | null;
+  ownerObservations?: ClaimView[];
 };
 export type OperationResult =
   | CommittedResult
   | { kind: "observed"; view: LegionView }
   | { kind: "rejected"; code: string; message: string }
-  | { kind: "uncertain"; requestKey: string; message: string };
+  | { kind: "uncertain"; requestKey: string; message: string }
+  | {
+      kind: "reserved";
+      receipt: ReservationReceipt;
+      workspace: WorkspaceState;
+      parentObservation:
+        | { kind: "observed"; commit: string | null }
+        | { kind: "unavailable" };
+      message: string;
+    }
+  | { kind: "ownership-blocked"; reservation: Reservation; message: string }
+  | { kind: "workspace-stage"; requestId: string; message: string };
 type CommandIntent =
   | { kind: "status"; id: string }
   | { kind: "doctor" | "on" | "off" }
   | { kind: "resume"; id: string }
   | { kind: "task"; text: string }
+  | { kind: "workspace"; id: string }
+  | z.infer<typeof WorkspaceRequest>["intent"]
   | { kind: "invalid" };
 export type CommandResult = OperationResult & {
-  disposition: "observe" | "off" | "activate" | "resume" | "submit" | "none";
+  disposition:
+    | "observe"
+    | "off"
+    | "activate"
+    | "resume"
+    | "submit"
+    | "workspace"
+    | "none";
 };
 function commandIntent(text: string): CommandIntent {
   const match = /^\s*(\S+)(?:\s([\s\S]*))?$/.exec(text);
@@ -143,8 +183,38 @@ function commandIntent(text: string): CommandIntent {
       return /^\S+$/.test(payload.trim())
         ? { kind: "resume", id: payload.trim() }
         : { kind: "invalid" };
+    case "workspace":
+      return /^\S+$/.test(payload.trim())
+        ? { kind: "workspace", id: payload.trim() }
+        : { kind: "invalid" };
+    case "reserve": {
+      const parsed =
+        /^(\S+)@(\d+)\s+--parent\s+(refs\/heads\/\S+)(?:\s+--source\s+(\S+))?$/.exec(
+          payload.trim(),
+        );
+      const task = TaskRef.safeParse({
+        id: parsed?.[1],
+        revision: Number(parsed?.[2]),
+      });
+      return parsed && task.success
+        ? {
+            kind: "reserve",
+            task: task.data,
+            parent: parsed[3] ?? "",
+            source: parsed[4] ?? null,
+          }
+        : { kind: "invalid" };
+    }
+    case "reconcile": {
+      const task = TaskId.safeParse(payload.trim());
+      return task.success
+        ? { kind: "reconcile", task: task.data }
+        : { kind: "invalid" };
+    }
     case "task":
-      return payload.trim() ? { kind: "task", text: payload } : { kind: "invalid" };
+      return payload.trim()
+        ? { kind: "task", text: payload }
+        : { kind: "invalid" };
     default:
       return { kind: "task", text };
   }
@@ -155,6 +225,11 @@ export type LegionOptions = {
   session: string;
   preflight: () => Promise<Diagnostic[]>;
   storageFault?: (point: StorageFaultPoint) => void;
+  assignments?: {
+    workspaceRoot: string;
+    repository: () => WorkspaceRepository | null;
+    fault?: (point: AssignmentFaultPoint) => void;
+  };
 };
 const reject = (code: string, message: string): OperationResult => ({
   kind: "rejected",
@@ -179,6 +254,8 @@ export class Legion {
   private binding: Binding | null = null;
   private tail: Promise<unknown> = Promise.resolve();
   private epoch = 0;
+  private stopping = false;
+  private invocations = 0;
   private uncertain: { id: string; requestKey: string } | null = null;
   constructor(private options: LegionOptions) {
     this.store = new SnapshotStore(options.storagePath, options.storageFault);
@@ -190,6 +267,11 @@ export class Legion {
   }
   private revoke() {
     this.epoch++;
+    if (this.invocations) {
+      this.stopping = true;
+      return;
+    }
+    this.stopping = false;
     const previous = this.binding;
     this.binding = null;
     if (previous) {
@@ -200,34 +282,676 @@ export class Legion {
       }
     }
   }
+  private async claims(snapshot: LegatusSnapshot | null) {
+    const fallback: ClaimView = this.options.assignments
+      ? {
+          kind: "unavailable",
+          message:
+            "Repository observation requires guarded workspace execution.",
+        }
+      : { kind: "unreserved" };
+    if (!snapshot)
+      return {
+        all: Array<ClaimView>(),
+        byTask: new Map<string, ClaimView>(),
+        fallback,
+      };
+    const commonDir = snapshot.workspaceRequests
+      .filter((r) => r.repository)
+      .at(-1)?.repository;
+    if (!commonDir)
+      return {
+        all: Array<ClaimView>(),
+        byTask: new Map<string, ClaimView>(),
+        fallback,
+      };
+    try {
+      const observed = await new AssignmentLedger(
+        commonDir,
+        this.options.assignments?.fault,
+        snapshot.workspaceRequests.find(
+          (r) => r.repository === commonDir && r.repositoryId,
+        )?.repositoryId ?? null,
+        true,
+      ).observations(snapshot.id);
+      return {
+        all: observed.claims,
+        byTask: observed.byTask,
+        fallback: { kind: "unreserved" } satisfies ClaimView,
+      };
+    } catch (error) {
+      return {
+        all: Array<ClaimView>(),
+        byTask: new Map<string, ClaimView>(),
+        fallback: {
+          kind: "unavailable",
+          message: String(error),
+        } satisfies ClaimView,
+      };
+    }
+  }
+  private approval(
+    state: LegatusSnapshot,
+    ref: z.infer<typeof TaskRef>,
+  ): string {
+    const task = state.tasks.find((t) => t.id === ref.id);
+    if (!task || task.history.at(-1)?.revision !== ref.revision)
+      throw new Error("Exact task revision is not current.");
+    if (
+      state.decisions.some(
+        (d) =>
+          d.state.kind === "open" &&
+          d.history.at(-1)?.affected.some((t) => t.id === ref.id),
+      )
+    )
+      throw new Error("Affected work awaits an Emperor decision.");
+    const resolutions = state.resolutions.filter((r) =>
+      state.decisions.some(
+        (d) =>
+          d.id === r.decision.id &&
+          d.history.at(-1)?.affected.some((t) => t.id === ref.id),
+      ),
+    );
+    return createHash("sha256")
+      .update(
+        JSON.stringify({
+          history: task.history.at(-1),
+          scope: task.scope,
+          resolutions,
+        }),
+      )
+      .digest("hex");
+  }
+  private workspaceAuthority(
+    request: z.infer<typeof WorkspaceRequest>,
+    epoch: number,
+  ) {
+    if (
+      !this.binding ||
+      this.stopping ||
+      this.epoch !== epoch ||
+      request.epoch !== epoch ||
+      request.generation !== this.binding.generation ||
+      request.evidence.session !== this.options.session
+    )
+      throw new Error(
+        "Workspace execution authority is revoked. Explicitly reserve or reconcile again after resume.",
+      );
+  }
+  private async authorized(
+    request: z.infer<typeof WorkspaceRequest>,
+    epoch: number,
+  ) {
+    this.workspaceAuthority(request, epoch);
+    const state = this.selected ? await this.store.read(this.selected) : null;
+    this.workspaceAuthority(request, epoch);
+    if (!state) throw new Error("Intake authority is unavailable.");
+    const task =
+      request.intent.kind === "reserve"
+        ? request.intent.task
+        : {
+            id: request.intent.task,
+            revision:
+              state.tasks
+                .find((t) => t.id === request.intent.task)
+                ?.history.at(-1)?.revision ?? 0,
+          };
+    if (this.approval(state, task) !== request.scope)
+      throw new Error("Approved task scope changed. Reservation retained.");
+    return { state, task };
+  }
+  private recordWorkspace(
+    input: z.infer<typeof Command>,
+    intent: z.infer<typeof WorkspaceRequest>["intent"],
+    epoch: number,
+  ): Promise<OperationResult> {
+    return this.serialize(async () => {
+      if (
+        !this.binding ||
+        this.stopping ||
+        epoch !== this.epoch ||
+        !this.selected
+      )
+        return reject(
+          "inactive",
+          "Activate or explicitly resume Legion before reserving work.",
+        );
+      if (!this.options.assignments)
+        return reject(
+          "dependencies",
+          "Workspace dependencies are unavailable. No task was reserved.",
+        );
+      if (
+        input.evidence.generation !== null &&
+        input.evidence.generation !== this.binding.generation
+      )
+        return reject(
+          "provenance",
+          "Host command association generation is stale.",
+        );
+      try {
+        const state = await this.store.read(this.selected);
+        if (!state) return reject("unavailable", "Intake records unavailable.");
+        const fingerprint = createHash("sha256")
+          .update(JSON.stringify(intent))
+          .digest("hex");
+        const prior = state.workspaceRequests.find(
+          (r) => r.id === input.requestKey,
+        );
+        if (prior) {
+          if (prior.fingerprint !== fingerprint)
+            return reject(
+              "request-conflict",
+              "Request key has a different payload.",
+            );
+          if (prior.repository) {
+            const replay = await new AssignmentLedger(
+              prior.repository,
+              this.options.assignments.fault,
+              state.workspaceRequests.find(
+                (r) => r.repository === prior.repository && r.repositoryId,
+              )?.repositoryId ?? null,
+            ).replay(state.id, prior.id, fingerprint);
+            if (replay) return this.reservationResult(replay, state.id);
+          }
+          const receipt = state.receipts.find(
+            (r) => r.result.receipt.requestKey === input.requestKey,
+          );
+          if (receipt) return receipt.result;
+          return reject(
+            "unavailable",
+            "Pending request receipt is unavailable. No execution authorized.",
+          );
+        }
+        const task =
+          intent.kind === "reserve"
+            ? intent.task
+            : {
+                id: intent.task,
+                revision:
+                  state.tasks.find((t) => t.id === intent.task)?.history.at(-1)
+                    ?.revision ?? 0,
+              };
+        const scope = this.approval(state, task);
+        if (intent.kind === "reserve") sharedIdentity(task.id, intent.source);
+        const result: CommittedResult = {
+          kind: "deferred",
+          receipt: {
+            legatus: state.id,
+            requestKey: input.requestKey,
+            sequence: state.receipts.length + 1,
+            message: `Workspace request recorded. Task NOT YET RESERVED by this request. Guarded execution required. Run /legion workspace ${input.requestKey}. No worker started.`,
+          },
+        };
+        state.workspaceRequests.push(
+          WorkspaceRequest.parse({
+            id: input.requestKey,
+            fingerprint,
+            intent,
+            evidence: input.evidence,
+            generation: this.binding.generation,
+            epoch,
+            scope,
+            repository: null,
+          }),
+        );
+        state.receipts.push({ fingerprint, result });
+        const expected = state.revision;
+        state.revision++;
+        try {
+          await this.store.save(
+            state,
+            expected,
+            () => !!this.binding && !this.stopping && this.epoch === epoch,
+          );
+        } catch (error) {
+          this.uncertain = { id: state.id, requestKey: input.requestKey };
+          this.revoke();
+          return {
+            kind: "uncertain",
+            requestKey: input.requestKey,
+            message: `Pending workspace request publication is uncertain. No execution is authorized. Inspect status ${state.id}, explicitly resume, and issue a fresh host request. ${String(error)}`,
+          };
+        }
+        return result;
+      } catch (error) {
+        return reject("workspace-request", String(error));
+      }
+    });
+  }
+  private reservationResult(
+    result: {
+      receipt: ReservationReceipt;
+      workspace: WorkspaceState;
+      observation?: WorkspaceObservation;
+    },
+    owner: z.infer<typeof LegatusId>,
+  ): OperationResult {
+    const reservation = result.receipt.reservation;
+    if (reservation.owner !== owner)
+      return {
+        kind: "ownership-blocked",
+        reservation,
+        message:
+          "Task is reserved by another Legatus. No workspace was created for this request.",
+      };
+    const unknown =
+      result.workspace.kind === "dispatched" ||
+      (result.workspace.kind === "held" &&
+        result.workspace.code === "unknown-operation");
+    const operation =
+      result.workspace.kind === "dispatched" || result.workspace.kind === "held"
+        ? result.workspace.operation
+        : null;
+    const message = unknown
+      ? `Reservation retained. Git operation completion is unknown. Inspect operation ${operation?.id}, branch ${reservation.plan.branch}, and path ${reservation.plan.path}. Preserve these resources. No retry was performed. Inspection alone does not authorize adoption, deletion, or retry.`
+      : result.workspace.kind === "ready"
+        ? "Task reserved. Workspace ready. No worker started."
+        : "Reservation retained. No worker started.";
+    return {
+      kind: "reserved",
+      receipt: result.receipt,
+      workspace: result.workspace,
+      parentObservation: result.observation
+        ? { kind: "observed", commit: result.observation.parent }
+        : { kind: "unavailable" },
+      message,
+    };
+  }
+  private async executeWorkspace(id: string): Promise<OperationResult> {
+    const epoch = this.epoch;
+    const dependencies = this.options.assignments;
+    const git = dependencies?.repository();
+    if (!dependencies || !git)
+      return reject(
+        "permission-path",
+        "Guarded Git execution requires a live legion_workspace tool context. No task was reserved by this request.",
+      );
+    let request: z.infer<typeof WorkspaceRequest>;
+    try {
+      const state = this.selected ? await this.store.read(this.selected) : null;
+      const found = state?.workspaceRequests.find((r) => r.id === id);
+      if (!found)
+        return reject(
+          "request",
+          "No durably recorded host workspace request exists.",
+        );
+      request = found;
+      await this.authorized(request, epoch);
+      this.workspaceAuthority(request, epoch);
+      this.invocations++;
+    } catch (error) {
+      return reject("authority", String(error));
+    }
+    try {
+      const location = await git.locate();
+      const locatedAuthority = await this.serialize(() =>
+        this.authorized(request, epoch),
+      );
+      const knownRepository =
+        locatedAuthority.state.workspaceRequests.find(
+          (r) => r.repository === location.commonDir && r.repositoryId,
+        )?.repositoryId ?? null;
+      const ledger = new AssignmentLedger(
+        location.commonDir,
+        dependencies.fault,
+        knownRepository,
+        locatedAuthority.state.workspaceRequests.some(
+          (r) => r.repository === location.commonDir,
+        ),
+      );
+      if (request.repository && request.repository !== location.commonDir)
+        return reject(
+          "repository",
+          "Repository metadata changed. Preserve existing records.",
+        );
+      const prior = await ledger.replay(
+        LegatusId.parse(this.selected),
+        request.id,
+        request.fingerprint,
+      );
+      if (prior)
+        return this.reservationResult(prior, LegatusId.parse(this.selected));
+      const current = await this.serialize(() =>
+        this.authorized(request, epoch),
+      );
+      const observed = await ledger.observations(current.state.id);
+      const local = observed.byTask.get(current.task.id);
+      if (
+        request.intent.kind === "reconcile" &&
+        (!local || local.kind === "unreserved" || local.kind === "unavailable")
+      )
+        return reject("reservation", "No reconcilable reservation exists.");
+      if (request.intent.kind === "reconcile" && local?.kind === "foreign")
+        return {
+          kind: "ownership-blocked",
+          reservation: local.reservation,
+          message:
+            "Task is reserved by another Legatus. No workspace was created for this request.",
+        };
+      const existing = local?.kind === "owned" ? local.reservation : null;
+      if (
+        existing &&
+        request.intent.kind === "reserve" &&
+        request.intent.parent !== existing.plan.parent
+      )
+        return reject(
+          "plan-conflict",
+          "A fresh request cannot change the stored parent branch. Reservation retained.",
+        );
+      const parent =
+        request.intent.kind === "reserve"
+          ? request.intent.parent
+          : existing?.plan.parent;
+      if (!parent)
+        return reject("reservation", "Reservation plan unavailable.");
+      this.workspaceAuthority(request, epoch);
+      const commit = existing?.plan.commit ?? (await git.parent(parent));
+      const planId = randomUUID();
+      const plan = existing?.plan ?? {
+        branch: `refs/heads/legion/${planId}`,
+        path: join(
+          persistentRoot(dependencies.workspaceRoot, location),
+          planId,
+        ),
+        parent,
+        commit,
+      };
+      const reserved = await this.serialize(async () => {
+        const authority = await this.authorized(request, epoch);
+        const replay = await ledger.replay(
+          authority.state.id,
+          request.id,
+          request.fingerprint,
+        );
+        if (replay) return { ...replay, replayed: true };
+        const saved = authority.state.workspaceRequests.find(
+          (r) => r.id === request.id,
+        );
+        if (!saved) throw new Error("Pending request disappeared.");
+        saved.repository = location.commonDir;
+        const expected = authority.state.revision;
+        authority.state.revision++;
+        await this.store.save(
+          authority.state,
+          expected,
+          () => !!this.binding && !this.stopping && epoch === this.epoch,
+        );
+        const result = await ledger.reserve({
+          owner: authority.state.id,
+          task: authority.task,
+          scope: request.scope,
+          shared:
+            request.intent.kind === "reserve"
+              ? sharedIdentity(authority.task.id, request.intent.source)
+              : (existing?.shared ?? sharedIdentity(authority.task.id, null)),
+          request: request.id,
+          fingerprint: request.fingerprint,
+          plan,
+          owned: () => !!this.binding && !this.stopping && epoch === this.epoch,
+        });
+        saved.repositoryId = result.receipt.reservation.repository;
+        const witnessed = authority.state.revision;
+        authority.state.revision++;
+        await this.store.save(
+          authority.state,
+          witnessed,
+          () => !!this.binding && !this.stopping && epoch === this.epoch,
+        );
+        return { ...result, replayed: false };
+      });
+      if (reserved.replayed)
+        return this.reservationResult(reserved, current.state.id);
+      if (reserved.receipt.reservation.owner !== current.state.id)
+        return this.reservationResult(reserved, current.state.id);
+      return await this.prepareWorkspace({
+        ledger,
+        git,
+        request,
+        epoch,
+        receipt: reserved.receipt,
+      });
+    } catch (error) {
+      if (error instanceof AssignmentConflict)
+        return reject(error.code, error.message);
+      const followUp =
+        request.intent.kind === "reserve"
+          ? `reserve ${request.intent.task.id}@${request.intent.task.revision} --parent ${request.intent.parent}${request.intent.source ? ` --source ${request.intent.source}` : ""}`
+          : `reconcile ${request.intent.task}`;
+      return {
+        kind: "uncertain",
+        requestKey: id,
+        message: `Assignment authority or operation outcome could not be established. Preserve all recorded resources. ${String(error)}. Inspect /legion status ${this.selected}. If inactive, explicitly /legion resume ${this.selected}, then issue a fresh /legion ${followUp}. Preserve the exact pending request ${id} and its saved payload. No automatic retry was performed.`,
+      };
+    } finally {
+      this.invocations--;
+      if (this.stopping && !this.invocations) this.revoke();
+    }
+  }
+  private async prepareWorkspace(input: {
+    ledger: AssignmentLedger;
+    git: WorkspaceRepository;
+    request: z.infer<typeof WorkspaceRequest>;
+    epoch: number;
+    receipt: ReservationReceipt;
+  }): Promise<OperationResult> {
+    const { ledger, git, request, epoch, receipt } = input;
+    const reservation = receipt.reservation;
+    const plan = reservation.plan;
+    const read = async () => {
+      const result = await ledger.replay(
+        reservation.owner,
+        request.id,
+        request.fingerprint,
+      );
+      if (!result)
+        throw new Error("Committed reservation receipt unavailable.");
+      return result;
+    };
+    const held = async (
+      code: string,
+      message: string,
+      operation:
+        | Extract<WorkspaceState, { kind: "dispatched" }>["operation"]
+        | null = null,
+    ): Promise<OperationResult> => {
+      const workspace: WorkspaceState = {
+        kind: "held",
+        code,
+        message,
+        operation,
+      };
+      await ledger.hold(reservation, workspace);
+      return this.reservationResult({ receipt, workspace }, reservation.owner);
+    };
+    let current = await read();
+    if (
+      current.workspace.kind === "dispatched" ||
+      (current.workspace.kind === "held" &&
+        current.workspace.code === "unknown-operation")
+    ) {
+      const operation = current.workspace.operation;
+      let observed = "Git observation unavailable.";
+      try {
+        this.workspaceAuthority(request, epoch);
+        observed = JSON.stringify(await git.inspect(plan));
+      } catch (error) {
+        observed += ` ${String(error)}`;
+      }
+      return held(
+        "unknown-operation",
+        `Reservation retained. Git operation completion is unknown. Inspect operation ${operation?.id}, branch ${plan.branch}, and path ${plan.path}. Preserve these resources. No retry was performed. Inspection alone does not authorize adoption, deletion, or retry. ${observed}`,
+        operation,
+      );
+    }
+    for (const step of ["branch", "worktree"] as const) {
+      current = {
+        ...(await read()),
+        workspace: await ledger.progress(reservation),
+      };
+      if (current.workspace.kind === "ready") {
+        this.workspaceAuthority(request, epoch);
+        const actual = await git.inspect(plan);
+        if (
+          !actual.workspace ||
+          !actual.workspace.backlink ||
+          actual.workspace.commonDir !== ledger.commonDir ||
+          actual.workspace.branch !== plan.branch ||
+          actual.branch !== actual.workspace.commit ||
+          actual.path !== "directory"
+        )
+          return held(
+            "workspace-mismatch",
+            "Ready workspace association changed or disappeared. Preserve the branch and path. No repair or recreation was performed.",
+          );
+        await ledger.hold(reservation, null);
+        return this.reservationResult(
+          { ...current, observation: actual },
+          reservation.owner,
+        );
+      }
+      if (step === "branch" && current.workspace.kind === "branch-owned")
+        continue;
+      if (
+        current.workspace.kind === "held" &&
+        current.workspace.operation?.step === "worktree" &&
+        step === "branch"
+      )
+        continue;
+      try {
+        this.workspaceAuthority(request, epoch);
+      } catch (error) {
+        return held("approval", String(error));
+      }
+      const actual = await git.inspect(plan);
+      if (actual.path !== "absent" || actual.workspace)
+        return held(
+          "collision",
+          `Existing path or registered worktree at ${plan.path}. Reservation retained. No existing resource was adopted or changed.`,
+        );
+      if (
+        step === "branch"
+          ? actual.branch !== null
+          : actual.branch !== plan.commit
+      )
+        return held(
+          "collision",
+          `Branch ${plan.branch} collides or moved before readiness. Reservation retained. No existing resource was adopted or changed.`,
+        );
+      let operation;
+      try {
+        operation = await this.serialize(async () => {
+          await this.authorized(request, epoch);
+          return ledger.dispatch(
+            reservation,
+            step,
+            () => !!this.binding && !this.stopping && epoch === this.epoch,
+          );
+        });
+      } catch (error) {
+        return held("approval", String(error));
+      }
+      if (!operation)
+        return held(
+          "unknown-operation",
+          "Another operation is dispatched. Preserve the recorded branch and path. No retry was performed.",
+        );
+      if (!this.binding || this.stopping || this.epoch !== epoch) {
+        await ledger.complete(operation, {
+          kind: "failed",
+          message:
+            "Authority revoked before child invocation. No Git invocation was started.",
+          noEffect: true,
+        });
+        return held(
+          "approval",
+          "Authority revoked before Git invocation. Reservation retained.",
+        );
+      }
+      let outcome: GitOutcome;
+      try {
+        outcome = await (step === "branch"
+          ? git.createBranch(plan)
+          : git.createWorktree(plan));
+      } catch (error) {
+        outcome = { kind: "unknown", message: String(error) } as const;
+      }
+      try {
+        const after = await git.inspect(plan);
+        if (
+          outcome.kind === "succeeded" &&
+          (after.branch !== plan.commit ||
+            (step === "worktree" &&
+              (!after.workspace ||
+                !after.workspace.backlink ||
+                after.workspace.commonDir !== ledger.commonDir ||
+                after.workspace.branch !== plan.branch ||
+                after.workspace.commit !== plan.commit ||
+                after.path !== "directory")))
+        )
+          outcome = {
+            kind: "unknown",
+            message:
+              "Git reported completion but matching repository evidence is unavailable.",
+          };
+        if (outcome.kind === "failed")
+          outcome = {
+            ...outcome,
+            noEffect:
+              outcome.noEffect &&
+              (step === "branch"
+                ? after.branch === null
+                : !after.workspace && after.path === "absent"),
+          };
+      } catch (error) {
+        outcome = {
+          kind: "unknown",
+          message: `Post-operation observation unavailable. ${String(error)}`,
+        };
+      }
+      await ledger.complete(operation, outcome);
+      if (outcome.kind !== "succeeded") {
+        const failed = await read();
+        return this.reservationResult(failed, reservation.owner);
+      }
+    }
+    return this.reservationResult(
+      { ...(await read()), observation: await git.inspect(plan) },
+      reservation.owner,
+    );
+  }
   async state(): Promise<LegionView> {
     try {
       const snapshot = this.selected
         ? await this.store.read(this.selected)
         : await this.store.find(this.options.session, this.options.context);
       if (snapshot && this.uncertain?.id === snapshot.id) this.uncertain = null;
+      const claims = await this.claims(snapshot);
       return {
-        mode: this.binding ? "active" : "inactive",
+        mode: this.stopping ? "stopping" : this.binding ? "active" : "inactive",
+        ownerObservations: claims.all,
         snapshot,
         tasks:
           snapshot?.tasks.map((t) => ({
             ...t,
-            eligibility: !this.binding
-              ? "inactive"
-              : snapshot.decisions.some(
-                    (d) =>
-                      d.state.kind === "open" &&
-                      d.history.at(-1)?.affected.some((a) => a.id === t.id),
-                  )
-                ? "blocked"
-                : "admitted",
+            claim: claims.byTask.get(t.id) ?? claims.fallback,
+            eligibility:
+              !this.binding || this.stopping
+                ? "inactive"
+                : snapshot.decisions.some(
+                      (d) =>
+                        d.state.kind === "open" &&
+                        d.history.at(-1)?.affected.some((a) => a.id === t.id),
+                    )
+                  ? "blocked"
+                  : "admitted",
           })) ?? [],
         diagnostics: [],
         unavailable: null,
       };
     } catch (error) {
       return {
-        mode: "inactive",
+        mode: this.stopping ? "stopping" : this.binding ? "active" : "inactive",
         snapshot: null,
         tasks: [],
         diagnostics: [],
@@ -236,17 +960,37 @@ export class Legion {
     }
   }
   command(raw: unknown): Promise<CommandResult> {
+    const execution = z
+      .object({ workspaceRequest: z.string().min(1) })
+      .strict()
+      .safeParse(raw);
+    if (execution.success)
+      return this.executeWorkspace(execution.data.workspaceRequest).then(
+        (result) => ({ ...result, disposition: "workspace" }),
+      );
     const parsed = Command.safeParse(raw);
     if (!parsed.success)
-      return Promise.resolve({ ...reject("invalid", "Invalid command."), disposition: "none" });
+      return Promise.resolve({
+        ...reject("invalid", "Invalid command."),
+        disposition: "none",
+      });
     const intent = commandIntent(parsed.data.text);
     const dispositions = {
-      status: "observe", doctor: "observe", on: "activate", off: "off",
-      resume: "resume", task: "submit", invalid: "none",
+      status: "observe",
+      doctor: "observe",
+      on: "activate",
+      off: "off",
+      resume: "resume",
+      task: "submit",
+      reserve: "workspace",
+      reconcile: "workspace",
+      workspace: "workspace",
+      invalid: "none",
     } satisfies Record<CommandIntent["kind"], CommandResult["disposition"]>;
     const disposition = dispositions[intent.kind];
-    return this.applyCommand(parsed.data, intent).then(result => ({
-      ...result, disposition: result.kind === "rejected" ? "none" : disposition,
+    return this.applyCommand(parsed.data, intent).then((result) => ({
+      ...result,
+      disposition: result.kind === "rejected" ? "none" : disposition,
     }));
   }
   private applyCommand(
@@ -254,7 +998,12 @@ export class Legion {
     intent: CommandIntent,
   ): Promise<OperationResult> {
     if (intent.kind === "invalid")
-      return Promise.resolve(reject("usage", "Use on, task <text>, status [id], doctor, off, or resume <id>. Use task to escape reserved arguments."));
+      return Promise.resolve(
+        reject(
+          "usage",
+          "Use on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, or workspace <request-id>. Use task to escape reserved arguments.",
+        ),
+      );
     if (
       (input.evidence.origin !== "emperor" &&
         input.evidence.origin !== "host-command") ||
@@ -268,18 +1017,32 @@ export class Legion {
       );
     if (intent.kind === "off") {
       this.revoke();
-      return Promise.resolve({
-        kind: "observed",
-        view: {
-          mode: "inactive",
-          snapshot: null,
-          tasks: [],
-          diagnostics: [],
-          unavailable: null,
-        },
-      });
+      return this.state().then((view) => ({ kind: "observed", view }));
     }
     const epoch = this.epoch;
+    if (intent.kind === "reserve" || intent.kind === "reconcile")
+      return this.recordWorkspace(input, intent, epoch);
+    if (intent.kind === "workspace")
+      return this.serialize(async () => {
+        try {
+          const state = this.selected
+            ? await this.store.read(this.selected)
+            : null;
+          const request = state?.workspaceRequests.find(
+            (r) => r.id === intent.id,
+          );
+          if (!request)
+            return reject("request", "No recorded workspace request exists.");
+          await this.authorized(request, epoch);
+          return {
+            kind: "workspace-stage",
+            requestId: request.id,
+            message: "Guarded workspace stage authorized. No worker started.",
+          };
+        } catch (error) {
+          return reject("authority", String(error));
+        }
+      });
     return this.serialize(async () => {
       if (intent.kind === "status") {
         const id = intent.id;
@@ -289,14 +1052,19 @@ export class Legion {
         const snapshot = await this.store.read(id);
         if (snapshot && this.uncertain?.id === snapshot.id)
           this.uncertain = null;
+        const claims = await this.claims(snapshot);
         return {
           kind: "observed",
           view: {
             mode: "inactive",
             snapshot,
+            ownerObservations: claims.all,
             tasks:
-              snapshot?.tasks.map((t) => ({ ...t, eligibility: "inactive" })) ??
-              [],
+              snapshot?.tasks.map((t) => ({
+                ...t,
+                eligibility: "inactive",
+                claim: claims.byTask.get(t.id) ?? claims.fallback,
+              })) ?? [],
             diagnostics: [],
             unavailable: snapshot ? null : "Legatus records were not found.",
           },
@@ -318,6 +1086,11 @@ export class Legion {
         return reject(
           "reconcile",
           `Reconcile request ${this.uncertain.requestKey} before another mutation.`,
+        );
+      if (this.stopping)
+        return reject(
+          "stopping",
+          "Legion is stopping. No new workspace operations will start. Reservations retained.",
         );
       const diagnostics = await this.options.preflight();
       if (epoch !== this.epoch)
@@ -358,7 +1131,8 @@ export class Legion {
             };
       } catch (error) {
         return reject(
-          "ownership", `Exclusive association ownership is unavailable. ${String(error)}`,
+          "ownership",
+          `Exclusive association ownership is unavailable. ${String(error)}`,
         );
       }
       let adopted = false;
@@ -372,7 +1146,11 @@ export class Legion {
           try {
             if (ownership.kind === "acquiring")
               recoveryLock = await this.store.acquire(id);
-            state = await this.store.recover(id, this.options.context, () => epoch === this.epoch);
+            state = await this.store.recover(
+              id,
+              this.options.context,
+              () => epoch === this.epoch,
+            );
             if (state && this.uncertain?.id === state.id) this.uncertain = null;
           } catch (error) {
             return reject(
@@ -384,13 +1162,41 @@ export class Legion {
           try {
             state = this.selected
               ? await this.store.read(this.selected)
-              : await this.store.find(this.options.session, this.options.context);
+              : await this.store.find(
+                  this.options.session,
+                  this.options.context,
+                );
           } catch (error) {
-            return reject("unavailable", `Intake records are unavailable. ${String(error)}`);
+            return reject(
+              "unavailable",
+              `Intake records are unavailable. ${String(error)}`,
+            );
           }
         }
         if (resume && !state)
           return reject("not-found", "Legatus records were not found.");
+        if (resume && state) {
+          for (const commonDir of new Set(
+            state.workspaceRequests.flatMap((r) =>
+              r.repository ? [r.repository] : [],
+            ),
+          )) {
+            try {
+              await new AssignmentLedger(
+                commonDir,
+                this.options.assignments?.fault,
+                state.workspaceRequests.find(
+                  (r) => r.repository === commonDir && r.repositoryId,
+                )?.repositoryId ?? null,
+              ).recoverExisting(() => epoch === this.epoch);
+            } catch (error) {
+              return reject(
+                "assignment-recovery",
+                `Assignment authority unavailable. Reservations retained. ${String(error)}`,
+              );
+            }
+          }
+        }
         if (state && state.context !== this.options.context)
           return reject(
             "context",
@@ -419,7 +1225,8 @@ export class Legion {
           return reject("revoked", "Activation was revoked.");
         if (ownership.kind === "acquiring") {
           try {
-            const lock = recoveryLock ?? (await this.store.acquire(snapshot.id));
+            const lock =
+              recoveryLock ?? (await this.store.acquire(snapshot.id));
             if (epoch !== this.epoch) {
               if (lock !== recoveryLock) release(lock);
               return reject("revoked", "Activation was revoked.");
@@ -551,7 +1358,7 @@ export class Legion {
       }
       const binding = this.binding;
       const selected = this.selected;
-      if (!binding || !selected || epoch !== this.epoch)
+      if (!binding || !selected || this.stopping || epoch !== this.epoch)
         return reject("inactive", "Legion is inactive.");
       if (
         (message.kind === "message" && message.evidence.origin !== "emperor") ||

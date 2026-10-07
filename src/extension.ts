@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
 import { join } from "node:path";
 import { realpathSync } from "node:fs";
 import { z } from "zod";
@@ -62,7 +64,25 @@ A new task's questions bind automatically to the allocated task. Ask material pr
 Each normal conversational answer can use answer naming the exact open decision revision and a typed effect. Never invent Emperor text or substitute an amendment. For record-clarification, copy the saved answer text exactly. For ambiguous or multiply-targetable answers, use answer with effect clarify. When a current decision or task is stale, ask for clarification. Do not use keyword guessing or require tokens. Conversation may be in the Emperor's language, but questions, recommendations, and interface explanations are English.
 Call one valid proposal per source. Unprocessed sources remain pending. Do not retry a rejected source automatically. End the run when interpretation is complete.`;
 
+const WorkspaceArguments = z.object({ requestId: z.string().min(1) }).strict();
+const ShellReceipt = z.object({
+  output: z.string(),
+  exit_code: z.int(),
+  truncated: z.literal(false),
+});
+type WorkspaceRun = {
+  marker: string;
+  requestId: string;
+  session: string;
+  generation: number;
+} & (
+  | { kind: "dispatch" | "prepared" }
+  | { kind: "running" | "settled"; callId: string }
+);
 export default function (pi: ExtensionAPI) {
+  const repositories = new AsyncLocalStorage<WorkspaceRepository>();
+  let workspaceRun: WorkspaceRun | null = null;
+  const workspaceAttempts = new Set<string>();
   let legion: Legion | null = null;
   let binding: { session: string; generation: number; legatus: string } | null =
     null;
@@ -110,12 +130,29 @@ export default function (pi: ExtensionAPI) {
   }
   function notifyResult(ctx: ExtensionContext, result: OperationResult) {
     switch (result.kind) {
+      case "deferred":
       case "saved":
       case "applied":
         report(
           ctx,
           `${result.receipt.message}\nLegatus ${result.receipt.legatus}\nReceipt ${result.receipt.requestKey}`,
         );
+        break;
+      case "reserved":
+        report(
+          ctx,
+          `${result.message}\nReservation ${result.receipt.reservation.id}. Branch ${result.receipt.reservation.plan.branch}. Path ${result.receipt.reservation.plan.path}.\nStored parent ${result.receipt.reservation.plan.parent} at ${result.receipt.reservation.plan.commit}. Current parent ${result.parentObservation.kind === "observed" ? (result.parentObservation.commit ?? "missing") : "observation unavailable"}.\n${result.workspace.kind === "held" ? result.workspace.message : ""}`,
+        );
+        break;
+      case "ownership-blocked":
+        report(
+          ctx,
+          `${result.message}\nReservation ${result.reservation.id}. Legatus ${result.reservation.owner}.`,
+          "warning",
+        );
+        break;
+      case "workspace-stage":
+        report(ctx, result.message);
         break;
       case "rejected":
         report(ctx, `Not saved. ${result.message}`, "error");
@@ -132,7 +169,7 @@ export default function (pi: ExtensionAPI) {
         const status = v.unavailable
           ? `Legion state unavailable. ${v.unavailable}`
           : v.snapshot
-            ? `Legion is ${v.mode}. Intake only.\nLegatus ${v.snapshot.id}\n${v.tasks.length} tasks. ${v.snapshot.submissions.filter((s) => s.state.kind === "pending").length} pending inputs.\nState\n${JSON.stringify(v)}`
+            ? `${v.mode === "stopping" ? "Legion is stopping. No new workspace operations will start. Reservations retained." : v.mode === "inactive" ? "Legion inactive. Reservations retained." : "Legion is active. Intake and reservations only."}\nLegatus ${v.snapshot.id}\n${v.tasks.length} tasks. ${v.snapshot.submissions.filter((s) => s.state.kind === "pending").length} pending inputs.\nState\n${JSON.stringify(v)}`
             : "Legion is inactive.";
         report(
           ctx,
@@ -208,8 +245,10 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setStatus(
         "legion-intake",
         binding
-          ? `Legion active | ${view.tasks.length} tasks | intake only`
-          : "Legion inactive",
+          ? `Legion active | ${view.tasks.length} tasks | no workers`
+          : view.mode === "stopping"
+            ? "Legion stopping | reservations retained"
+            : "Legion inactive",
       );
     } catch {}
     await showDecisions(ctx, view);
@@ -221,6 +260,7 @@ export default function (pi: ExtensionAPI) {
       !current ||
       !captured ||
       run ||
+      workspaceRun ||
       !ctx.isIdle() ||
       ctx.hasPendingMessages()
     )
@@ -288,11 +328,17 @@ export default function (pi: ExtensionAPI) {
     binding = null;
     run = null;
     attempted.clear();
+    workspaceRun = null;
+    workspaceAttempts.clear();
     legion = new Legion({
       storagePath: join(getAgentDir(), "legion"),
       context: realpathSync(ctx.cwd),
       session: ctx.sessionManager.getSessionId(),
       preflight: () => preflight(pi),
+      assignments: {
+        workspaceRoot: join(getAgentDir(), "legion", "workspaces"),
+        repository: () => repositories.getStore() ?? null,
+      },
     });
     try {
       ctx.ui.setStatus("legion-intake", "Legion inactive");
@@ -313,9 +359,19 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Enable durable intake. Arguments: on, task <text>, status [id], doctor, off, resume <id>",
+      "Enable durable intake and reservations. Arguments: on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>",
     getArgumentCompletions: (prefix) =>
-      ["on", "task", "status", "doctor", "off", "resume"]
+      [
+        "on",
+        "task",
+        "status",
+        "doctor",
+        "off",
+        "resume",
+        "reserve",
+        "reconcile",
+        "workspace",
+      ]
         .filter((value) => value.startsWith(prefix))
         .map((value) => ({ value, label: value })),
     handler: async (text, ctx) => {
@@ -326,13 +382,28 @@ export default function (pi: ExtensionAPI) {
       }
       const caller = { ...evidence(ctx), origin: "host-command" };
       try {
+        if (
+          /^\s*workspace(?:\s|$)/.test(text) &&
+          (workspaceRun || run || !ctx.isIdle() || ctx.hasPendingMessages())
+        ) {
+          report(
+            ctx,
+            "Workspace stage is unavailable while another turn or delivery is unsettled. No new operation started.",
+            "warning",
+          );
+          return;
+        }
         const result = await current.command({
           text,
           requestKey: randomUUID(),
           evidence: caller,
         });
         notifyResult(ctx, result);
-        if (legion !== current || result.disposition === "observe" || result.disposition === "none")
+        if (
+          legion !== current ||
+          result.disposition === "observe" ||
+          result.disposition === "none"
+        )
           return;
         if (result.disposition === "off") {
           binding = null;
@@ -360,7 +431,53 @@ export default function (pi: ExtensionAPI) {
               "warning",
             );
         }
-        if (result.disposition !== "off") schedule(ctx);
+        if (result.kind === "workspace-stage") {
+          if (
+            workspaceRun ||
+            run ||
+            !ctx.isIdle() ||
+            ctx.hasPendingMessages() ||
+            legion !== current
+          ) {
+            report(
+              ctx,
+              "Another stage or turn is unsettled. No workspace stage started.",
+              "warning",
+            );
+            return;
+          }
+          const view = await current.state();
+          if (
+            view.mode !== "active" ||
+            !view.snapshot ||
+            !binding ||
+            workspaceRun ||
+            run ||
+            legion !== current ||
+            binding.session !== ctx.sessionManager.getSessionId()
+          )
+            return;
+          const attempt = `${view.snapshot.generation}/${result.requestId}`;
+          if (workspaceAttempts.has(attempt)) {
+            report(
+              ctx,
+              "This workspace stage was already attempted. Inspect status and explicitly reserve or reconcile with a fresh request before another stage.",
+              "warning",
+            );
+            return;
+          }
+          workspaceAttempts.add(attempt);
+          workspaceRun = {
+            kind: "dispatch",
+            marker: `Legion workspace dispatch ${randomUUID()}`,
+            requestId: result.requestId,
+            session: ctx.sessionManager.getSessionId(),
+            generation: view.snapshot.generation,
+          };
+          pi.sendUserMessage(workspaceRun.marker);
+        }
+        if (result.disposition !== "off" && result.disposition !== "workspace")
+          schedule(ctx);
       } catch (error) {
         report(
           ctx,
@@ -372,6 +489,34 @@ export default function (pi: ExtensionAPI) {
   });
   pi.on("input", async (event, ctx) => {
     if (event.source === "extension") {
+      if (event.text.startsWith("Legion workspace dispatch ")) {
+        const pending = workspaceRun;
+        if (
+          !pending ||
+          pending.kind !== "dispatch" ||
+          pending.marker !== event.text ||
+          !binding ||
+          binding.session !== pending.session ||
+          binding.generation !== pending.generation ||
+          !ctx.isIdle() ||
+          event.streamingBehavior
+        )
+          return { action: "handled" };
+        const check = await legion?.command({
+          text: `workspace ${pending.requestId}`,
+          requestKey: randomUUID(),
+          evidence: evidence(ctx),
+        });
+        if (
+          check?.kind !== "workspace-stage" ||
+          workspaceRun !== pending ||
+          !binding ||
+          binding.generation !== pending.generation
+        )
+          return { action: "handled" };
+        pending.kind = "prepared";
+        return { action: "continue" };
+      }
       const pending = run;
       if (pending?.kind !== "dispatch" || event.text !== pending.marker)
         return {
@@ -392,7 +537,11 @@ export default function (pi: ExtensionAPI) {
         report(ctx, "Interpretation deferred. Inputs remain saved.", "info");
         return { action: "handled" };
       }
-      const checking: Run = { ...pending, kind: "pre-start", stage: "checking" };
+      const checking: Run = {
+        ...pending,
+        kind: "pre-start",
+        stage: "checking",
+      };
       run = checking;
       let authenticated = false;
       try {
@@ -469,6 +618,21 @@ export default function (pi: ExtensionAPI) {
   });
   pi.on("before_agent_start", (event, ctx) => {
     if (
+      workspaceRun?.kind === "prepared" &&
+      event.prompt === workspaceRun.marker &&
+      workspaceRun.session === ctx.sessionManager.getSessionId()
+    ) {
+      return {
+        systemPrompt: `${event.systemPrompt}\n\nExecute exactly one legion_workspace call with requestId ${JSON.stringify(workspaceRun.requestId)}. This is a bounded host-authorized workspace stage. Do not interpret intake, change its payload, execute other tools, start workers, or retry. Report the returned English result.`,
+        message: {
+          customType: "legion-workspace",
+          display: false,
+          content: `Host workspace request ${workspaceRun.requestId}`,
+          details: undefined,
+        },
+      };
+    }
+    if (
       run?.kind !== "pre-start" ||
       run.stage !== "forwarded" ||
       event.prompt !== run.marker ||
@@ -495,6 +659,42 @@ export default function (pi: ExtensionAPI) {
       run = { ...run, kind: "running", proposed: false };
   });
   pi.on("tool_call", (event) => {
+    if (workspaceRun) {
+      const args = WorkspaceArguments.safeParse(event.input);
+      if (
+        workspaceRun.kind === "prepared" &&
+        event.toolName === "legion_workspace" &&
+        !event.parentToolCallId &&
+        args.success &&
+        args.data.requestId === workspaceRun.requestId &&
+        binding?.session === workspaceRun.session &&
+        binding.generation === workspaceRun.generation
+      ) {
+        workspaceRun = {
+          ...workspaceRun,
+          kind: "running",
+          callId: event.toolCallId,
+        };
+        return;
+      }
+      if (
+        workspaceRun.kind === "running" &&
+        event.toolName === "bash" &&
+        event.parentToolCallId === workspaceRun.callId &&
+        repositories.getStore()
+      )
+        return;
+      return {
+        block: true,
+        reason:
+          "Workspace stage permits only its exact correlated root tool and necessary guarded nested Git calls.",
+      };
+    }
+    if (event.toolName === "legion_workspace")
+      return {
+        block: true,
+        reason: "No correlated host-authorized workspace stage is active.",
+      };
     if (
       (run?.kind === "running" ||
         (run?.kind === "pre-start" && run.stage === "prepared")) &&
@@ -510,6 +710,66 @@ export default function (pi: ExtensionAPI) {
         block: true,
         reason: "No correlated Legion interpretation run is active.",
       };
+  });
+  pi.registerTool({
+    name: "legion_workspace",
+    label: "Legion workspace",
+    exposure: "model-only",
+    description:
+      "Execute exactly one recorded host-authorized workspace request during its explicit workspace stage. Never supply task payload, approval, or provenance. Never launch workers.",
+    parameters: Type.Object(
+      { requestId: Type.String({ minLength: 1 }) },
+      { additionalProperties: false },
+    ),
+    execute: async (toolCallId, raw, _signal, _update, ctx) => {
+      const captured = workspaceRun;
+      const current = legion;
+      const args = WorkspaceArguments.parse(raw);
+      if (
+        !captured ||
+        captured.kind !== "running" ||
+        captured.callId !== toolCallId ||
+        captured.requestId !== args.requestId ||
+        captured.session !== ctx.sessionManager.getSessionId() ||
+        !current ||
+        binding?.generation !== captured.generation
+      )
+        throw new Error("No current correlated workspace stage.");
+      const git = new GitWorkspace(ctx.cwd, async (command) => {
+        const result = await ctx.executeTool("bash", { command });
+        const parsed = ShellReceipt.safeParse(result.result.structuredContent);
+        return parsed.success
+          ? {
+              kind: "finished",
+              code: parsed.data.exit_code,
+              output: parsed.data.output,
+            }
+          : {
+              kind: "unknown",
+              message: `Guarded shell completion evidence unavailable. ${result.result.content
+                .filter((c) => c.type === "text")
+                .map((c) => c.text)
+                .join("\\n")}`,
+            };
+      });
+      try {
+        const result = await repositories.run(git, () =>
+          current.command({ workspaceRequest: args.requestId }),
+        );
+        notifyResult(ctx, result);
+        if (legion === current) await refresh(ctx);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }],
+          details: result,
+          isError:
+            result.kind === "rejected" ||
+            result.kind === "uncertain" ||
+            result.kind === "ownership-blocked",
+        };
+      } finally {
+        if (workspaceRun === captured) captured.kind = "settled";
+      }
+    },
   });
   pi.registerTool({
     name: "legion_intake",
@@ -544,6 +804,8 @@ export default function (pi: ExtensionAPI) {
     },
   });
   pi.on("agent_settled", async (_event, ctx) => {
+    if (workspaceRun?.session === ctx.sessionManager.getSessionId())
+      workspaceRun = null;
     const previous = run;
     if (
       previous?.kind === "running" &&

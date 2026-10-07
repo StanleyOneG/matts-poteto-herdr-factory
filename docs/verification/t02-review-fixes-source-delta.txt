@@ -1,0 +1,11 @@
+Previously reviewed manifest SHA256 03180f199137cdd608ee12e13773153e9f2c5635790a42730b67fc08bc21de1d
+Changed reviewed paths
+README.md
+src/intake.ts
+tests/assignments.test.ts
+tests/workspace-git.test.ts
+tests/workspace-worker.ts
+Added tested reproductions
+docs/verification/t02-r1-real-repro.mjs
+docs/verification/t02-r2-real-repro.mjs
+All other previously reviewed source, scripts and package files are unchanged.

@@ -1,0 +1,54 @@
+TAP version 13
+# (node:1513146) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: revocation at durable dispatch never starts the Git invocation
+ok 1 - revocation at durable dispatch never starts the Git invocation
+  ---
+  duration_ms: 47.621335
+  type: 'test'
+  ...
+# Subtest: matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+ok 2 - matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+  ---
+  duration_ms: 28.847631
+  type: 'test'
+  ...
+# Subtest: uncertain deferred publication revokes execution even when the request survived
+ok 3 - uncertain deferred publication revokes execution even when the request survived
+  ---
+  duration_ms: 12.506018
+  type: 'test'
+  ...
+# Subtest: off revokes immediately, drains the child, and retains a visible approval hold
+ok 4 - off revokes immediately, drains the child, and retains a visible approval hold
+  ---
+  duration_ms: 21.771
+  type: 'test'
+  ...
+# Subtest: explicit reconciliation retries a proven failed branch at the original plan
+ok 5 - explicit reconciliation retries a proven failed branch at the original plan
+  ---
+  duration_ms: 30.511569
+  type: 'test'
+  ...
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 6 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 20.616384
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 7 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 23.31767
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 409.759078

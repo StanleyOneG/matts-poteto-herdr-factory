@@ -1,0 +1,202 @@
+TAP version 13
+# (node:1538510) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: unreadable storage cannot hide stopping or release an unsettled invocation
+ok 1 - unreadable storage cannot hide stopping or release an unsettled invocation
+  ---
+  duration_ms: 49.851824
+  type: 'test'
+  ...
+# Subtest: off at authorization await boundaries never starts discovery after revocation or releases an unsettled owner
+ok 2 - off at authorization await boundaries never starts discovery after revocation or releases an unsettled owner
+  ---
+  duration_ms: 272.312777
+  type: 'test'
+  ...
+# Subtest: off drains held Git locate and preserves intake ownership until settlement
+ok 3 - off drains held Git locate and preserves intake ownership until settlement
+  ---
+  duration_ms: 12.598262
+  type: 'test'
+  ...
+# Subtest: off drains held Git parent and preserves intake ownership until settlement
+ok 4 - off drains held Git parent and preserves intake ownership until settlement
+  ---
+  duration_ms: 16.26757
+  type: 'test'
+  ...
+# Subtest: off drains held Git inspect and preserves intake ownership until settlement
+ok 5 - off drains held Git inspect and preserves intake ownership until settlement
+  ---
+  duration_ms: 41.582298
+  type: 'test'
+  ...
+# Subtest: concurrent exact request delivery returns one immutable receipt without a duplicate effect
+ok 6 - concurrent exact request delivery returns one immutable receipt without a duplicate effect
+  ---
+  duration_ms: 32.51678
+  type: 'test'
+  ...
+# Subtest: affected decisions during Git preserve the branch and control only the next affected effect
+ok 7 - affected decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 45.382963
+  type: 'test'
+  ...
+# Subtest: unrelated decisions during Git preserve the branch and control only the next affected effect
+ok 8 - unrelated decisions during Git preserve the branch and control only the next affected effect
+  ---
+  duration_ms: 32.52786
+  type: 'test'
+  ...
+# Subtest: one owner cannot substitute another local task for an already bound external identity
+ok 9 - one owner cannot substitute another local task for an already bound external identity
+  ---
+  duration_ms: 37.71851
+  type: 'test'
+  ...
+# Subtest: explicit resume recovers only known interrupted ledger publication without a Git effect
+ok 10 - explicit resume recovers only known interrupted ledger publication without a Git effect
+  ---
+  duration_ms: 31.96784
+  type: 'test'
+  ...
+# Subtest: revocation at durable dispatch never starts the Git invocation
+ok 11 - revocation at durable dispatch never starts the Git invocation
+  ---
+  duration_ms: 20.315661
+  type: 'test'
+  ...
+# Subtest: matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+ok 12 - matching resources without a success receipt remain unknown after reopening and explicit reconciliation
+  ---
+  duration_ms: 32.628447
+  type: 'test'
+  ...
+# Subtest: uncertain deferred publication revokes execution even when the request survived
+ok 13 - uncertain deferred publication revokes execution even when the request survived
+  ---
+  duration_ms: 14.678156
+  type: 'test'
+  ...
+# Subtest: off revokes immediately, drains the child, and retains a visible approval hold
+ok 14 - off revokes immediately, drains the child, and retains a visible approval hold
+  ---
+  duration_ms: 36.202721
+  type: 'test'
+  ...
+# Subtest: explicit reconciliation retries a proven failed branch at the original plan
+ok 15 - explicit reconciliation retries a proven failed branch at the original plan
+  ---
+  duration_ms: 40.590361
+  type: 'test'
+  ...
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 16 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 27.941421
+  type: 'test'
+  ...
+# Subtest: unavailable assignment authority retains its exact pending request and gives explicit fresh authorization guidance
+ok 17 - unavailable assignment authority retains its exact pending request and gives explicit fresh authorization guidance
+  ---
+  duration_ms: 30.588474
+  type: 'test'
+  ...
+# Subtest: simultaneous distinct Legati elect one same-task owner and retain the losing blocker after restart
+ok 18 - simultaneous distinct Legati elect one same-task owner and retain the losing blocker after restart
+  ---
+  duration_ms: 43.731349
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 19 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 49.493361
+  type: 'test'
+  ...
+# (node:1538511) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a preexisting branch is retained without adoption or a replacement resource
+ok 20 - a preexisting branch is retained without adoption or a replacement resource
+  ---
+  duration_ms: 265.076514
+  type: 'test'
+  ...
+# Subtest: a preexisting empty-directory is retained without adoption or a replacement resource
+ok 21 - a preexisting empty-directory is retained without adoption or a replacement resource
+  ---
+  duration_ms: 206.33286
+  type: 'test'
+  ...
+# Subtest: a preexisting occupied-directory is retained without adoption or a replacement resource
+ok 22 - a preexisting occupied-directory is retained without adoption or a replacement resource
+  ---
+  duration_ms: 208.079931
+  type: 'test'
+  ...
+# Subtest: a preexisting symlink is retained without adoption or a replacement resource
+ok 23 - a preexisting symlink is retained without adoption or a replacement resource
+  ---
+  duration_ms: 205.704828
+  type: 'test'
+  ...
+# Subtest: a preexisting registered-worktree is retained without adoption or a replacement resource
+ok 24 - a preexisting registered-worktree is retained without adoption or a replacement resource
+  ---
+  duration_ms: 236.518565
+  type: 'test'
+  ...
+# Subtest: corrupt authority observation changes no ledger bytes and never reports unreserved
+ok 25 - corrupt authority observation changes no ledger bytes and never reports unreserved
+  ---
+  duration_ms: 456.940781
+  type: 'test'
+  ...
+# Subtest: missing initialized ledger history is unavailable and cannot become an empty ownership authority
+ok 26 - missing initialized ledger history is unavailable and cannot become an empty ownership authority
+  ---
+  duration_ms: 471.341163
+  type: 'test'
+  ...
+# {"schedule":"release-together","root":"/tmp/legion-real-git-kVhY9D","ready":[{"pid":1538844,"owner":"59d144aa-8d97-4c66-913b-dab5f9732f60","task":"102b4842-da58-48ff-afc3-71cccaec82e7","parent":"dbd47601850ba0a4e18440484dce82855b05d21c"},{"pid":1538845,"owner":"4a73dc20-d999-46fe-bea0-41b1b34518cc","task":"1e24bfec-67de-4bb5-9ff3-2182da11dc48","parent":"dbd47601850ba0a4e18440484dce82855b05d21c"}],"results":[{"kind":"reserved","owner":"59d144aa-8d97-4c66-913b-dab5f9732f60","id":"01eb84f1-e443-4a5d-89c8-0c00ac3c7027","branch":"refs/heads/legion/eef749ae-a1b6-4f04-99cb-97fb7fe972b2","path":"/tmp/legion-real-git-kVhY9D/workspaces/eef749ae-a1b6-4f04-99cb-97fb7fe972b2","workspace":{"kind":"ready"},"message":"Task reserved. Workspace ready. No worker started."},{"kind":"uncertain","requestKey":"overlap-b/1791406661223/workspace","message":"Assignment authority or operation outcome could not be established. Preserve all recorded resources. Error: database is locked. Inspect /legion status 4a73dc20-d999-46fe-bea0-41b1b34518cc. If inactive, explicitly /legion resume 4a73dc20-d999-46fe-bea0-41b1b34518cc, then issue a fresh /legion reserve 1e24bfec-67de-4bb5-9ff3-2182da11dc48@1 --parent refs/heads/intended --source https://github.com/Fixture/Project/issues/9. Preserve the exact pending request overlap-b/1791406661223/workspace and its saved payload. No automatic retry was performed.","pending":{"id":"overlap-b/1791406661223/workspace","fingerprint":"77d26949ebde1c28f0112d1fa9188a680b40141530aabacdafa048994d33d84c","intent":{"kind":"reserve","task":{"id":"1e24bfec-67de-4bb5-9ff3-2182da11dc48","revision":1},"parent":"refs/heads/intended","source":"https://github.com/Fixture/Project/issues/9"}}}],"reservation":{"id":"01eb84f1-e443-4a5d-89c8-0c00ac3c7027","owner":"59d144aa-8d97-4c66-913b-dab5f9732f60","plan":{"branch":"refs/heads/legion/eef749ae-a1b6-4f04-99cb-97fb7fe972b2","path":"/tmp/legion-real-git-kVhY9D/workspaces/eef749ae-a1b6-4f04-99cb-97fb7fe972b2"}},"recovered":{"kind":"ownership-blocked","owner":"59d144aa-8d97-4c66-913b-dab5f9732f60","id":"01eb84f1-e443-4a5d-89c8-0c00ac3c7027","branch":"refs/heads/legion/eef749ae-a1b6-4f04-99cb-97fb7fe972b2","path":"/tmp/legion-real-git-kVhY9D/workspaces/eef749ae-a1b6-4f04-99cb-97fb7fe972b2","message":"Task is reserved by another Legatus. No workspace was created for this request."},"branches":"refs/heads/legion/eef749ae-a1b6-4f04-99cb-97fb7fe972b2","worktrees":["worktree /tmp/legion-real-git-kVhY9D/repo","worktree /tmp/legion-real-git-kVhY9D/unrelated","worktree /tmp/legion-real-git-kVhY9D/workspaces/eef749ae-a1b6-4f04-99cb-97fb7fe972b2"]}
+# Subtest: independent same-task processes release-together preserve one owner and recover the losing blocker
+ok 27 - independent same-task processes release-together preserve one owner and recover the losing blocker
+  ---
+  duration_ms: 1409.413491
+  type: 'test'
+  ...
+# {"schedule":"hold-first-dispatch","root":"/tmp/legion-real-git-vpE0BJ","ready":[{"pid":1538993,"owner":"a2f3785a-493a-4745-b88c-39aac09d31c9","task":"a4ef3783-ffbe-442c-8e7a-2067a7925446","parent":"35193c9be5fccf33cb4aa71f1e3a4b6c9fdb960b"},{"pid":1538994,"owner":"1e4263e7-3e7e-490b-ad3d-4ce2e5de7ddc","task":"92525660-fb00-47c6-8b5d-05a625d6b0fc","parent":"35193c9be5fccf33cb4aa71f1e3a4b6c9fdb960b"}],"results":[{"kind":"reserved","owner":"a2f3785a-493a-4745-b88c-39aac09d31c9","id":"269bb347-4b31-4425-96d2-62621d409fcf","branch":"refs/heads/legion/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","path":"/tmp/legion-real-git-vpE0BJ/workspaces/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","workspace":{"kind":"ready"},"message":"Task reserved. Workspace ready. No worker started."},{"kind":"ownership-blocked","owner":"a2f3785a-493a-4745-b88c-39aac09d31c9","id":"269bb347-4b31-4425-96d2-62621d409fcf","branch":"refs/heads/legion/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","path":"/tmp/legion-real-git-vpE0BJ/workspaces/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","message":"Task is reserved by another Legatus. No workspace was created for this request."}],"reservation":{"id":"269bb347-4b31-4425-96d2-62621d409fcf","owner":"a2f3785a-493a-4745-b88c-39aac09d31c9","plan":{"branch":"refs/heads/legion/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","path":"/tmp/legion-real-git-vpE0BJ/workspaces/7ad78e3f-bbcc-4712-b790-f1bab321b2ad"}},"overlappingBlocker":{"kind":"ownership-blocked","owner":"a2f3785a-493a-4745-b88c-39aac09d31c9","id":"269bb347-4b31-4425-96d2-62621d409fcf","branch":"refs/heads/legion/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","path":"/tmp/legion-real-git-vpE0BJ/workspaces/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","message":"Task is reserved by another Legatus. No workspace was created for this request."},"recovered":{"kind":"ownership-blocked","owner":"a2f3785a-493a-4745-b88c-39aac09d31c9","id":"269bb347-4b31-4425-96d2-62621d409fcf","branch":"refs/heads/legion/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","path":"/tmp/legion-real-git-vpE0BJ/workspaces/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","message":"Task is reserved by another Legatus. No workspace was created for this request."},"branches":"refs/heads/legion/7ad78e3f-bbcc-4712-b790-f1bab321b2ad","worktrees":["worktree /tmp/legion-real-git-vpE0BJ/repo","worktree /tmp/legion-real-git-vpE0BJ/unrelated","worktree /tmp/legion-real-git-vpE0BJ/workspaces/7ad78e3f-bbcc-4712-b790-f1bab321b2ad"]}
+# Subtest: independent same-task processes hold-first-dispatch preserve one owner and recover the losing blocker
+ok 28 - independent same-task processes hold-first-dispatch preserve one owner and recover the losing blocker
+  ---
+  duration_ms: 1495.526501
+  type: 'test'
+  ...
+# Subtest: process observers through linked, nested, and symlink checkouts contend while an independent clone does not
+ok 29 - process observers through linked, nested, and symlink checkouts contend while an independent clone does not
+  ---
+  duration_ms: 2558.354778
+  type: 'test'
+  ...
+# Subtest: a surviving Git child keeps its unknown reservation before and after its delayed branch appears
+ok 30 - a surviving Git child keeps its unknown reservation before and after its delayed branch appears
+  ---
+  duration_ms: 924.115237
+  type: 'test'
+  ...
+# Subtest: different assignments use distinct actual worktrees at the intended parent without touching dirty work
+ok 31 - different assignments use distinct actual worktrees at the intended parent without touching dirty work
+  ---
+  duration_ms: 912.074072
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9541.842302

@@ -1,6 +1,6 @@
-# Legion T01
+# Legion intake and task reservations
 
-Legion adds explicitly enabled, durable text intake to Pi. It records scoped tasks and Emperor decisions. It does not execute tasks, create tickets, launch Tribuni, merge, deploy, rotate sessions, or manage worker shutdown.
+Legion adds explicitly enabled, durable intake and isolated Git workspaces to Pi. It records scoped tasks, Emperor decisions, and exclusive task reservations. It prepares branches and worktrees but does not execute the tasks, create tickets, launch Tribuni, merge, deploy, rotate sessions, or manage worker shutdown.
 
 ## Install and enable intake
 
@@ -21,15 +21,18 @@ Maintainers manually replace the bundled skill and its license and update the at
 
 Tab completion exposes these arguments.
 
-| Command | Behavior |
-| --- | --- |
-| `/legion` or `/legion on` | Enable intake without a task. Repeated activation retains identity. |
-| `/legion <text>` | Enable intake and save an explicit new task. |
-| `/legion task <text>` | Submit task text that starts with a reserved argument name. |
-| `/legion status [id]` | Observe records without a model turn, ownership claim, or repair. An explicit ID works without the original Pi conversation. |
-| `/legion doctor` | Report read-only prerequisite observations. No model turn or repair. |
-| `/legion off` | Revoke intake authority immediately and preserve records. No worker draining is implemented. |
-| `/legion resume <id>` | Explicitly reopen intake under exclusive ownership. Reconcile interrupted storage if needed, then retry pending interpretation once. No factory reconciliation or execution is implemented. |
+| Command                                                                                           | Behavior                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/legion` or `/legion on`                                                                         | Enable intake without a task. Repeated activation retains identity.                                                                                                                      |
+| `/legion <text>`                                                                                  | Enable intake and save an explicit new task.                                                                                                                                             |
+| `/legion task <text>`                                                                             | Submit task text that starts with a reserved argument name.                                                                                                                              |
+| `/legion status [id]`                                                                             | Observe records without a model turn, ownership claim, or repair. An explicit ID works without the original Pi conversation.                                                             |
+| `/legion doctor`                                                                                  | Report read-only prerequisite observations. No model turn or repair.                                                                                                                     |
+| `/legion off`                                                                                     | Revoke dispatch authority immediately. Show stopping until any local Git invocation settles and its outcome is handled. Retain reservations and work. No worker draining is implemented. |
+| `/legion resume <id>`                                                                             | Explicitly reopen intake under exclusive ownership in its original working context. Recover known interrupted metadata publication. Never create or adopt Git resources.                 |
+| `/legion reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>]` | Record the exact authorized workspace request. Defer guarded execution without claiming the task yet.                                                                                    |
+| `/legion reconcile <task-id>`                                                                     | Record an explicit request to inspect and, only with sufficient durable evidence, continue the original plan.                                                                            |
+| `/legion workspace <request-id>`                                                                  | Start a separate correlated model turn for the recorded request through the guarded workspace tool. Never launch a worker.                                                               |
 
 Reserved arguments accept extra separator whitespace without changing their meaning. Status and doctor remain observation-only. Direct task text remains verbatim. For `task`, one separator after the keyword is structural; further whitespace belongs to the saved payload. Pi 1.0.4 splits slash commands at an ASCII space. Use a space after `/legion`; tabs are supported in the remaining arguments.
 
@@ -47,19 +50,48 @@ Independent input remains admissible while another task is blocked or Pi is busy
 
 A dispatched prompt is not a successful interpretation. Legion checks authentication before forwarding it. A known local authentication failure leaves the original sources pending and allows an explicit resume after authentication is restored. Resume cannot replace a check still in progress or a genuinely started run. Once Legion forwards a prompt, Pi can report a later pre-start failure outside the supported extension hooks. If that delivery never starts or settles, restart Pi before explicitly resuming the saved Legatus. Idle status alone does not prove delivery ended. There is no autonomous retry loop. Pi can defer TUI input during compaction before Legion sees it. No receipt is promised before interception. Built-in commands and user shell commands are outside ordinary text interception.
 
+## Reserve an approved task
+
+1. Use `/legion status` to find the admitted task's ID and exact revision. Resolve its affected open decisions first.
+2. Run `/legion reserve <task-id>@<revision> --parent refs/heads/<intended-parent>`. To contend for the same external assignment across different Legati, also supply `--source https://github.com/<owner>/<repo>/issues/<number>`.
+3. Copy the returned `/legion workspace <request-id>` command. Run it after intake interpretation settles.
+4. Inspect the English result and `/legion status` before working in the planned path.
+
+The first command reports "Workspace request recorded. Task NOT YET RESERVED by this request. Guarded execution required." It is a durable pending request, not a claim. The workspace stage resolves the repository and parent, commits the reservation, and prepares its branch and worktree. A successful result says "Task reserved. Workspace ready. No worker started." A foreign-owner result identifies the reservation and owning Legatus.
+
+Reservation commands never schedule an intake interpretation turn. Ordinary active messages still enter intake. The separate workspace stage accepts only the exact correlated `legion_workspace` call. That tool receives only the pending request ID. Its live Pi tool context executes necessary Git calls through `ctx.executeTool("bash", ...)`, so installed tool hooks and bash overrides remain effective. There is no direct child-process fallback. Missing or suppressed completion evidence cannot establish readiness. A permission refusal retains any committed reservation and reports the blocker.
+
+Use a full local branch ref for the intended parent. Legion does not infer `HEAD`, a remote default, or a detached commit. The reservation pins the resolved commit. A later parent advance or deletion does not retarget the workspace. The result distinguishes the stored parent pin from its current guarded observation. Outside a live guarded stage, current Git observation is unavailable. Status shows retained evidence, not a cleanliness guarantee.
+
+Direct work uses its original intake TaskId. Separate direct submissions remain separate tasks. Supported external identities are canonical GitHub issue URLs. Owner and repository names are case-normalized. Unsupported formats fail closed. No remote ticket discovery or mutation occurs. A local task cannot change its shared identity, and another local task under the same Legatus cannot substitute for an existing binding.
+
+The ledger lives at `<canonical Git common directory>/legion/assignments.sqlite`. Primary checkouts, linked worktrees, nested paths, and symlink aliases share it. Independent clones do not. Workspaces live under `<Pi agent directory>/legion/workspaces`, outside all worktrees. The absolute branch, path, parent, and commit remain fixed in the reservation. Preexisting branches, directories, symlinks, or registered worktrees are collisions, not adoption evidence.
+
+## Recover a workspace request
+
+After restart, Legion is inactive. Inspect `/legion status`, explicitly resume the saved Legatus in its original context, and issue a fresh `reserve` or `reconcile` request. Pending requests remain visible, but their old generation and epoch do not authorize execution. Off revokes pending authorization immediately. Repeated off, early on, or early resume cannot bypass a local invocation that is still stopping. Unreadable intake storage reports its error without hiding the known stopping state.
+
+An exact committed request replay returns its immutable receipt and the retained workspace view. It performs no Git effect and does not resolve the parent again. A changed payload under the same key rejects. Replay is not renewed execution authority. Use a fresh explicit reconciliation to inspect the original plan. Dirty ready workspaces and later commits are retained. Missing, moved, or mismatched ready workspaces remain held without repair or recreation.
+
+A durable dispatch without definitive completion remains unknown even if its branch or path is absent or looks correct. The result names the operation, branch, and path and says "No retry was performed." Preserve those resources. Inspection, process death, released locks, and matching commits do not authorize adoption, deletion, takeover, or retry. T02 has no automated resolution for missing completion evidence. Such a reservation can remain blocked indefinitely.
+
+Concurrent shared-ledger writes can report unavailable authority with `database is locked` instead of an immediate owner result. The exact pending request remains saved. Inspect the saved Legatus with `/legion status <id>`. After its local invocation settles, explicitly resume if inactive and issue a fresh `reserve` with the original task revision, parent, and source. If status shows an existing local binding, a fresh `reconcile` can inspect it. The returned diagnostic includes the exact follow-up command. Legion adds no automatic waiting or retry loop. A busy contender can resolve to the existing owner's blocker after explicit recovery.
+
+A definitive failure can be retried through explicit reconciliation only when inspection proves that the failed step had no effect. Earlier successful operation evidence remains in the ledger. Missing, corrupt, or unsupported initialized history is unavailable authority, never an unreserved task or permission to initialize empty history. Status and doctor do not allocate claims, repair SQLite, mutate Git, or activate Legion. Explicit resume can finish a recognized interrupted initialization publication but cannot invent missing history.
+
 ## Task entry and later factory workflows
 
-T01 accepts direct tasks without creating a spec or tickets. A spec reference can be saved as task text, but T01 does not discover its tickets or run `implement-spec`. Spec execution belongs to a later slice.
+Intake accepts direct tasks without creating a spec or tickets. A spec reference can be saved as task text, but T01 does not discover its tickets or run `implement-spec`. Spec execution belongs to a later slice.
 
 `/new`, clearing, and reopening Pi leave intake inactive. Use `/legion status <id>` to inspect preserved records, then `/legion resume <id>` to recover intake explicitly. Planned same-window handoff, context rotation, worker draining, manual takeover, issue closure, and worktree cleanup are not implemented. Do not treat intake resume as proof that those factory recovery checks ran.
 
 ## Authority and recovery limits
 
-The public module has three operations, `command`, `submit`, and `state`. Deterministic scenarios and the real Pi adapter use these same operations. The model-facing tool accepts only a proposal. The adapter supplies immutable run, session, generation, permitted-source, and presentation evidence. Model arguments cannot supply caller evidence or replacement Emperor text.
+The public module has three operations, `command`, `submit`, and `state`. Deterministic scenarios and the real Pi adapter use these same operations. The intake tool accepts only a proposal. The workspace tool accepts only a correlated pending request ID. The adapter supplies immutable run, session, generation, permitted-source, and presentation evidence. Model arguments cannot supply caller evidence or replacement Emperor text.
 
 Pi extensions are trusted in-process code with filesystem access. Legion is not a sandbox against a malicious loaded extension. Pi 1.0.4 executes registered slash commands before its input hook and exposes no command-source field. Command records therefore say `host-command` and `source-unavailable`, not authenticated Emperor provenance. Another trusted extension can invoke a slash command. Such a command cannot itself answer an Emperor decision. Decision answers require a subsequent ordinary interactive or RPC input event. Ordinary extension-origin input cannot become an Emperor submission or answer.
 
-Presentation evidence uses already appended, displayed decision messages on the active Pi branch. A message merely queued for later display is not evidence. This establishes what the host presented, not proof that a human read it. The model can still misunderstand a conversational answer. The runtime checks provenance, revisions, permitted effects, and exact amendment identity. It cannot prove arbitrary language meaning. T01 performs no external execution.
+Presentation evidence uses already appended, displayed decision messages on the active Pi branch. A message merely queued for later display is not evidence. This establishes what the host presented, not proof that a human read it. The model can still misunderstand a conversational answer. The runtime checks provenance, revisions, permitted effects, and exact amendment identity. It cannot prove arbitrary language meaning. Intake interpretation performs no external execution. Only a separately authorized workspace stage can prepare Git resources.
 
 Snapshots live under `<Pi agent directory>/legion`, not in Git or only in the Pi journal. The current storage layout uses `v1.` filenames, one SQLite snapshot and lifetime lock per Legatus, immutable context/session routing records, and initialization evidence. Discovery selects the relevant routing filenames before opening a snapshot. A damaged Legatus does not block unrelated contexts or independent sessions. A matching damaged record remains unavailable until explicit recovery. An alias route is only a candidate; it does not grant an attachment or active authority.
 
@@ -67,7 +99,7 @@ Creation publishes its identity before committing an empty bootstrap snapshot an
 
 The earlier unpublished development layout is not automatically upgraded. Its files remain untouched and explicit access reports unsupported layout. Do not treat current-format discovery as migration of old records.
 
-SQLite uses rollback journaling and `synchronous=FULL`. An active binding holds two lifetime leases. The context/session association lease is acquired before discovery, selection, or allocation. The per-Legatus lease protects the aggregate. Concurrent actors with the same context/session cannot activate different Legati, including through explicit resume. Off, revocation, and shutdown release the Legatus lease before the association lease. Process death releases both through SQLite's kernel-backed locking. Independent contexts and different sessions remain separate. A rejected contender has no saved receipt. Read-only commands acquire neither lease.
+SQLite uses rollback journaling and `synchronous=FULL`. An active binding holds two lifetime leases. The context/session association lease is acquired before discovery, selection, or allocation. The per-Legatus lease protects the aggregate. Concurrent actors with the same context/session cannot activate different Legati, including through explicit resume. Off retains both leases until a locally started Git invocation and its outcome handling settle. Revocation then releases the Legatus lease before the association lease. Process death releases intake leases through SQLite's kernel-backed locking. It does not release a task reservation or prove a dispatched Git child ended. Independent contexts and different sessions remain separate. A rejected intake-association contender has no saved activation receipt. Assignment contention instead retains its durable binding and ownership result. Read-only commands acquire neither lease.
 
 The association lease file is scoped to the context/session hashes and contains no mutable identity registry. Existing immutable routing and initialized aggregate data remain authoritative. Historical multiple candidate routes still require explicit identity selection.
 
@@ -88,6 +120,7 @@ npm test
 npm run typecheck
 npm run build
 npm run verify:pi
+node --import tsx scripts/verify-workspace.mjs /tmp/legion-workspace-evidence.json
 ```
 
 The runtime check requires npm, `pi`, `herdr`, Python 3 with PTY support, and an already running local Herdr server. It packs and installs the npm tarball in a disposable directory, checks the bundled skill and license hashes, and verifies package-native skill discovery. npm can fetch package dependencies during this test. The check uses a disposable repository, isolated HOME and Pi directories, and a controlled loopback provider with no inherited credentials. It reads local Herdr status and never controls unrelated panes. Set `PI_TEST_PSTACK` and `PI_TEST_SUBAGENTS` if their installed package paths differ from the standard Pi npm directory. The check prints its evidence directory and preserves concise RPC and terminal logs there.
@@ -105,3 +138,5 @@ The trial requires Node's supported `--use-env-proxy` switch, that exact configu
 Process-kill tests cover SQLite cache-spill writes, acknowledgments, competing ownership, and read-only preservation on this local filesystem. They do not prove power-loss durability on other filesystems.
 
 The canonical decision trail is [t01-decisions.tsv](docs/verification/t01-decisions.tsv). [The lock startup report](docs/verification/lock-startup-results.md) identifies the latest checked files, causal probes, and residual risks. [The preceding association report](docs/verification/association-results.md) preserves its result identity. [The preceding final corrections report](docs/verification/final-fixes-results.md) preserves its result identity. [The preceding remediation report](docs/verification/remediation-results.md) preserves its result identity and representative-provider evidence. [The earlier verification report](docs/verification/t01-results.md) preserves the recovery history. The adapter slice has an explicitly approved retrospective TDD sequencing exception. Earlier public-seam slices and later defect fixes retain their actual red-green evidence. Independent review belongs to the parent session.
+
+The T02 workspace check uses installed pstack and pi-subagents packages, native skills, an isolated Pi profile, a loopback controlled provider, and the real nested tool path. It verifies command discovery, default-off, explicit resume, deferred reservation, ready workspaces, installed hook denial, root-tool refusal, and stopping. It does not test worker launch or Herdr executor lifecycle. [The T02 verification report](docs/verification/t02-results.md) identifies the tested source files, commands, red-green evidence, and remaining limits.

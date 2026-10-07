@@ -1,0 +1,60 @@
+TAP version 13
+# (node:1511762) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: uncertain deferred publication revokes execution even when the request survived
+not ok 1 - uncertain deferred publication revokes execution even when the request survived
+  ---
+  duration_ms: 29.182385
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/assignments.test.ts:47:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'rejected'
+    - 'uncertain'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'uncertain'
+  actual: 'rejected'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/assignments.test.ts:55:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: off revokes immediately, drains the child, and retains a visible approval hold
+ok 2 - off revokes immediately, drains the child, and retains a visible approval hold
+  ---
+  duration_ms: 40.463392
+  type: 'test'
+  ...
+# Subtest: explicit reconciliation retries a proven failed branch at the original plan
+ok 3 - explicit reconciliation retries a proven failed branch at the original plan
+  ---
+  duration_ms: 34.150155
+  type: 'test'
+  ...
+# Subtest: successful reservation verifies both stages and exact replay never creates another resource
+ok 4 - successful reservation verifies both stages and exact replay never creates another resource
+  ---
+  duration_ms: 20.385182
+  type: 'test'
+  ...
+# Subtest: two Legati retain one external reservation and its ownership blocker after reopening
+ok 5 - two Legati retain one external reservation and its ownership blocker after reopening
+  ---
+  duration_ms: 27.624612
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 370.062769

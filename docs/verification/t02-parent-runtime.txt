@@ -1,0 +1,3 @@
+(node:1559888) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"passed":true,"root":"/tmp/legion-workspace-pi-RUnvD3","hostBefore":"296596038ff5d0b578264865abad78583dbf1db3583b8ee7a681eb486be7384c","hostAfter":"296596038ff5d0b578264865abad78583dbf1db3583b8ee7a681eb486be7384c","branch":"refs/heads/legion/790a26c5-cf36-4c73-99ef-97743ceb7720","path":"/tmp/legion-workspace-pi-RUnvD3/agent/legion/workspaces/790a26c5-cf36-4c73-99ef-97743ceb7720"}

@@ -1,0 +1,55 @@
+TAP version 13
+# (node:1514113) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: missing initialized ledger history is unavailable and cannot become an empty ownership authority
+not ok 1 - missing initialized ledger history is unavailable and cannot become an empty ownership authority
+  ---
+  duration_ms: 355.547382
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:52:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'unreserved'
+    - 'unavailable'
+         ^
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'unavailable'
+  actual: 'unreserved'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:61:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: process observers through linked, nested, and symlink checkouts contend while an independent clone does not
+ok 2 - process observers through linked, nested, and symlink checkouts contend while an independent clone does not
+  ---
+  duration_ms: 2213.347115
+  type: 'test'
+  ...
+# Subtest: a surviving Git child keeps its unknown reservation before and after its delayed branch appears
+ok 3 - a surviving Git child keeps its unknown reservation before and after its delayed branch appears
+  ---
+  duration_ms: 866.922449
+  type: 'test'
+  ...
+# Subtest: different assignments use distinct actual worktrees at the intended parent without touching dirty work
+ok 4 - different assignments use distinct actual worktrees at the intended parent without touching dirty work
+  ---
+  duration_ms: 506.053476
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4162.733922

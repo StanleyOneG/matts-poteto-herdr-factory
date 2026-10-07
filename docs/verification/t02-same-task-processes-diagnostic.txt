@@ -1,0 +1,29 @@
+TAP version 13
+# Subtest: independent processes overlap same-task claims behind a barrier and retain one actual workspace after restart
+not ok 1 - independent processes overlap same-task claims behind a barrier and retain one actual workspace after restart
+  ---
+  duration_ms: 429.321814
+  type: 'test'
+  location: '/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:1:7436'
+  failureType: 'testCodeFailure'
+  error: '{"kind":"uncertain","requestKey":"overlap-a/1791405915883/workspace","message":"Assignment authority or operation outcome could not be established. Preserve all recorded resources. Error: database is locked","disposition":"workspace"}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'fail'
+  stack: |-
+    worker (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:45:33)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Promise.all (index 0)
+    async TestContext.<anonymous> (/workspaces/astraprojects/matts-poteto-herdr-factory/tests/workspace-git.test.ts:328:19)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1026.833242
