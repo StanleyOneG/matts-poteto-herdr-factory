@@ -1,0 +1,69 @@
+{
+  "recordedAt": "2026-10-08T02:31:59.605Z",
+  "timestampMeaning": "Recording time, not inferred command start time",
+  "sourceSha256": "72fb8e1c6216613e8319914b6230f179f081a12ec62441f2d141332a4c59b6b5",
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "npm test",
+      "result": "passed",
+      "tests": 102,
+      "failed": 0
+    },
+    {
+      "command": "npm pack --dry-run --json",
+      "result": "passed",
+      "entryCount": 14,
+      "integrity": "sha512-GrElHL28jou/falI2gLgqYeGccZY3DfzabJWVcvLto9MvMri59q0Hzbn5qFFc/TSGf2Y0j6wxGPgap5c9WNNaw=="
+    },
+    {
+      "command": "Real fixed-source lost-receipt/public-report verifier",
+      "result": "passed"
+    },
+    {
+      "command": "Actual captured-hook replay",
+      "result": "passed",
+      "cases": 7
+    },
+    {
+      "command": "git diff --check; git diff --cached --exit-code",
+      "result": "passed"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/final-typecheck.txt",
+      "sha256": "8ae876c1d64dd5eeebfedf692b0dba194529e72f34be1487fe2157a7828616c2"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/final-build.txt",
+      "sha256": "dd8be945dd18775a07fb3d5fa8be4aa2b0c2220333e0fcdb3a7886f8c6171a96"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/final-test.txt",
+      "sha256": "ba54fd8c12f62e4bed61e5e1cb777e366080348f1b41a1ddb5d9721a75b6c232"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/final-pack.json",
+      "sha256": "4501adbfe224ebd335a540e9a2048baff656066f6ee7e11d8926419a0bd7e26a"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/final-live-check.txt",
+      "sha256": "40bec9a7f0d3f6d02c0192f53a47b2df45166cfb0e867f7ea24700831b064944"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/final-replay-check.txt",
+      "sha256": "8822467a08e47869b8f7cc939b0a2db971c1121e1c660bfc20649bc617e3e4f3"
+    }
+  ],
+  "parentPreFixResult": "98/99 inherited pending identity publication race; /tmp/legion-t03-parent-review/tests.txt and publication-race-triage.md preserved. Not erased by writer 102/102.",
+  "originalBaseline": "78/79 nondeterministic contention. No #24 work, identity-publication change, or old-test weakening.",
+  "publication": "No commit, push, acceptance, closure, or cleanup"
+}

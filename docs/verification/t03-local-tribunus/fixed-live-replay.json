@@ -1,0 +1,80 @@
+{
+  "verdict": "Corrected test-only observer calibration passed",
+  "caveat": "Root, command, and original hook result come from the successful real lost-receipt capture. Only ledger/evidence paths point to isolated offline copies. No Pi, Herdr, or model was started.",
+  "rootEntry": "df9e1ca2",
+  "childCall": "call_2841d9a1c93147b8bc9b97fac791ea3f|fc_06e1d2109d448219016ac6fef021a481918a31fe666e8d203a/40",
+  "results": [
+    {
+      "scenario": "real-shape",
+      "consumer": "unknown receipt, original durably retained, second interception refused",
+      "diagnosticFiles": [
+        "context.json",
+        "injected.json",
+        "original-start-result.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-command",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-parent",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-session",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json"
+      ]
+    },
+    {
+      "scenario": "wrong-scope",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-terminal",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "failure.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "unknown-receipt",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "failure.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    }
+  ]
+}

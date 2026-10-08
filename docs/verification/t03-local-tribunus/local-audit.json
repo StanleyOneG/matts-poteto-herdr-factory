@@ -1,0 +1,14 @@
+{
+  "scope": [
+    "src/tribunus-host.ts",
+    "tests/tribunus-reports.test.ts",
+    "tests/support/tribunus-receiver.mjs"
+  ],
+  "comments": [],
+  "suppressions": [],
+  "deletions": 0,
+  "restorations": 0,
+  "architect": "Narrow accepted fixes, no parallel design/delegation allowed",
+  "deslop": "Reviewed worker-only atomic link publication and addressed failure lifecycle. Preserve corrupt-evidence holds and unchanged ledger publisher. No retry loop, production fault flag, cast, or phase comment added.",
+  "reviewSeparation": "Parent owns independent targeted rereview; local audit is not independent review."
+}

@@ -1,0 +1,21 @@
+{
+  "target": {
+    "controller": "01a118c6-574c-7118-acd5-0289ee10828f",
+    "reservation": "525af25e-967c-40d1-a59a-25ea9fa80ee0",
+    "scope": "161c7b8e7719323806bea6833b1a2c32c0020c3d9c5226c5151cb51d8532e9ce",
+    "cwd": "/home/vscode/.pi/agent/legion/workspaces/f55b47dc-0172-439c-9a41-1644dfa23358",
+    "ledger": "/tmp/legion-t03-writer-live/repo/.git/legion/assignments.sqlite",
+    "packageRoot": "/workspaces/astraprojects/matts-poteto-herdr-factory",
+    "evidenceDirectory": "/tmp/legion-t03-writer-live/remediation/observer-diagnostics"
+  },
+  "owner": "464e560b-9074-42aa-9bc8-a5c5b2228624",
+  "task": "ea9ba5f0-8c93-4e95-b4c1-e4b4153fcab3",
+  "revision": 1,
+  "workspace": {
+    "branch": "refs/heads/legion/f55b47dc-0172-439c-9a41-1644dfa23358",
+    "path": "/home/vscode/.pi/agent/legion/workspaces/f55b47dc-0172-439c-9a41-1644dfa23358",
+    "parent": "refs/heads/legion/t03-verified-local-tribunus",
+    "commit": "f24bc6e72e0d4d916b02de7244987cbfeb4c86ef"
+  },
+  "workspaceEntry": "0e06d02d"
+}

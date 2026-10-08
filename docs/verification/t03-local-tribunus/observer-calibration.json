@@ -1,0 +1,80 @@
+{
+  "verdict": "Corrected test-only observer calibration passed",
+  "caveat": "Historical root/nested command and CLI output are recorded. Reservation, scope, and cwd were rebound in isolated offline data to the newly resolved target. Raw hook structured content was not persisted. Its output/exit_code/truncated shape follows actual installed Bash emission and the production consumer, not the old synthetic process/stdout shape. No Pi, Herdr, or model was started.",
+  "rootEntry": "4bf13425",
+  "childCall": "call_1e6bf5d36fdf4b9b8bb95e7b5d9ee9b6|fc_06e1d2109d448219016ac6e69fc7f08191b012d61af08f983f/40",
+  "results": [
+    {
+      "scenario": "real-shape",
+      "consumer": "unknown receipt, original durably retained, second interception refused",
+      "diagnosticFiles": [
+        "context.json",
+        "injected.json",
+        "original-start-result.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-command",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-parent",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-session",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json"
+      ]
+    },
+    {
+      "scenario": "wrong-scope",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "wrong-terminal",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "failure.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    },
+    {
+      "scenario": "unknown-receipt",
+      "consumer": "unchanged result",
+      "diagnosticFiles": [
+        "context.json",
+        "failure.json",
+        "registered.json",
+        "root.json",
+        "selector.json"
+      ]
+    }
+  ]
+}

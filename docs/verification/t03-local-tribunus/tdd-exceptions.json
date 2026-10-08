@@ -1,0 +1,267 @@
+{
+  "count": 12,
+  "approvals": "/tmp/legion-t03-timeout-recovery/readonly-diagnosis/prior-contact-trail.txt",
+  "caveat": "Mutation runs predate some adapter edits; not a final-source rerun of every mutation.",
+  "cases": [
+    {
+      "case": 1,
+      "name": "launch migration interruption at before-launch-migration-commit preserves existing ownership and receipts without starting a worker",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/migration-before.diff",
+          "sha256": "7273121ee3867b1c4042307e823d217df84c8d37c1162972fb19d34708e2b08c"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/migration-before.red.txt",
+          "sha256": "708b91fc87ff27f21355337ecce8bd67ff93dce59fab254b7fd0c401a4e91984"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/migration-before.green.txt",
+          "sha256": "30e3d027dd2937ff89462ac13d1f5d81f682bf904ed1eba1878eb1ba2692342a"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 2,
+      "name": "launch migration interruption at after-launch-migration-commit preserves existing ownership and receipts without starting a worker",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/migration-after.diff",
+          "sha256": "d7cffe49a821b6318d0b3767a78013e0f82f5a55b83a8bb76cc2d8adc2793c73"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/migration-after.red.txt",
+          "sha256": "5892e0ba8cf5d8d2f1c043a801ae7c16681d64e8ab6bfbc29863a5da120f65dd"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/migration-after.green.txt",
+          "sha256": "767a4426151faa782a074f8f0a60f91a6c42d51397edcf862c742986759da4e4"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 3,
+      "name": "off during fresh workspace inspection prevents window creation and retains the ready claim",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/off-inspect.diff",
+          "sha256": "d3559ec3f8bd6c8534821a9e81e1c81586107e8904bfbc03f3ebd04895e2e907"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/off-inspect.red.txt",
+          "sha256": "75d58c8a3106fa65717d54dbb7d07535ba0d511282cc65e59bcf910150950794"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/off-inspect.green.txt",
+          "sha256": "32baa7b8fa31269523b926c4bb1f1bf1b1cfa1ad70e9e32477e8380b384792b4"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 4,
+      "name": "a received-only initialization receipt cannot become applied initialization",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/initialization.diff",
+          "sha256": "c604ecbcccf7390868f2ae882e134cd901669c3acedabd7102ee0194dfbd7595"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/initialization.red.txt",
+          "sha256": "d04fe2506d50b4643f3c2df1f00e9e4cc21d6158fdca682d357ed45c31fc8bea"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/initialization.green.txt",
+          "sha256": "dc4f975e4c0d7adb4345e936094794040ebc0f310c9e1526fbe4368c4a220732"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 5,
+      "name": "a deferred reservation request cannot authorize a launch stage",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/deferred.diff",
+          "sha256": "8c0a9ce55b7fee746635c3d02d48c5c1bde7fa66d99e9703937b1bde244d30c8"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/deferred.red.txt",
+          "sha256": "055504e6c2ba63f5ff9bd644cf292067671422b23a0aa2e9f791d0ad8f375bb7"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/deferred.green.txt",
+          "sha256": "2af25ef170f925c055907686eed1ae9ad52d45f2ce78be26905d425f75b27f69"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/deferred.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 6,
+      "name": "busy unavailable initialized claim authority cannot authorize a launch stage",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/busy.diff",
+          "sha256": "ec3214eaed60b4b28292be8d98076f5a29fbbc3901a7f968310fe2143572e24d"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/busy.red.txt",
+          "sha256": "bbb7259b9624d94600ff46d6cb5d3d0fa0496bf1bc839e4b62edca206248e111"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/busy.green.txt",
+          "sha256": "9496c8f56cb34a455aa2989ead69cc4dd2ffeb1203c734995b1181243ac808cf"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/busy.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 7,
+      "name": "unknown Git completion preserves the claim but cannot authorize a launch stage",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/unknown-git.diff",
+          "sha256": "98043991b386689a2396965ea4d3ec45bf8444cfce0cad27e4bcba32da075828"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/unknown-git.red.txt",
+          "sha256": "2d325e563ab67b99fc345a087dcf18a575ccf8d44ad0d1ea926e89cbf3b368f2"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/unknown-git.green.txt",
+          "sha256": "ea80f10c0c252855742ad67b83a0cc36a97ebfbb3efbadc26d821815222f25df"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/unknown-git.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 8,
+      "name": "identity evidence mismatch withholds the next worker stage",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/identity.diff",
+          "sha256": "6033b1e212bdb2ce4683c844df23c1a9e4cdee6ab6a09f2a3a92d986c3caab94"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/identity.red.txt",
+          "sha256": "8f097c146acb1ad8321a92c05873ac70d5aef4e40d23fd60b6bf2f10a6d75957"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/identity.green.txt",
+          "sha256": "48072f20dc06cf09f50d61ca6a7904b7616d952bd7c9fd0f7e9edb83740a53d2"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/identity.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 9,
+      "name": "resources evidence mismatch withholds the next worker stage",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/resources.diff",
+          "sha256": "3960540c6d700e2c4bb2e99e0dee9ad853d73c77f76fd8f22b07d8c04b646bda"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/resources.red.txt",
+          "sha256": "fbefa09d0aad4df2df6fa95c8ba40c4858d3edfe795093c7d270e7a989697ca1"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/resources.green.txt",
+          "sha256": "666d2b68e2f0c9cf3349cfe80948f82ab91159d1174a76ae91f699d14c99d07f"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/resources.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 10,
+      "name": "initialization evidence mismatch withholds the next worker stage",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/initialization.diff",
+          "sha256": "58759c8ab57f85d4fbd6e4cde8d6e932a6fae962521a4692af8312663edc1843"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/initialization.red.txt",
+          "sha256": "d2083348e0e895b3df4a3ba9e40d6c3ace2f45eec53731fd89896d57997e64b7"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/initialization.green.txt",
+          "sha256": "1f4aaf74f65ca2f4d50dae186e5394ceadd268264804f3e3d833f3f198d50edd"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/initialization.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 11,
+      "name": "off during worker initialization prevents assignment and preserves the unresolved stage",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/off-initialize.diff",
+          "sha256": "abd73efe2a63d69cd799ce7624ecc3615ac1648c8a11e93704237e41a291503e"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/off-initialize.red.txt",
+          "sha256": "6db6ff677d5517e1f8596484ffe6fdc5a0ae55dc8d2a89adc397f4e1fd0974c1"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/off-initialize.green.txt",
+          "sha256": "f84d3cd2f98efed1458cbd14fd7f9429d0119565f1e02e4fd5a8ef69f416e29c"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/off-initialize.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    },
+    {
+      "case": 12,
+      "name": "an old-generation report cannot replace the current assignment report",
+      "evidence": [
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/old-report.diff",
+          "sha256": "a103fdb8f3c9c83dff840e62beeecb6e06f86639df392bc49531bd0c98797db6"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/old-report.red.txt",
+          "sha256": "29c7b12eb0ce7c5da9d7894116b9e014b8639ace7fb41af7e889d8342aeaa2f4"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/old-report.green.txt",
+          "sha256": "96393d974c2eaa11b9975e9036ce74f5a799dda50ae0f3ea7eae00ecec2ee3e5"
+        },
+        {
+          "path": "/tmp/legion-t03-mutations/final-characters/old-report.typecheck.txt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "classification": "Explicit finite green-first exception; isolated intended behavioral mutant and restored green retained"
+    }
+  ]
+}

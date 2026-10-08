@@ -1,0 +1,78 @@
+{
+  "recordedAt": "2026-10-08T02:00:05.068Z",
+  "timestampMeaning": "Recording time, not historical command start time.",
+  "sourceSha256": "863f49e036a0104bdf58b30638e053e1c726ad4181994bee0c4e3ac8b01ac53e",
+  "liveRuntimeEvidenceSourceSha256": "7972220e2c1732a90ad5d2119f507c96a491a4d1aadf40019429ec324160561a",
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "npm test",
+      "result": "passed",
+      "tests": 99,
+      "failed": 0
+    },
+    {
+      "command": "npm pack --dry-run --json",
+      "result": "passed",
+      "packageEntryCount": 14,
+      "integrity": "sha512-OSpcCNp3DBngoaBzJyQkgACJpNVS774LXsLEbcFYKGJLWgijH4HViNw0YtQuVibU06kY7CqMh0hOY0utx2ZGQA=="
+    },
+    {
+      "command": "node --import tsx scripts/verify-launch-evidence.mjs /tmp/legion-t03-writer-live/lost-receipt docs/verification/t03-local-tribunus/source-manifest.json",
+      "result": "passed"
+    },
+    {
+      "command": "node --import tsx scripts/replay-launch-observer.mjs /tmp/legion-t03-writer-live/lost-receipt",
+      "result": "passed",
+      "cases": 7
+    },
+    {
+      "command": "Standalone strict TypeScript check of bound observer",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check; git diff --cached --exit-code",
+      "result": "passed"
+    },
+    {
+      "command": "Host settings, startup shell, and trust hash comparison",
+      "result": "passed"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/tmp/legion-t03-writer-live/lost-receipt/final-typecheck.txt",
+      "sha256": "8ae876c1d64dd5eeebfedf692b0dba194529e72f34be1487fe2157a7828616c2"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/lost-receipt/final-build.txt",
+      "sha256": "dd8be945dd18775a07fb3d5fa8be4aa2b0c2220333e0fcdb3a7886f8c6171a96"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/lost-receipt/final-test.txt",
+      "sha256": "a1b0eef808091b76dec8a631785e1b3136a21f890ffc9805a9b3c44643e2203a"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/lost-receipt/final-pack.json",
+      "sha256": "a3ae34aecba12bc03eda01cf5a9b4b2197c8f507984dc38836bcdc3021c8f1f1"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/lost-receipt/final-evidence-check.txt",
+      "sha256": "2842fcb371b1753d4efa99f4596bcd0c9f8c94ed40342a418375d03d73cea0d8"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/lost-receipt/final-replay-check.txt",
+      "sha256": "408642b053b3e8ae5e32f647f72c41be248f4c2650369a208c9e2dd8aa7af377"
+    }
+  ],
+  "baselineCaveat": "Original baseline 78/79 with preexisting nondeterministic contention. These 99/99 runs do not erase the exception or fix #24.",
+  "review": "Local deslop/manual diff and no-comments census completed. Fresh independent review is parent-owned.",
+  "publication": "No commit, push, integration, acceptance, or closure."
+}

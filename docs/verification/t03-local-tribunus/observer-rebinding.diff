@@ -1,0 +1,19 @@
+--- /tmp/legion-t03-writer-live/ordinary-checkpoint/drop-start-receipt-corrected.ts	2026-10-08 01:15:58.619796215 +0000
++++ /tmp/legion-t03-writer-live/lost-receipt/drop-start-receipt-bound.ts	2026-10-08 01:36:56.062100492 +0000
+@@ -7,12 +7,12 @@
+ 
+ const target = {
+   controller: "01a118c6-574c-7118-acd5-0289ee10828f",
+-  reservation: "86b32f0c-5f8b-4a55-bb11-9f6ecc002b04",
+-  scope: "e0037a2936aef3d857fb4f1f3147fba338d88ae27f582ba3f316dd46abc0c8dd",
+-  cwd: "/tmp/legion-t03-writer-live/final/workspaces/55915b29-f63d-4e78-9638-e5f77f4edf3e",
++  reservation: "8dd0ef01-4571-4cf9-b75e-c12f72d5927c",
++  scope: "0b394a6d7f1065cca277a1f463e60805dfbe8af7b3eef3fd449ed887e9ad687b",
++  cwd: "/home/vscode/.pi/agent/legion/workspaces/c6cc8dc5-b5a8-43a8-bf9e-1cf14caada21",
+   ledger: "/tmp/legion-t03-writer-live/repo/.git/legion/assignments.sqlite",
+   packageRoot: "/workspaces/astraprojects/matts-poteto-herdr-factory",
+-  evidenceDirectory: "/tmp/legion-t03-writer-live/ordinary-checkpoint/observer-diagnostics",
++  evidenceDirectory: "/tmp/legion-t03-writer-live/lost-receipt/observer-diagnostics",
+ };
+ const Dispatch = z.object({
+   id: z.uuid(), reservation: z.literal(target.reservation), scope: z.string(),

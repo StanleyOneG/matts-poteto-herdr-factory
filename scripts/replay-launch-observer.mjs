@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import { readFileSync, writeFileSync, mkdtempSync, readdirSync, existsSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { ExtensionRunner } from "@earendil-works/pi-coding-agent";
+import { z } from "zod";
+import { resolve } from "node:path";
+const [rootArg] = process.argv.slice(2);
+assert.ok(rootArg, "Use <preserved lost-receipt trial directory>. Offline replay creates no live worker.");
+const base = resolve(rootArg);
+const source = readFileSync(base + "/drop-start-receipt-bound.ts", "utf8");
+const binding = JSON.parse(readFileSync(base + "/target.json"));
+const original = JSON.parse(readFileSync(binding.target.evidenceDirectory + "/original-start-result.json"));
+const retained = JSON.parse(readFileSync(base + "/unknown-root-result.json")).result.launch;
+const history = { ...retained, state: retained.state.last };
+assert.equal(history.reservation, binding.target.reservation);
+assert.equal(history.scope, binding.target.scope);
+const entries = [{ id: binding.target.controller }];
+const rootResult = { id: JSON.parse(readFileSync(base + "/unknown-root-result.json")).entry };
+const call = { id: original.rootCall, name: "legion_launch", arguments: { requestId: original.request } };
+const nested = { id: original.childCall, name: "bash", arguments: { command: original.command } };
+const event = { type: "tool_result", toolName: nested.name, toolCallId: nested.id, parentToolCallId: call.id, input: nested.arguments, ...original.original };
+const completion = z.object({ output: z.string(), exit_code: z.literal(0), truncated: z.literal(false) });
+const rootEvent = { type: "tool_call", toolName: call.name, toolCallId: call.id, input: call.arguments };
+const results = [];
+for (const scenario of ["real-shape", "wrong-command", "wrong-parent", "wrong-session", "wrong-scope", "wrong-terminal", "unknown-receipt"]) {
+  const dir = mkdtempSync(base + "/observer-replay-" + scenario + "-");
+  const ledger = dir + "/history.sqlite", diagnostics = dir + "/diagnostics";
+  const copy = source.replace('ledger: ' + JSON.stringify(binding.target.ledger), 'ledger: ' + JSON.stringify(ledger)).replace('evidenceDirectory: ' + JSON.stringify(binding.target.evidenceDirectory), 'evidenceDirectory: ' + JSON.stringify(diagnostics));
+  const modulePath = dir + "/observer.ts"; writeFileSync(modulePath, copy);
+  const db = new DatabaseSync(ledger); db.exec("CREATE TABLE tribuni(reservation TEXT,value TEXT)");
+  db.prepare("INSERT INTO tribuni VALUES(?,?)").run(history.reservation, JSON.stringify(scenario === "wrong-scope" ? { ...history, scope: "unrelated-scope" } : history)); db.close();
+  const imported = await import(modulePath); const install = typeof imported.default === "function" ? imported.default : imported.default.default;
+  const handlers = new Map(); install({ on: (name, handler) => handlers.set(name, [handler]) });
+  const errors = [];
+  const runner = new ExtensionRunner([{ path: modulePath, handlers }], {}, dir, { getSessionId: () => scenario === "wrong-session" ? "not-the-controller" : entries[0].id }, {});
+  runner.onError((error) => errors.push(error));
+  await runner.emit({ type: "session_start" });
+  await runner.emitToolCall(rootEvent);
+  const sample = structuredClone(event);
+  if (scenario === "wrong-command") sample.input.command = "herdr agent start 'wrong-name' --kind pi";
+  if (scenario === "wrong-parent") sample.parentToolCallId = "unrelated-root";
+  if (scenario === "wrong-terminal") { const data = JSON.parse(sample.structuredContent.output); data.result.agent.terminal_id = "unrelated-terminal"; sample.structuredContent.output = JSON.stringify(data); }
+  if (scenario === "unknown-receipt") sample.structuredContent = { kind: "unknown" };
+  const after = await runner.emitToolResult(sample);
+  assert.deepEqual(errors, []);
+  const saved = diagnostics + "/original-start-result.json";
+  if (scenario === "real-shape") {
+    assert.ok(after); assert.equal(after.isError, true); assert.equal(completion.safeParse(after.structuredContent).success, false);
+    assert.deepEqual(after.structuredContent, { kind: "unknown", evidence: "original-start-result.json" });
+    assert.equal(after.details.exit_code, undefined);
+    const original = JSON.parse(readFileSync(saved)); assert.deepEqual(original.original.structuredContent, event.structuredContent);
+    assert.equal(original.command, nested.arguments.command);
+    assert.equal(await runner.emitToolResult(sample), undefined);
+    assert.equal(readdirSync(diagnostics).filter((f) => f === "original-start-result.json").length, 1);
+  } else { assert.equal(after, undefined); assert.equal(existsSync(saved), false); }
+  const diagnosticFiles = readdirSync(diagnostics); assert.ok(diagnosticFiles.length <= 7);
+  results.push({ scenario, consumer: scenario === "real-shape" ? "unknown receipt, original durably retained, second interception refused" : "unchanged result", diagnosticFiles });
+}
+const result = { verdict: "Corrected test-only observer calibration passed", caveat: "Root, command, and original hook result come from the successful real lost-receipt capture. Only ledger/evidence paths point to isolated offline copies. No Pi, Herdr, or model was started.", rootEntry: rootResult.id, childCall: nested.id, results };
+writeFileSync(base + "/corrected-replay-result.json", JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
