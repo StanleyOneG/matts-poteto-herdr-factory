@@ -1,0 +1,44 @@
+{
+  "verdict": "Verified actual applied-start/lost-receipt trial through public reported state",
+  "sourceSha256": "863f49e036a0104bdf58b30638e053e1c726ad4181994bee0c4e3ac8b01ac53e",
+  "owner": "464e560b-9074-42aa-9bc8-a5c5b2228624",
+  "task": "64b8ec71-fbaa-4873-825e-fcd4905b8c28",
+  "reservation": "8dd0ef01-4571-4cf9-b75e-c12f72d5927c",
+  "scope": "0b394a6d7f1065cca277a1f463e60805dfbe8af7b3eef3fd449ed887e9ad687b",
+  "attempt": "a6a78445-7d03-434c-8ab6-efb285a84bb8",
+  "window": {
+    "endpoint": "/home/vscode/.config/herdr/herdr.sock",
+    "server": "62:800061:1791032263017.2786",
+    "workspace": "w8",
+    "tab": "w8:t1",
+    "pane": "w8:p1",
+    "terminal": "term_65d4a498ab21758"
+  },
+  "cwd": "/home/vscode/.pi/agent/legion/workspaces/c6cc8dc5-b5a8-43a8-bf9e-1cf14caada21",
+  "pid": 1661749,
+  "session": "01a11929-5cd5-752a-865e-2f417785adaf",
+  "generation": "35214771-757a-4fe5-99f3-dbc420d19b3b",
+  "starts": 1,
+  "actualNestedStarts": 1,
+  "workersForPane": 1,
+  "originalExitCode": 0,
+  "consumerStartEvidence": "uncertain",
+  "nativeUser": "1b99a24b",
+  "modeEntry": "91e13098",
+  "initializedSettlement": "91ccd9dd",
+  "initializationCommand": "91c9f52d-df23-4e58-afce-4ca6060ec44c",
+  "assignmentCommand": "c362151a-1165-4fac-928d-874316ced8a5",
+  "assignmentUser": "2ca42679",
+  "report": {
+    "outcome": "reported-result",
+    "assistantText": "Ready in worktree `c6cc8dc5-b5a8-43a8-bf9e-1cf14caada21`, as observed through `pwd`.",
+    "evidence": [
+      "/home/vscode/.pi/agent/sessions/--home-vscode-.pi-agent-legion-workspaces-c6cc8dc5-b5a8-43a8-bf9e-1cf14caada21--/2026-10-08T01-38-23-573Z_01a11929-5cd5-752a-865e-2f417785adaf.jsonl#f0ad46af"
+    ]
+  },
+  "publicPhase": "reported",
+  "journal": "/home/vscode/.pi/agent/sessions/--home-vscode-.pi-agent-legion-workspaces-c6cc8dc5-b5a8-43a8-bf9e-1cf14caada21--/2026-10-08T01-38-23-573Z_01a11929-5cd5-752a-865e-2f417785adaf.jsonl",
+  "provider": "openai-codex",
+  "model": "gpt-6-astra",
+  "priorLaunchRowsUnchanged": true
+}

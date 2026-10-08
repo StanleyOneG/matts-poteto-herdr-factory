@@ -1,0 +1,29 @@
+{
+  "recordedAt": "2026-10-08T02:31:59.657Z",
+  "files": {
+    "docs/verification/t03-local-tribunus/actors.json": "8b5e52ee2e1d42cd97487d857635db0d5b7fc8d53c36beab6dedf290b9306765",
+    "docs/verification/t03-local-tribunus/checks.json": "7bdd8284aa382edd10d43c49726f2d3681786fc3a162aa025a9bb7125918bafa",
+    "docs/verification/t03-local-tribunus/decisions.tsv": "ca1a5276ef1e28facba9aaa122e4493a835989164ef8d48dd448865e5ade581b",
+    "docs/verification/t03-local-tribunus/fixed-live-replay.json": "f2aabf1029e9ae481e8f5023f74954aa1809381abb3087ed662b1e9afb6784be",
+    "docs/verification/t03-local-tribunus/fixed-observer-rebinding.diff": "92150c06705e30beec7749613b7d19bef90ffca1a17ebe9f53a4352d632d9224",
+    "docs/verification/t03-local-tribunus/fixed-source-evidence.json": "3deba67f75de31ef5bc3c1d07d1460128107a8572c6029fadfafc63a348f1378",
+    "docs/verification/t03-local-tribunus/fixed-source-target.json": "145de55bb663d098f146be0a3d8cd02726693f3f0a6e910504e88a1b3db55b45",
+    "docs/verification/t03-local-tribunus/live-shape-replay.json": "b5ccb21593968403ba6158d83054dffca448e162c9b621aa8574ce82c79a4aa1",
+    "docs/verification/t03-local-tribunus/local-audit.json": "8b50cc71f7a95f84b4d6aab9882195f0f2cab0229198caa36c22bd7718ab8dc8",
+    "docs/verification/t03-local-tribunus/lost-receipt-evidence.json": "46f28ccbd3c6f0f23c6057ea38357a1c23964751a6c4604fdac50ca84fc49618",
+    "docs/verification/t03-local-tribunus/lost-receipt-target.json": "e973d4defd0988f983700279e098ad2c7eade4bf7573883078b564d08116cfa9",
+    "docs/verification/t03-local-tribunus/observer-calibration.json": "a2884389083d391e976e1c2d5678abfb44c5360a6f1b544bab9d2d6411c07b9c",
+    "docs/verification/t03-local-tribunus/observer-rebinding.diff": "743d66233dc81cf6da715b56d4244a9f9d5c7fc85a3fd33221b024ca63de57d8",
+    "docs/verification/t03-local-tribunus/ordinary-managed.md": "df9524abcb6aba5cfe7e2a7f6b4f8a5612a9c48d297166916ab5efeaa10f17e2",
+    "docs/verification/t03-local-tribunus/pre-fix/actors.json": "3110efb99263993027bca82a29b0c460228546a8cb8292d77714f8825ccb8495",
+    "docs/verification/t03-local-tribunus/pre-fix/checks.json": "518007f58048a40510a4063b06491308851799d3724fb63cf090f8f0e17bca46",
+    "docs/verification/t03-local-tribunus/pre-fix/lost-receipt-evidence.json": "46f28ccbd3c6f0f23c6057ea38357a1c23964751a6c4604fdac50ca84fc49618",
+    "docs/verification/t03-local-tribunus/pre-fix/parent-publication-race-triage.md": "04a3a634688b89b3e18219d60b8389234225180939d4b45330bf4da5c316916f",
+    "docs/verification/t03-local-tribunus/pre-fix/results.md": "08d582a0044b9067ad68f936e4597b60d82251e316322760b8a7cc29655ca70c",
+    "docs/verification/t03-local-tribunus/pre-fix/source-manifest.json": "b19ff6b41e664b6988d12e6abadece628ab100226cc0f51fb4cfe6257de728d9",
+    "docs/verification/t03-local-tribunus/remediation-evidence.json": "2c241827075008b9e9588d479591e89d57025ee523ee405091357cfb16d2a3e9",
+    "docs/verification/t03-local-tribunus/results.md": "20f63b12462ccd13b74eebcdee7ece67c715784ebe3241c7ed41142e9cc87fcd",
+    "docs/verification/t03-local-tribunus/source-manifest.json": "9fbe24172e21c5e52e6cc76d1e8a74931d26908f75722ace77c5198a3a988067",
+    "docs/verification/t03-local-tribunus/tdd-exceptions.json": "34a58154d13ee6a5f0ecded94056a0db56705b98ae82edf87b74d64957f7decd"
+  }
+}

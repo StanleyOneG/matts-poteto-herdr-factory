@@ -1,0 +1,96 @@
+{
+  "observedAt": "2026-10-08T02:27:28.204Z",
+  "ownedPiCount": 7,
+  "preFixCount": 6,
+  "newCount": 1,
+  "cleanup": "None. Existing actors and attempts preserved.",
+  "actors": [
+    {
+      "pane": "w3:p1",
+      "terminal": "term_65d48582b070253",
+      "pid": 1641177,
+      "shellPid": 1641063,
+      "cwd": "/tmp/legion-t03-writer-live/repo",
+      "sessionJournal": "/home/vscode/.pi/agent/sessions/--tmp-legion-t03-writer-live-repo--/2026-10-07T23-19-25-024Z_01a118aa-205f-7759-bf8c-6957f8bed67b.jsonl",
+      "status": "done",
+      "purpose": "original controller",
+      "leaseFiles": [
+        "/home/vscode/.pi/agent/legion/association.v1.0fc92fe2a70af5f07dd92b1e7b45e9dcb66d92ab18b8586fda0a31f83316eb8f.2887d09e20e35ed8d463d85cd815cf55de1319270c319788b577a8071ee9a57a.lock",
+        "/home/vscode/.pi/agent/legion/association.v1.0fc92fe2a70af5f07dd92b1e7b45e9dcb66d92ab18b8586fda0a31f83316eb8f.2887d09e20e35ed8d463d85cd815cf55de1319270c319788b577a8071ee9a57a.lock-journal",
+        "/home/vscode/.pi/agent/legion/v1.d7bd4b3f-eaab-4543-88e4-358493fa5f80.lock",
+        "/home/vscode/.pi/agent/legion/v1.d7bd4b3f-eaab-4543-88e4-358493fa5f80.lock-journal"
+      ]
+    },
+    {
+      "pane": "w4:p1",
+      "terminal": "term_65d489b34a73f54",
+      "pid": 1644098,
+      "shellPid": 1643976,
+      "cwd": "/tmp/legion-t03-writer-live/workspaces/b913c858-bbcc-4f55-8a5a-5e9410b042c8",
+      "sessionJournal": "/home/vscode/.pi/agent/sessions/--tmp-legion-t03-writer-live-workspaces-b913c858-bbcc-4f55-8a5a-5e9410b042c8--/2026-10-07T23-38-03-687Z_01a118bb-3227-752e-8d08-99071cd2bf05.jsonl",
+      "status": "done",
+      "purpose": "earlier managed worker; historical assigned/private report only",
+      "leaseFiles": []
+    },
+    {
+      "pane": "w5:p1",
+      "terminal": "term_65d48c051104455",
+      "pid": 1645939,
+      "shellPid": 1645593,
+      "cwd": "/tmp/legion-t03-writer-live/repo",
+      "sessionJournal": "/home/vscode/.pi/agent/sessions/--tmp-legion-t03-writer-live-repo--/2026-10-07T23-50-14-093Z_01a118c6-574c-7118-acd5-0289ee10828f.jsonl",
+      "status": "done",
+      "purpose": "alias controller; final-source ordinary and lost-receipt owner",
+      "leaseFiles": [
+        "/home/vscode/.pi/agent/legion/association.v1.0fc92fe2a70af5f07dd92b1e7b45e9dcb66d92ab18b8586fda0a31f83316eb8f.dd46472707184f161a31e2a9e80b43da45eb7e3037fb079cf5e231766e61ba59.lock",
+        "/home/vscode/.pi/agent/legion/association.v1.0fc92fe2a70af5f07dd92b1e7b45e9dcb66d92ab18b8586fda0a31f83316eb8f.dd46472707184f161a31e2a9e80b43da45eb7e3037fb079cf5e231766e61ba59.lock-journal",
+        "/home/vscode/.pi/agent/legion/v1.464e560b-9074-42aa-9bc8-a5c5b2228624.lock",
+        "/home/vscode/.pi/agent/legion/v1.464e560b-9074-42aa-9bc8-a5c5b2228624.lock-journal"
+      ]
+    },
+    {
+      "pane": "w6:p1",
+      "terminal": "term_65d48c7d1c66856",
+      "pid": 1646202,
+      "shellPid": 1646036,
+      "cwd": "/tmp/legion-t03-writer-live/repo",
+      "sessionJournal": "/home/vscode/.pi/agent/sessions/--tmp-legion-t03-writer-live-repo--/2026-10-07T23-50-32-628Z_01a118c6-9fb3-7704-b8ce-cb1d8f7a011e.jsonl",
+      "status": "done",
+      "purpose": "configured function prerequisite only",
+      "leaseFiles": []
+    },
+    {
+      "pane": "w7:p1",
+      "terminal": "term_65d497c9ad7b457",
+      "pid": 1656643,
+      "shellPid": 1656524,
+      "cwd": "/tmp/legion-t03-writer-live/final/workspaces/55915b29-f63d-4e78-9638-e5f77f4edf3e",
+      "sessionJournal": "/home/vscode/.pi/agent/sessions/--tmp-legion-t03-writer-live-final-workspaces-55915b29-f63d-4e78-9638-e5f77f4edf3e--/2026-10-08T00-41-05-290Z_01a118f4-e60a-72d7-a545-43b929302971.jsonl",
+      "status": "done",
+      "purpose": "ordinary final-source worker; publicly reported",
+      "leaseFiles": []
+    },
+    {
+      "pane": "w8:p1",
+      "terminal": "term_65d4a498ab21758",
+      "pid": 1661749,
+      "shellPid": 1661625,
+      "cwd": "/home/vscode/.pi/agent/legion/workspaces/c6cc8dc5-b5a8-43a8-bf9e-1cf14caada21",
+      "sessionJournal": "/home/vscode/.pi/agent/sessions/--home-vscode-.pi-agent-legion-workspaces-c6cc8dc5-b5a8-43a8-bf9e-1cf14caada21--/2026-10-08T01-38-23-573Z_01a11929-5cd5-752a-865e-2f417785adaf.jsonl",
+      "status": "done",
+      "purpose": "lost-receipt final-source worker; publicly reported",
+      "leaseFiles": []
+    },
+    {
+      "pane": "w9:p1",
+      "terminal": "term_65d4aef9e60bc59",
+      "pid": 1679856,
+      "shellPid": 1679733,
+      "cwd": "/home/vscode/.pi/agent/legion/workspaces/f55b47dc-0172-439c-9a41-1644dfa23358",
+      "sessionJournal": "/home/vscode/.pi/agent/sessions/--home-vscode-.pi-agent-legion-workspaces-f55b47dc-0172-439c-9a41-1644dfa23358--/2026-10-08T02-24-49-918Z_01a11953-e0fd-72bd-bd45-6f95e3e7563a.jsonl",
+      "status": "done",
+      "purpose": "fixed-source lost-receipt success/report verification",
+      "leaseFiles": []
+    }
+  ]
+}

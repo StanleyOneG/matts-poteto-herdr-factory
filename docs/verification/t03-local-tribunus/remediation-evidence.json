@@ -1,0 +1,85 @@
+{
+  "preFixSource": "863f49e036a0104bdf58b30638e053e1c726ad4181994bee0c4e3ac8b01ac53e",
+  "fixedSource": "72fb8e1c6216613e8319914b6230f179f081a12ec62441f2d141332a4c59b6b5",
+  "redGreen": [
+    {
+      "test": "atomic worker publication under writer preemption",
+      "red": "held !== reported",
+      "green": "passed"
+    },
+    {
+      "test": "error assignment settlement",
+      "red": "assigned !== reported",
+      "green": "failed report visible"
+    },
+    {
+      "test": "aborted assignment settlement",
+      "red": "assigned !== reported",
+      "green": "failed report visible"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/atomic-red.txt",
+      "sha256": "f9f585b0a4cc5b0f9883a24d6e41dc8853079ae5e4391f209926ea6f17955479"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/atomic-green.txt",
+      "sha256": "9cc2560e9a9f7223d780daaf541e7e0b976698f1051e91bf009132b7978d97ae"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/failure-red.txt",
+      "sha256": "dc421174076aa2f902a2b2fb51a2c03b839494e7003879338721eb0ed7053a4a"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/failure-green.txt",
+      "sha256": "b3bb947d7dfe0ed83c6276233504ddbd91b278d1d2da7b69a9670fde9d8fae1d"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/standards-race-before.txt",
+      "sha256": "eb77adb6883e4e51be6e7063fb333bbf40cecf3064a2fe6fa8744f2c983e4900"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/standards-race-after.txt",
+      "sha256": "59f9a8de41a44d510a2a43a53d731a3e55c59e6707b6ae46d1140b8e2e1a01a9"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/standards-failure-before.txt",
+      "sha256": "9f64030c7d27cc1fb60bde45a84892db50f670f84f2c87464b5b60c6f20265ed"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/standards-failure-after.txt",
+      "sha256": "9c74dafc5af7aaed5259c7f2c9112c7695d73ad44fdb1e226b6239704a244f0b"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/spec-race-before.txt",
+      "sha256": "137faf8691e0ed03fb92e503c1cc2766bfadb529e9d62329bbc5412e129aef44"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/spec-race-after.txt",
+      "sha256": "7ecd48f82527e7810ce6cefd3627be74940b3003c640d357d60c91a544efaefb"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/spec-race-after-liveness.txt",
+      "sha256": "6abd2a40f9ddcfff682d999baef7515cd5a1f3f04080a0f24b5a6a0ec18be276"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/spec-failure-before.txt",
+      "sha256": "deab4a597f041d50be034b8d777903010a245c82174b6cc7c7d287c55b184b92"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/spec-failure-after.txt",
+      "sha256": "375ca045909e512d0377ec916b7a929e500b72fb7016704efa63e05917248f9b"
+    },
+    {
+      "path": "/tmp/legion-t03-writer-live/remediation/spec-failure-fixed.txt",
+      "sha256": "af53ad81b5d793be6cb24eba6c354471cd22cdb4e3b575c248a95c7b03851912"
+    }
+  ],
+  "parentTriage": {
+    "path": "/tmp/legion-t03-parent-review/publication-race-triage.md",
+    "parentTestLog": "/tmp/legion-t03-parent-review/tests.txt",
+    "result": "98/99 pre-fix, inherited pending-identity race",
+    "sha256": "52ae136dd3871493bfd9dfb1fae07ec6adc15851710cd0ff13d4f51fec259133"
+  }
+}

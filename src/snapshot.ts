@@ -97,6 +97,11 @@ export const WorkspaceRequest = z.object({
   repository: z.string().nullable(),
   repositoryId: z.uuid().nullable().default(null),
 });
+export const LaunchRequest = z.object({
+  id: z.string().min(1), task: TaskRef, scope: z.string(), evidence: InputEvidence,
+  generation: z.int().positive(), epoch: z.int().nonnegative(),
+  repository: z.string(), repositoryId: z.uuid(), attempt: z.uuid().nullable().default(null),
+});
 export const SnapshotSchema = z.object({
   version: z.literal(1),
   id: LegatusId,
@@ -105,6 +110,7 @@ export const SnapshotSchema = z.object({
   generation: z.int(),
   attachments: z.array(z.object({ session: z.string(), generation: z.int() })),
   workspaceRequests: z.array(WorkspaceRequest).default([]),
+  launchRequests: z.array(LaunchRequest).default([]),
   submissions: z.array(
     z.object({
       id: SubmissionId,

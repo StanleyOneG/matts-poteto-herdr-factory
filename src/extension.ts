@@ -25,6 +25,8 @@ import {
   type EmperorInputEvidence,
 } from "./snapshot.js";
 import { preflight } from "./preflight.js";
+import { LocalTribunusHost, managedBootstrap, installTribunus } from "./tribunus-host.js";
+import type { TribunusHost } from "./tribunus.js";
 const Presentation = z.object({
   legatus: LegatusId,
   decision: Ref,
@@ -71,6 +73,7 @@ const ShellReceipt = z.object({
   truncated: z.literal(false),
 });
 type WorkspaceRun = {
+  tool: "legion_workspace" | "legion_launch";
   marker: string;
   requestId: string;
   session: string;
@@ -80,6 +83,9 @@ type WorkspaceRun = {
   | { kind: "running" | "settled"; callId: string }
 );
 export default function (pi: ExtensionAPI) {
+  const bootstrap = managedBootstrap();
+  if (bootstrap) { installTribunus(pi, bootstrap); return; }
+  const hosts = new AsyncLocalStorage<TribunusHost>();
   const repositories = new AsyncLocalStorage<WorkspaceRepository>();
   let workspaceRun: WorkspaceRun | null = null;
   const workspaceAttempts = new Set<string>();
@@ -151,6 +157,10 @@ export default function (pi: ExtensionAPI) {
           "warning",
         );
         break;
+      case "launched":
+        report(ctx, result.message, result.launch.state.kind === "held" ? "warning" : "info");
+        break;
+      case "launch-stage":
       case "workspace-stage":
         report(ctx, result.message);
         break;
@@ -169,7 +179,7 @@ export default function (pi: ExtensionAPI) {
         const status = v.unavailable
           ? `Legion state unavailable. ${v.unavailable}`
           : v.snapshot
-            ? `${v.mode === "stopping" ? "Legion is stopping. No new workspace operations will start. Reservations retained." : v.mode === "inactive" ? "Legion inactive. Reservations retained." : "Legion is active. Intake and reservations only."}\nLegatus ${v.snapshot.id}\n${v.tasks.length} tasks. ${v.snapshot.submissions.filter((s) => s.state.kind === "pending").length} pending inputs.\nState\n${JSON.stringify(v)}`
+            ? `${v.mode === "stopping" ? "Legion is stopping. No new workspace operations will start. Reservations retained." : v.mode === "inactive" ? "Legion inactive. Reservations retained." : "Legion is active. Explicit guarded launches are available."}\nLegatus ${v.snapshot.id}\n${v.tasks.length} tasks. ${v.snapshot.submissions.filter((s) => s.state.kind === "pending").length} pending inputs.\nState\n${JSON.stringify(v)}`
             : "Legion is inactive.";
         report(
           ctx,
@@ -245,7 +255,7 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setStatus(
         "legion-intake",
         binding
-          ? `Legion active | ${view.tasks.length} tasks | no workers`
+          ? `Legion active | ${view.tasks.length} tasks | ${view.tasks.filter((t) => t.launch.kind !== "not-launched").length} launches`
           : view.mode === "stopping"
             ? "Legion stopping | reservations retained"
             : "Legion inactive",
@@ -335,6 +345,7 @@ export default function (pi: ExtensionAPI) {
       context: realpathSync(ctx.cwd),
       session: ctx.sessionManager.getSessionId(),
       preflight: () => preflight(pi),
+      tribuni: { host: () => hosts.getStore() ?? null },
       assignments: {
         workspaceRoot: join(getAgentDir(), "legion", "workspaces"),
         repository: () => repositories.getStore() ?? null,
@@ -359,7 +370,7 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Enable durable intake and reservations. Arguments: on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>",
+      "Enable durable intake and reservations. Arguments: on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
     getArgumentCompletions: (prefix) =>
       [
         "on",
@@ -371,6 +382,7 @@ export default function (pi: ExtensionAPI) {
         "reserve",
         "reconcile",
         "workspace",
+        "launch",
       ]
         .filter((value) => value.startsWith(prefix))
         .map((value) => ({ value, label: value })),
@@ -383,7 +395,7 @@ export default function (pi: ExtensionAPI) {
       const caller = { ...evidence(ctx), origin: "host-command" };
       try {
         if (
-          /^\s*workspace(?:\s|$)/.test(text) &&
+          /^\s*(?:workspace|launch)(?:\s|$)/.test(text) &&
           (workspaceRun || run || !ctx.isIdle() || ctx.hasPendingMessages())
         ) {
           report(
@@ -431,7 +443,7 @@ export default function (pi: ExtensionAPI) {
               "warning",
             );
         }
-        if (result.kind === "workspace-stage") {
+        if (result.kind === "workspace-stage" || result.kind === "launch-stage") {
           if (
             workspaceRun ||
             run ||
@@ -469,6 +481,7 @@ export default function (pi: ExtensionAPI) {
           workspaceAttempts.add(attempt);
           workspaceRun = {
             kind: "dispatch",
+            tool: result.kind === "launch-stage" ? "legion_launch" : "legion_workspace",
             marker: `Legion workspace dispatch ${randomUUID()}`,
             requestId: result.requestId,
             session: ctx.sessionManager.getSessionId(),
@@ -503,12 +516,12 @@ export default function (pi: ExtensionAPI) {
         )
           return { action: "handled" };
         const check = await legion?.command({
-          text: `workspace ${pending.requestId}`,
-          requestKey: randomUUID(),
+          text: pending.tool === "legion_launch" ? `launch ${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.id) ?? ""}@${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.revision) ?? 0}` : `workspace ${pending.requestId}`,
+          requestKey: pending.requestId,
           evidence: evidence(ctx),
         });
         if (
-          check?.kind !== "workspace-stage" ||
+          (check?.kind !== "workspace-stage" && check?.kind !== "launch-stage") ||
           workspaceRun !== pending ||
           !binding ||
           binding.generation !== pending.generation
@@ -623,7 +636,7 @@ export default function (pi: ExtensionAPI) {
       workspaceRun.session === ctx.sessionManager.getSessionId()
     ) {
       return {
-        systemPrompt: `${event.systemPrompt}\n\nExecute exactly one legion_workspace call with requestId ${JSON.stringify(workspaceRun.requestId)}. This is a bounded host-authorized workspace stage. Do not interpret intake, change its payload, execute other tools, start workers, or retry. Report the returned English result.`,
+        systemPrompt: `${event.systemPrompt}\n\nExecute exactly one ${workspaceRun.tool} call with requestId ${JSON.stringify(workspaceRun.requestId)}. This is a bounded host-authorized workspace stage. Do not interpret intake, change its payload, execute other root tools, or retry. For legion_launch only the saved request authorizes a bounded launch through guarded effects. Report the returned English result.`,
         message: {
           customType: "legion-workspace",
           display: false,
@@ -663,7 +676,7 @@ export default function (pi: ExtensionAPI) {
       const args = WorkspaceArguments.safeParse(event.input);
       if (
         workspaceRun.kind === "prepared" &&
-        event.toolName === "legion_workspace" &&
+        event.toolName === workspaceRun.tool &&
         !event.parentToolCallId &&
         args.success &&
         args.data.requestId === workspaceRun.requestId &&
@@ -690,7 +703,7 @@ export default function (pi: ExtensionAPI) {
           "Workspace stage permits only its exact correlated root tool and necessary guarded nested Git calls.",
       };
     }
-    if (event.toolName === "legion_workspace")
+    if (event.toolName === "legion_workspace" || event.toolName === "legion_launch")
       return {
         block: true,
         reason: "No correlated host-authorized workspace stage is active.",
@@ -711,12 +724,12 @@ export default function (pi: ExtensionAPI) {
         reason: "No correlated Legion interpretation run is active.",
       };
   });
-  pi.registerTool({
-    name: "legion_workspace",
-    label: "Legion workspace",
+  for (const tool of ["legion_workspace", "legion_launch"] as const) pi.registerTool({
+    name: tool,
+    label: tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
     exposure: "model-only",
     description:
-      "Execute exactly one recorded host-authorized workspace request during its explicit workspace stage. Never supply task payload, approval, or provenance. Never launch workers.",
+      tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
     parameters: Type.Object(
       { requestId: Type.String({ minLength: 1 }) },
       { additionalProperties: false },
@@ -729,13 +742,19 @@ export default function (pi: ExtensionAPI) {
         !captured ||
         captured.kind !== "running" ||
         captured.callId !== toolCallId ||
+        captured.tool !== tool ||
         captured.requestId !== args.requestId ||
         captured.session !== ctx.sessionManager.getSessionId() ||
         !current ||
         binding?.generation !== captured.generation
       )
         throw new Error("No current correlated workspace stage.");
-      const git = new GitWorkspace(ctx.cwd, async (command) => {
+      const guarded: ConstructorParameters<typeof GitWorkspace>[1] = async (command) => {
+        if (tool === "legion_launch") {
+          const request = (await current.state()).snapshot?.launchRequests.find((r) => r.id === args.requestId);
+          const checked = await current.command({ text: `launch ${request?.task.id ?? ""}@${request?.task.revision ?? 0}`, requestKey: args.requestId, evidence: evidence(ctx) });
+          if (checked.kind !== "launch-stage") throw new Error("Guarded effect authority was revoked or changed. No external invocation.");
+        }
         const result = await ctx.executeTool("bash", { command });
         const parsed = ShellReceipt.safeParse(result.result.structuredContent);
         return parsed.success
@@ -751,11 +770,15 @@ export default function (pi: ExtensionAPI) {
                 .map((c) => c.text)
                 .join("\\n")}`,
             };
-      });
+      };
+      const git = new GitWorkspace(ctx.cwd, guarded);
       try {
-        const result = await repositories.run(git, () =>
-          current.command({ workspaceRequest: args.requestId }),
-        );
+        const view = await current.state();
+        const request = view.snapshot?.launchRequests.find((r) => r.id === args.requestId);
+        const host = new LocalTribunusHost(guarded, { owner: binding.legatus, session: captured.session, generation: captured.generation, epoch: request?.epoch ?? 0 }, (message) => report(ctx, message, "error"));
+        const result = await repositories.run(git, () => hosts.run(host, () =>
+          current.command(tool === "legion_launch" ? { launchRequest: args.requestId } : { workspaceRequest: args.requestId }),
+        ));
         notifyResult(ctx, result);
         if (legion === current) await refresh(ctx);
         return {
@@ -764,7 +787,7 @@ export default function (pi: ExtensionAPI) {
           isError:
             result.kind === "rejected" ||
             result.kind === "uncertain" ||
-            result.kind === "ownership-blocked",
+            result.kind === "ownership-blocked" || (result.kind === "launched" && result.launch.state.kind === "held"),
         };
       } finally {
         if (workspaceRun === captured) captured.kind = "settled";

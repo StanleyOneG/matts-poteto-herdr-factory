@@ -1,0 +1,46 @@
+(node:1685182) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{
+  "verdict": "Verified actual applied-start/lost-receipt trial through public reported state",
+  "sourceSha256": "72fb8e1c6216613e8319914b6230f179f081a12ec62441f2d141332a4c59b6b5",
+  "owner": "464e560b-9074-42aa-9bc8-a5c5b2228624",
+  "task": "ea9ba5f0-8c93-4e95-b4c1-e4b4153fcab3",
+  "reservation": "525af25e-967c-40d1-a59a-25ea9fa80ee0",
+  "scope": "161c7b8e7719323806bea6833b1a2c32c0020c3d9c5226c5151cb51d8532e9ce",
+  "attempt": "0b0ccfe8-95c3-42c2-8a10-bf524bd5f8bd",
+  "window": {
+    "endpoint": "/home/vscode/.config/herdr/herdr.sock",
+    "server": "62:800061:1791032263017.2786",
+    "workspace": "w9",
+    "tab": "w9:t1",
+    "pane": "w9:p1",
+    "terminal": "term_65d4aef9e60bc59"
+  },
+  "cwd": "/home/vscode/.pi/agent/legion/workspaces/f55b47dc-0172-439c-9a41-1644dfa23358",
+  "pid": 1679856,
+  "session": "01a11953-e0fd-72bd-bd45-6f95e3e7563a",
+  "generation": "30ce4c4f-6721-4829-8edb-ba952d681f96",
+  "starts": 1,
+  "actualNestedStarts": 1,
+  "workersForPane": 1,
+  "originalExitCode": 0,
+  "consumerStartEvidence": "uncertain",
+  "nativeUser": "5493769e",
+  "modeEntry": "2bdc2eb4",
+  "initializedSettlement": "84ed8530",
+  "initializationCommand": "8d48b2dd-706d-4586-b9f7-5407abc1f841",
+  "assignmentCommand": "21491bc3-a712-4ca1-b9c8-d4b5f5f3ce18",
+  "assignmentUser": "9d74898d",
+  "report": {
+    "outcome": "reported-result",
+    "assistantText": "Ready in assigned worktree `f55b47dc-0172-439c-9a41-1644dfa23358`, as observed through `pwd`.",
+    "evidence": [
+      "/home/vscode/.pi/agent/sessions/--home-vscode-.pi-agent-legion-workspaces-f55b47dc-0172-439c-9a41-1644dfa23358--/2026-10-08T02-24-49-918Z_01a11953-e0fd-72bd-bd45-6f95e3e7563a.jsonl#60f005b9"
+    ]
+  },
+  "publicPhase": "reported",
+  "journal": "/home/vscode/.pi/agent/sessions/--home-vscode-.pi-agent-legion-workspaces-f55b47dc-0172-439c-9a41-1644dfa23358--/2026-10-08T02-24-49-918Z_01a11953-e0fd-72bd-bd45-6f95e3e7563a.jsonl",
+  "provider": "openai-codex",
+  "model": "gpt-6-astra",
+  "priorLaunchRowsUnchanged": true
+}

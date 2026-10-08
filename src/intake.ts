@@ -1,5 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
+import { LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
 import {
   AssignmentLedger,
   AssignmentConflict,
@@ -36,6 +37,7 @@ import {
   type LegatusSnapshot,
   type CommittedResult,
   WorkspaceRequest,
+  LaunchRequest,
 } from "./snapshot.js";
 
 export type Diagnostic = {
@@ -127,6 +129,7 @@ export type LegionView = {
     LegatusSnapshot["tasks"][number] & {
       eligibility: "admitted" | "inactive" | "blocked";
       claim: ClaimView;
+      launch: LaunchView;
     }
   >;
   diagnostics: Diagnostic[];
@@ -148,13 +151,16 @@ export type OperationResult =
       message: string;
     }
   | { kind: "ownership-blocked"; reservation: Reservation; message: string }
-  | { kind: "workspace-stage"; requestId: string; message: string };
+  | { kind: "workspace-stage"; requestId: string; message: string }
+  | { kind: "launch-stage"; requestId: string; message: string }
+  | { kind: "launched"; launch: LaunchResult; message: string };
 type CommandIntent =
   | { kind: "status"; id: string }
   | { kind: "doctor" | "on" | "off" }
   | { kind: "resume"; id: string }
   | { kind: "task"; text: string }
   | { kind: "workspace"; id: string }
+  | { kind: "launch"; task: z.infer<typeof TaskRef> }
   | z.infer<typeof WorkspaceRequest>["intent"]
   | { kind: "invalid" };
 export type CommandResult = OperationResult & {
@@ -187,6 +193,11 @@ function commandIntent(text: string): CommandIntent {
       return /^\S+$/.test(payload.trim())
         ? { kind: "workspace", id: payload.trim() }
         : { kind: "invalid" };
+    case "launch": {
+      const parsed = /^(\S+)@(\d+)$/.exec(payload.trim());
+      const task = TaskRef.safeParse({ id: parsed?.[1], revision: Number(parsed?.[2]) });
+      return task.success ? { kind: "launch", task: task.data } : { kind: "invalid" };
+    }
     case "reserve": {
       const parsed =
         /^(\S+)@(\d+)\s+--parent\s+(refs\/heads\/\S+)(?:\s+--source\s+(\S+))?$/.exec(
@@ -225,6 +236,7 @@ export type LegionOptions = {
   session: string;
   preflight: () => Promise<Diagnostic[]>;
   storageFault?: (point: StorageFaultPoint) => void;
+  tribuni?: { host: () => TribunusHost | null };
   assignments?: {
     workspaceRoot: string;
     repository: () => WorkspaceRepository | null;
@@ -255,6 +267,7 @@ export class Legion {
   private tail: Promise<unknown> = Promise.resolve();
   private epoch = 0;
   private stopping = false;
+  private stopRequested = false;
   private invocations = 0;
   private uncertain: { id: string; requestKey: string } | null = null;
   constructor(private options: LegionOptions) {
@@ -363,7 +376,7 @@ export class Legion {
       .digest("hex");
   }
   private workspaceAuthority(
-    request: z.infer<typeof WorkspaceRequest>,
+    request: z.infer<typeof WorkspaceRequest> | z.infer<typeof LaunchRequest>,
     epoch: number,
   ) {
     if (
@@ -379,14 +392,14 @@ export class Legion {
       );
   }
   private async authorized(
-    request: z.infer<typeof WorkspaceRequest>,
+    request: z.infer<typeof WorkspaceRequest> | z.infer<typeof LaunchRequest>,
     epoch: number,
   ) {
     this.workspaceAuthority(request, epoch);
     const state = this.selected ? await this.store.read(this.selected) : null;
     this.workspaceAuthority(request, epoch);
     if (!state) throw new Error("Intake authority is unavailable.");
-    const task =
+    const task = !("intent" in request) ? request.task :
       request.intent.kind === "reserve"
         ? request.intent.task
         : {
@@ -920,6 +933,172 @@ export class Legion {
       reservation.owner,
     );
   }
+  private async launchViews(snapshot: LegatusSnapshot | null, claims: Map<string, ClaimView>) {
+    const views = new Map<string, LaunchView>();
+    if (!snapshot) return views;
+    for (const [task, claim] of claims) {
+      if (claim.kind !== "owned") continue;
+      const request = snapshot.workspaceRequests.find((r) => r.repositoryId === claim.reservation.repository);
+      if (!request?.repository) continue;
+      try {
+        views.set(task, await new AssignmentLedger(request.repository, this.options.assignments?.fault, request.repositoryId, true).launchState(claim.reservation, snapshot.launchRequests.find((r) => r.task.id === task && r.attempt)?.attempt ?? null));
+      } catch (error) { views.set(task, { kind: "unavailable", message: String(error) }); }
+    }
+    return views;
+  }
+  private async executeLaunch(id: string): Promise<OperationResult> {
+    const epoch = this.epoch;
+    const git = this.options.assignments?.repository();
+    const host = this.options.tribuni?.host();
+    if (!git || !host) return reject("permission-path", "Launch requires a live guarded legion_launch tool context. No worker started.");
+    const owned = () => !!this.binding && !this.stopping && this.epoch === epoch;
+    let entered = false;
+    try {
+      const snapshot = this.selected ? await this.store.read(this.selected) : null;
+      const request = snapshot?.launchRequests.find((r) => r.id === id);
+      if (!request) return reject("launch-request", "No durably saved host launch request exists.");
+      const authority = await this.authorized(request, epoch);
+      this.workspaceAuthority(request, epoch);
+      this.invocations++;
+      entered = true;
+      const location = await git.locate();
+      await this.authorized(request, epoch);
+      if (location.commonDir !== request.repository) throw new Error("Repository association changed.");
+      const ledger = new AssignmentLedger(location.commonDir, this.options.assignments?.fault, request.repositoryId, true);
+      const observed = await ledger.observations(authority.state.id);
+      await this.authorized(request, epoch);
+      const claim = observed.byTask.get(request.task.id);
+      if (claim?.kind !== "owned" || claim.workspace.kind !== "ready" || claim.reservation.approval.scope !== request.scope)
+        return reject("launch-claim", "Confirmed owned current claim and ready workspace required. No worker started.");
+      const reservation = claim.reservation;
+      const revalidate = async () => {
+        await this.authorized(request, epoch);
+        const current = await ledger.observations(reservation.owner);
+        await this.authorized(request, epoch);
+        const currentClaim = current.byTask.get(request.task.id);
+        if (currentClaim?.kind !== "owned" || JSON.stringify(currentClaim.reservation) !== JSON.stringify(reservation) || currentClaim.workspace.kind !== "ready")
+          throw new Error("Claim authority changed. Preserve the launch.");
+        const actual = await git.inspect(reservation.plan);
+        await this.authorized(request, epoch);
+        if (!actual.workspace || !actual.workspace.backlink || actual.workspace.commonDir !== ledger.commonDir || actual.workspace.branch !== reservation.plan.branch || actual.branch !== actual.workspace.commit || actual.path !== "directory")
+          throw new Error("Ready workspace association changed. Preserve branch, path, and launch.");
+      };
+      await revalidate();
+      const known = authority.state.launchRequests.find((r) => r.task.id === request.task.id && r.attempt)?.attempt ?? null;
+      let launch = await ledger.beginLaunch(reservation, owned, known);
+      await this.serialize(async () => {
+        const current = await this.authorized(request, epoch);
+        const saved = current.state.launchRequests.find((r) => r.id === request.id);
+        if (!saved || (saved.attempt && saved.attempt !== launch.id)) throw new Error("Saved launch witness conflicts.");
+        if (!saved.attempt) {
+          saved.attempt = launch.id;
+          const expected = current.state.revision++;
+          await this.store.save(current.state, expected, owned);
+        }
+      });
+      const save = async (state: LaunchRecord["state"], startEvidence = launch.startEvidence) => { launch = await ledger.updateLaunch(reservation, launch, state, owned, startEvidence); };
+      const result = (): OperationResult => ({ kind: "launched", launch: { ...launch, state: projectLaunch(launch.state) }, message: launch.state.kind === "held" ? launch.state.message : `Tribunus launch ${launch.state.kind}. Assignment remains bounded and requires verified initialization.` });
+      const hold = async (code: string, message: string) => {
+        if (launch.state.kind !== "held") await save({ kind: "held", last: launch.state, code, message });
+        return result();
+      };
+      if (launch.state.kind === "held") {
+        if (!["startup-outcome-unknown", "initialization-outcome-unknown", "assignment-outcome-unknown"].includes(launch.state.code)) return result();
+        await save(launch.state.last);
+      }
+      if (launch.state.kind === "prepared") {
+        await revalidate();
+        await save({ kind: "window-dispatched", operation: randomUUID() });
+        if (!owned()) throw new Error("Authority revoked before window invocation.");
+        try {
+          const window = await host.createWindow({ launch, cwd: reservation.plan.path });
+          await this.authorized(request, epoch);
+          await save({ kind: "window-owned", window });
+        } catch (error) { return hold("window-outcome-unknown", `Window creation outcome unknown. Preserve the dispatched attempt. No retry. ${String(error)}`); }
+      }
+      if (launch.state.kind === "window-dispatched") return hold("window-outcome-unknown", "Window creation has no conclusive owned identity. Preserve the attempt. No recreation or adoption.");
+      if (launch.state.kind === "window-owned") {
+        await revalidate();
+        const window = launch.state.window;
+        const dispatch = { kind: "pi-dispatched", operation: randomUUID(), window } satisfies LaunchRecord["state"];
+        await save(dispatch);
+        if (!owned()) throw new Error("Authority revoked before Pi invocation.");
+        let startEvidence: LaunchRecord["startEvidence"];
+        try {
+          await host.startPi({ launch, window });
+          startEvidence = { kind: "completed" };
+        } catch (error) {
+          startEvidence = { kind: "uncertain", message: String(error) };
+        }
+        await save(dispatch, startEvidence);
+        await this.authorized(request, epoch);
+      }
+      if (launch.state.kind === "pi-dispatched") {
+        const worker = await host.inspectWorker({ launch, window: launch.state.window, cwd: reservation.plan.path });
+        await this.authorized(request, epoch);
+        if (!worker) return hold("startup-outcome-unknown", "Pi startup may have applied but exact worker identity is unavailable. Preserve window, worktree, claim, and attempt. No restart or replacement.");
+        const verified = VerifiedWorker.parse(worker);
+        if (verified.address.launch !== launch.id || JSON.stringify(verified.address.window) !== JSON.stringify(launch.state.window))
+          return hold("worker-identity", "Worker incarnation or local Herdr identity does not match the owned launch. Assignment withheld.");
+        if (verified.resources.cwd !== reservation.plan.path || verified.resources.diagnostics.some((d) => d.status !== "ready") || ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].some((name) => !verified.resources.skills.some((s) => s.name === name)))
+          return hold("worker-resources", "Actual target worktree resources are missing or incompatible. Make required native Herdr, poteto-mode, and Matt workflow skills discoverable. No substitution or assignment.");
+        await save({ kind: "verified", worker: verified });
+      }
+      if (launch.state.kind === "verified") {
+        await this.authorized(request, epoch);
+        await save({ kind: "initializing", worker: launch.state.worker, command: randomUUID() });
+      }
+      if (launch.state.kind === "initializing") {
+        const phase = launch.state;
+        this.workspaceAuthority(request, epoch);
+        const observed = await host.initialize({ worker: phase.worker, command: phase.command });
+        await this.authorized(request, epoch);
+        if (!observed) return hold("initialization-outcome-unknown", "Native initialization has no conclusive applied and settled evidence. Assignment withheld. Preserve the same command and worker.");
+        const initialization = Initialization.parse(observed);
+        const skill = phase.worker.resources.skills.find((s) => s.name === "poteto-mode");
+        if (initialization.command !== phase.command || JSON.stringify(initialization.address) !== JSON.stringify(phase.worker.address) || initialization.skillPath !== skill?.path || !initialization.nativePrompt.includes(`<skill name="poteto-mode" location="${skill.path}">`) || !initialization.modeEntry || !initialization.settledEntry)
+          return hold("initialization-evidence", "Native prompt, newly applied pstack mode, settlement, command, or worker identity do not agree. Assignment withheld.");
+        await save({ kind: "initialized", worker: phase.worker, initialization });
+      }
+      if (launch.state.kind === "initialized") {
+        const phase = launch.state;
+        await revalidate();
+        const observed = await host.inspectWorker({ launch, window: phase.worker.address.window, cwd: reservation.plan.path });
+        const current = await this.authorized(request, epoch);
+        if (!observed || JSON.stringify(observed.address) !== JSON.stringify(phase.worker.address) || observed.resources.cwd !== reservation.plan.path || observed.resources.diagnostics.some((d) => d.status !== "ready") || JSON.stringify(observed.resources.skills) !== JSON.stringify(phase.worker.resources.skills))
+          return hold("worker-changed", "Exact initialized worker or target resources changed before assignment. Preserve the worker. No successor adoption.");
+        const task = current.state.tasks.find((t) => t.id === request.task.id)?.history.at(-1);
+        if (!task) throw new Error("Current task unavailable.");
+        const assignment = BoundedAssignment.parse({ task: request.task, scope: request.scope, goal: task.goal, acceptance: task.acceptance, workflow: "implement", testContract: "Matt TDD at Legatus-approved public seams; request an explicit exception if impractical", authority: "bounded-implementation-only" });
+        await save({ kind: "assigning", worker: phase.worker, initialization: phase.initialization, command: randomUUID(), assignment });
+      }
+      if (launch.state.kind === "assigning") {
+        const phase = launch.state;
+        await revalidate();
+        this.workspaceAuthority(request, epoch);
+        const application = await host.assign(phase);
+        if (!application) return hold("assignment-outcome-unknown", "Assignment application is unknown. Preserve the same addressed command. Do not send another assignment.");
+        await this.authorized(request, epoch);
+        await save({ ...phase, kind: "assigned", application: application.application });
+      }
+      if (launch.state.kind === "assigned") {
+        const assigned = launch.state;
+        host.watchReports?.({ worker: assigned.worker, command: assigned.command }, async (report) => {
+          if (report.command !== assigned.command || JSON.stringify(report.address) !== JSON.stringify(assigned.worker.address) || launch.state.kind !== "assigned") return;
+          launch = await ledger.updateLaunch(reservation, launch, { ...assigned, kind: "reported", report: { outcome: report.outcome, assistantText: report.assistantText, evidence: report.evidence } }, () => true);
+        }, async (message) => {
+          if (launch.state.kind !== "assigned") return;
+          launch = await ledger.updateLaunch(reservation, launch, { kind: "held", last: assigned, code: "report-evidence-unavailable", message: `Worker report evidence is unavailable. Preserve the applied assignment and receipt. ${message}` }, () => true);
+        });
+      }
+      return result();
+    } catch (error) {
+      return { kind: "uncertain", requestKey: id, message: `Launch authority or effect evidence unavailable. Preserve all resources and the saved attempt. No fallback or retry. ${String(error)}` };
+    } finally {
+      if (entered) this.invocations--;
+      if (this.stopping && !this.invocations) this.revoke();
+    }
+  }
   async state(): Promise<LegionView> {
     try {
       const snapshot = this.selected
@@ -927,14 +1106,17 @@ export class Legion {
         : await this.store.find(this.options.session, this.options.context);
       if (snapshot && this.uncertain?.id === snapshot.id) this.uncertain = null;
       const claims = await this.claims(snapshot);
+      const launches = await this.launchViews(snapshot, claims.byTask);
+      const unresolvedLaunch = [...launches.values()].some((launch) => launch.kind !== "not-launched" && launch.kind !== "prepared");
       return {
-        mode: this.stopping ? "stopping" : this.binding ? "active" : "inactive",
+        mode: this.stopping || (this.stopRequested && unresolvedLaunch) ? "stopping" : this.binding ? "active" : "inactive",
         ownerObservations: claims.all,
         snapshot,
         tasks:
           snapshot?.tasks.map((t) => ({
             ...t,
             claim: claims.byTask.get(t.id) ?? claims.fallback,
+            launch: launches.get(t.id) ?? { kind: "not-launched" },
             eligibility:
               !this.binding || this.stopping
                 ? "inactive"
@@ -960,6 +1142,8 @@ export class Legion {
     }
   }
   command(raw: unknown): Promise<CommandResult> {
+    const launchExecution = z.object({ launchRequest: z.string().min(1) }).strict().safeParse(raw);
+    if (launchExecution.success) return this.executeLaunch(launchExecution.data.launchRequest).then((result) => ({ ...result, disposition: "workspace" }));
     const execution = z
       .object({ workspaceRequest: z.string().min(1) })
       .strict()
@@ -985,6 +1169,7 @@ export class Legion {
       reserve: "workspace",
       reconcile: "workspace",
       workspace: "workspace",
+      launch: "workspace",
       invalid: "none",
     } satisfies Record<CommandIntent["kind"], CommandResult["disposition"]>;
     const disposition = dispositions[intent.kind];
@@ -1001,7 +1186,7 @@ export class Legion {
       return Promise.resolve(
         reject(
           "usage",
-          "Use on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, or workspace <request-id>. Use task to escape reserved arguments.",
+          "Use on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, or launch <task-id>@<revision>. Use task to escape reserved arguments.",
         ),
       );
     if (
@@ -1016,10 +1201,43 @@ export class Legion {
         ),
       );
     if (intent.kind === "off") {
+      this.stopRequested = true;
       this.revoke();
       return this.state().then((view) => ({ kind: "observed", view }));
     }
     const epoch = this.epoch;
+    if (intent.kind === "launch")
+      return this.serialize(async () => {
+        const view = await this.state();
+        const task = view.tasks.find((t) => t.id === intent.task.id);
+        if (view.mode !== "active") return reject("inactive", "Activate or explicitly resume Legion before launching work.");
+        if (!view.snapshot) return reject("unavailable", "Intake records unavailable.");
+        try {
+          const scope = this.approval(view.snapshot, intent.task);
+          if (input.evidence.generation !== null && input.evidence.generation !== this.binding?.generation) return reject("provenance", "Host launch association generation is stale.");
+          if (task?.claim.kind !== "owned")
+            return reject("launch-claim", "A confirmed durable claim owned by this Legatus is required. No worker started.");
+          if (task.claim.workspace.kind !== "ready")
+            return reject("launch-workspace", "Confirmed ready workspace required. Preserve any unresolved Git operation. No worker started.");
+          if (task.claim.reservation.approval.scope !== scope)
+            return reject("launch-approval", "Claim approval differs from current scope. No worker started.");
+          if (task.launch.kind === "unavailable") return reject("launch-history", task.launch.message);
+          const reservation = task.claim.reservation;
+          const prior = view.snapshot.launchRequests.find((r) => r.id === input.requestKey);
+          if (prior && JSON.stringify(prior.task) !== JSON.stringify(intent.task))
+            return reject("request-conflict", "Request key has a different launch payload.");
+          if (prior) await this.authorized(prior, epoch);
+          if (!prior) {
+            const commonDir = view.snapshot.workspaceRequests.find((r) => r.repositoryId === reservation.repository)?.repository;
+            if (!commonDir || !this.binding) return reject("launch-claim", "Claim repository witness unavailable.");
+            const request = LaunchRequest.parse({ id: input.requestKey, task: intent.task, scope, evidence: input.evidence, epoch, generation: this.binding.generation, repository: commonDir, repositoryId: task.claim.reservation.repository });
+            view.snapshot.launchRequests.push(request);
+            const expected = view.snapshot.revision++;
+            await this.store.save(view.snapshot, expected, () => !!this.binding && !this.stopping && this.epoch === epoch);
+          }
+          return { kind: "launch-stage", requestId: input.requestKey, message: "Saved launch request requires the guarded legion_launch stage. Assignment is withheld until verified initialization." };
+        } catch (error) { return reject("launch-authority", String(error)); }
+      });
     if (intent.kind === "reserve" || intent.kind === "reconcile")
       return this.recordWorkspace(input, intent, epoch);
     if (intent.kind === "workspace")
@@ -1053,6 +1271,7 @@ export class Legion {
         if (snapshot && this.uncertain?.id === snapshot.id)
           this.uncertain = null;
         const claims = await this.claims(snapshot);
+        const launches = await this.launchViews(snapshot, claims.byTask);
         return {
           kind: "observed",
           view: {
@@ -1064,6 +1283,7 @@ export class Legion {
                 ...t,
                 eligibility: "inactive",
                 claim: claims.byTask.get(t.id) ?? claims.fallback,
+                launch: launches.get(t.id) ?? { kind: "not-launched" },
               })) ?? [],
             diagnostics: [],
             unavailable: snapshot ? null : "Legatus records were not found.",
@@ -1296,6 +1516,7 @@ export class Legion {
           };
         }
         if (!ready) this.revoke();
+        else this.stopRequested = false;
         return result;
       } finally {
         try {

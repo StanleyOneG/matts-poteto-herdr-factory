@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { LaunchRecord, projectLaunch, type LaunchView } from "./tribunus.js";
 import {
   mkdirSync,
   existsSync,
@@ -82,6 +83,9 @@ const Identity = z
   .strict();
 export type AssignmentFaultPoint =
   | "after-initialization"
+  | "before-launch-migration-commit"
+  | "after-launch-migration-commit"
+  | "after-launch-commit"
   | "before-reservation-commit"
   | "after-reservation-commit"
   | "after-dispatch"
@@ -304,6 +308,83 @@ export class AssignmentLedger {
       db.close();
       throw error;
     }
+  }
+  private launchSchema(db: DatabaseSync, known = false): "legacy" | "current" {
+    const tables = z.array(z.object({ name: z.string() })).parse(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all());
+    const marker = tables.some((t) => t.name === "legion_schema");
+    const launches = tables.some((t) => t.name === "tribuni");
+    if (!marker && !launches) {
+      if (known) throw new Error("Known launch history is missing. History cannot be reset.");
+      return "legacy";
+    }
+    if (!marker || !launches) throw new Error("Launch schema history is incomplete. Preserve assignment history.");
+    const version = z.object({ version: z.literal(2) }).parse(db.prepare("SELECT version FROM legion_schema WHERE singleton=1").get());
+    if (version.version !== 2) throw new Error("Unsupported launch history.");
+    return "current";
+  }
+  async launchState(reservation: Reservation, known: string | null = null): Promise<LaunchView> {
+    const db = await this.open(false);
+    if (!db) throw new Error("Known assignment history unavailable.");
+    try {
+      if (this.launchSchema(db, known !== null) === "legacy") return { kind: "not-launched" };
+      const row = db.prepare("SELECT value FROM tribuni WHERE reservation=?").get(reservation.id);
+      if (known && !row) throw new Error("Known launch row is missing. History cannot be reset.");
+      if (!row) return { kind: "not-launched" };
+      const launch = LaunchRecord.parse(JSON.parse(rowValue(row)));
+      return { ...projectLaunch(launch.state), startEvidence: launch.startEvidence };
+    } finally { db.close(); }
+  }
+  async beginLaunch(reservation: Reservation, owned: () => boolean, known: string | null = null): Promise<LaunchRecord> {
+    const db = await this.open(true, owned);
+    if (!db) throw new Error("Assignment history unavailable.");
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      if (this.launchSchema(db, known !== null) === "legacy") {
+        db.exec(`CREATE TABLE legion_schema (singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL);
+          CREATE TABLE tribuni (reservation TEXT PRIMARY KEY, id TEXT UNIQUE NOT NULL, revision INTEGER NOT NULL, value TEXT NOT NULL);
+          INSERT INTO legion_schema VALUES(1,2);`);
+        this.fault?.("before-launch-migration-commit");
+        if (!owned()) throw new Error("Launch migration authority revoked.");
+        db.exec("COMMIT");
+        this.fault?.("after-launch-migration-commit");
+        db.exec("BEGIN IMMEDIATE");
+      }
+      const row = db.prepare("SELECT value FROM tribuni WHERE reservation=?").get(reservation.id);
+      if (row) {
+        const launch = LaunchRecord.parse(JSON.parse(rowValue(row)));
+        if (known && launch.id !== known) throw new Error("Known launch identity changed.");
+        db.exec("ROLLBACK"); return launch;
+      }
+      if (known) throw new Error("Known launch row is missing. History cannot be reset.");
+      const claim = db.prepare("SELECT value FROM claims WHERE id=?").get(reservation.id);
+      if (!claim || rowValue(claim) !== JSON.stringify(reservation) || this.workspace(db, reservation).kind !== "ready")
+        throw new Error("Confirmed owned ready reservation required for launch.");
+      const launch = LaunchRecord.parse({ id: randomUUID(), reservation: reservation.id, revision: 0, scope: reservation.approval.scope, state: { kind: "prepared" } });
+      db.prepare("INSERT INTO tribuni VALUES(?,?,?,?)").run(reservation.id, launch.id, launch.revision, JSON.stringify(launch));
+      if (!owned()) throw new Error("Launch publication authority revoked.");
+      db.exec("COMMIT");
+      this.fault?.("after-launch-commit");
+      return launch;
+    } finally { try { db.exec("ROLLBACK"); } catch {} db.close(); }
+  }
+  async updateLaunch(reservation: Reservation, prior: LaunchRecord, state: LaunchRecord["state"], owned: () => boolean, startEvidence = prior.startEvidence) {
+    const db = await this.open(true, owned);
+    if (!db) throw new Error("Launch history unavailable.");
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      if (this.launchSchema(db) !== "current") throw new Error("Known launch history missing.");
+      const claim = db.prepare("SELECT value FROM claims WHERE id=?").get(reservation.id);
+      if (!claim || rowValue(claim) !== JSON.stringify(reservation)) throw new Error("Launch reservation changed.");
+      const retained = db.prepare("SELECT value FROM tribuni WHERE reservation=? AND id=? AND revision=?").get(reservation.id, prior.id, prior.revision);
+      if (!retained || JSON.stringify(LaunchRecord.parse(JSON.parse(rowValue(retained)))) !== JSON.stringify(prior)) throw new Error("Launch history changed before publication.");
+      const next = LaunchRecord.parse({ ...prior, revision: prior.revision + 1, state, startEvidence });
+      const changed = db.prepare("UPDATE tribuni SET revision=?,value=? WHERE reservation=? AND id=? AND revision=? AND value=?").run(next.revision, JSON.stringify(next), reservation.id, prior.id, prior.revision, rowValue(retained));
+      if (changed.changes !== 1) throw new Error("Launch history changed before publication.");
+      if (!owned()) throw new Error("Launch authority revoked before publication.");
+      db.exec("COMMIT");
+      this.fault?.("after-launch-commit");
+      return next;
+    } finally { try { db.exec("ROLLBACK"); } catch {} db.close(); }
   }
   async recoverExisting(owned: () => boolean) {
     if (
