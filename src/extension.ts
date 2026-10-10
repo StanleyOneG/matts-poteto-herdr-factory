@@ -1,3 +1,4 @@
+import { installLegatusResearch } from "./legatus-research.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
@@ -26,6 +27,7 @@ import {
 } from "./snapshot.js";
 import { preflight } from "./preflight.js";
 import { LocalTribunusHost, managedBootstrap, installTribunus } from "./tribunus-host.js";
+import { installEngineeringController } from "./engineering-controller.js";
 import type { TribunusHost } from "./tribunus.js";
 const Presentation = z.object({
   legatus: LegatusId,
@@ -79,22 +81,34 @@ type WorkspaceRun = {
   session: string;
   generation: number;
 } & (
-  | { kind: "dispatch" | "prepared" }
+  | { kind: "dispatch" | "prepared" | "held" }
   | { kind: "running" | "settled"; callId: string }
 );
 export default function (pi: ExtensionAPI) {
+  if (process.env.PI_SUBAGENT_CHILD === "1") return;
   const bootstrap = managedBootstrap();
   if (bootstrap) { installTribunus(pi, bootstrap); return; }
   const hosts = new AsyncLocalStorage<TribunusHost>();
   const repositories = new AsyncLocalStorage<WorkspaceRepository>();
   let workspaceRun: WorkspaceRun | null = null;
-  const workspaceAttempts = new Set<string>();
+  const workspaceAttempts = new Map<string, "attempted" | "deferred" | "held">();
   let legion: Legion | null = null;
   let binding: { session: string; generation: number; legatus: string } | null =
     null;
   let run: Run | null = null;
   let liveContext: ExtensionContext | null = null;
   const attempted = new Set<string>();
+  const engineering = installEngineeringController(pi, {
+    current: () => legion, context: () => liveContext, busy: () => !!run || !!workspaceRun || research.busy(),
+    report: message => { if (liveContext) report(liveContext, message, "error"); },
+    deliver: (host, action) => hosts.run(host, action),
+  });
+  const research = installLegatusResearch(pi, {
+    current: () => legion, context: () => liveContext,
+    busy: () => !!run || !!workspaceRun || engineering.busy(),
+    changed: async () => { if (liveContext) await refresh(liveContext); },
+    report: message => { if (liveContext) report(liveContext, message, "error"); },
+  });
   function report(
     ctx: ExtensionContext,
     text: string,
@@ -136,6 +150,10 @@ export default function (pi: ExtensionAPI) {
   }
   function notifyResult(ctx: ExtensionContext, result: OperationResult) {
     switch (result.kind) {
+      case "research-prepared":
+      case "research-current":
+      case "research-observed":
+        break;
       case "deferred":
       case "saved":
       case "applied":
@@ -160,6 +178,7 @@ export default function (pi: ExtensionAPI) {
       case "launched":
         report(ctx, result.message, result.launch.state.kind === "held" ? "warning" : "info");
         break;
+      case "research-stage":
       case "launch-stage":
       case "workspace-stage":
         report(ctx, result.message);
@@ -243,6 +262,7 @@ export default function (pi: ExtensionAPI) {
         liveContext?.sessionManager.getSessionId()
     )
       return;
+    research.retire(view);
     binding =
       view.mode === "active" && view.snapshot
         ? {
@@ -255,9 +275,9 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setStatus(
         "legion-intake",
         binding
-          ? `Legion active | ${view.tasks.length} tasks | ${view.tasks.filter((t) => t.launch.kind !== "not-launched").length} launches`
+          ? `Legion active | ${view.tasks.length} tasks | ${view.tasks.filter((t) => t.launch.kind !== "not-launched").length} launches | ${view.snapshot?.research.filter(record => !["prepared", "process-terminal"].includes(record.child.state.kind)).length ?? 0} research children`
           : view.mode === "stopping"
-            ? "Legion stopping | reservations retained"
+            ? "Legion stopping | owned work retained"
             : "Legion inactive",
       );
     } catch {}
@@ -271,12 +291,14 @@ export default function (pi: ExtensionAPI) {
       !captured ||
       run ||
       workspaceRun ||
+      engineering.busy() ||
+      research.busy() ||
       !ctx.isIdle() ||
       ctx.hasPendingMessages()
     )
       return;
     const data = await current.state();
-    if (legion !== current || binding !== captured || run || !ctx.isIdle())
+    if (legion !== current || binding !== captured || run || workspaceRun || engineering.busy() || research.busy() || !ctx.isIdle() || ctx.hasPendingMessages())
       return;
     const sources =
       data.snapshot?.submissions
@@ -291,16 +313,13 @@ export default function (pi: ExtensionAPI) {
     const runEvidence = { ...captured, run: randomUUID(), sources };
     for (const source of sources)
       attempted.add(`${source.id}/${source.revision}`);
-    run = { kind: "dispatch", marker, evidence: runEvidence, data };
+    const pending: Run = { kind: "dispatch", marker, evidence: runEvidence, data };
+    run = pending;
     try {
       pi.sendUserMessage(marker);
     } catch (error) {
-      run = null;
-      report(
-        ctx,
-        `Intake stalled. Inputs remain saved. ${String(error)}`,
-        "error",
-      );
+      if (run === pending) run = { ...pending, kind: "pre-start", stage: "forwarded" };
+      report(ctx, `Intake dispatch outcome is unresolved. Inputs remain saved. Resume cannot retry this prompt. Inspect the session journal and status before restarting. ${String(error)}`, "error");
     }
   }
   function schedule(ctx: ExtensionContext) {
@@ -345,9 +364,12 @@ export default function (pi: ExtensionAPI) {
       context: realpathSync(ctx.cwd),
       session: ctx.sessionManager.getSessionId(),
       preflight: () => preflight(pi),
-      tribuni: { host: () => hosts.getStore() ?? null },
+      research,
+      tribuni: { host: () => hosts.getStore() ?? null, onEngineering: message => {
+        if (message) { if (liveContext) report(liveContext, message, "error"); return; }
+        void engineering.schedule().catch(error => { if (liveContext) report(liveContext, String(error), "error"); });
+      } },
       assignments: {
-        workspaceRoot: join(getAgentDir(), "legion", "workspaces"),
         repository: () => repositories.getStore() ?? null,
       },
     });
@@ -370,11 +392,12 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Enable durable intake and reservations. Arguments: on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
+      "Enable durable intake and reservations. Arguments: on, task <text>, research <bounded task>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
     getArgumentCompletions: (prefix) =>
       [
         "on",
         "task",
+        "research",
         "status",
         "doctor",
         "off",
@@ -395,8 +418,8 @@ export default function (pi: ExtensionAPI) {
       const caller = { ...evidence(ctx), origin: "host-command" };
       try {
         if (
-          /^\s*(?:workspace|launch)(?:\s|$)/.test(text) &&
-          (workspaceRun || run || !ctx.isIdle() || ctx.hasPendingMessages())
+          /^\s*(?:workspace|launch|research)(?:\s|$)/.test(text) &&
+          (workspaceRun || run || engineering.busy() || research.busy() || !ctx.isIdle() || ctx.hasPendingMessages())
         ) {
           report(
             ctx,
@@ -436,6 +459,8 @@ export default function (pi: ExtensionAPI) {
           )
             run = null;
           attempted.clear();
+          engineering.resume();
+          await engineering.schedule();
           if (run?.kind === "pre-start" && run.stage === "forwarded")
             report(
               ctx,
@@ -443,10 +468,15 @@ export default function (pi: ExtensionAPI) {
               "warning",
             );
         }
+        if (result.kind === "research-stage") {
+          await research.dispatch(result.requestId, ctx);
+          return;
+        }
         if (result.kind === "workspace-stage" || result.kind === "launch-stage") {
           if (
             workspaceRun ||
             run ||
+            engineering.busy() ||
             !ctx.isIdle() ||
             ctx.hasPendingMessages() ||
             legion !== current
@@ -465,12 +495,15 @@ export default function (pi: ExtensionAPI) {
             !binding ||
             workspaceRun ||
             run ||
+            engineering.busy() ||
+            !ctx.isIdle() ||
+            ctx.hasPendingMessages() ||
             legion !== current ||
             binding.session !== ctx.sessionManager.getSessionId()
           )
             return;
           const attempt = `${view.snapshot.generation}/${result.requestId}`;
-          if (workspaceAttempts.has(attempt)) {
+          if (workspaceAttempts.get(attempt) === "attempted") {
             report(
               ctx,
               "This workspace stage was already attempted. Inspect status and explicitly reserve or reconcile with a fresh request before another stage.",
@@ -478,8 +511,8 @@ export default function (pi: ExtensionAPI) {
             );
             return;
           }
-          workspaceAttempts.add(attempt);
-          workspaceRun = {
+          workspaceAttempts.set(attempt, "attempted");
+          const pending: WorkspaceRun = {
             kind: "dispatch",
             tool: result.kind === "launch-stage" ? "legion_launch" : "legion_workspace",
             marker: `Legion workspace dispatch ${randomUUID()}`,
@@ -487,7 +520,12 @@ export default function (pi: ExtensionAPI) {
             session: ctx.sessionManager.getSessionId(),
             generation: view.snapshot.generation,
           };
-          pi.sendUserMessage(workspaceRun.marker);
+          workspaceRun = pending;
+          try { pi.sendUserMessage(pending.marker); }
+          catch (error) {
+            if (workspaceRun === pending) workspaceRun = { ...pending, kind: "held" };
+            report(ctx, `Workspace dispatch outcome is unresolved. Request ${pending.requestId} retained. Do not retry automatically. Inspect the session journal and status before restarting. ${String(error)}`, "error");
+          }
         }
         if (result.disposition !== "off" && result.disposition !== "workspace")
           schedule(ctx);
@@ -500,33 +538,59 @@ export default function (pi: ExtensionAPI) {
       }
     },
   });
+  function retireWorkspace(pending: WorkspaceRun, ctx: ExtensionContext, disposition: "deferred" | "held", reason: string) {
+    if (workspaceRun !== pending || pending.kind !== "dispatch") return;
+    try {
+      pi.appendEntry("legion-workspace-dispatch-retired", { marker: pending.marker, request: pending.requestId, generation: pending.generation, disposition, reason });
+    } catch (error) {
+      workspaceRun = { ...pending, kind: "held" };
+      report(ctx, `Workspace dispatch held. Inspect the unavailable session journal before restarting. ${String(error)}`, "error");
+      return;
+    }
+    workspaceAttempts.set(`${pending.generation}/${pending.requestId}`, disposition);
+    workspaceRun = null;
+    report(ctx, `${reason} Request ${pending.requestId} retained. ${disposition === "deferred" ? "After queued input settles, repeat the workspace or launch command to dispatch a fresh marker." : "Restore authentication or authority, inspect status, then explicitly repeat the workspace or launch command."}`, "warning");
+  }
   pi.on("input", async (event, ctx) => {
     if (event.source === "extension") {
       if (event.text.startsWith("Legion workspace dispatch ")) {
         const pending = workspaceRun;
-        if (
-          !pending ||
-          pending.kind !== "dispatch" ||
-          pending.marker !== event.text ||
-          !binding ||
-          binding.session !== pending.session ||
-          binding.generation !== pending.generation ||
-          !ctx.isIdle() ||
-          event.streamingBehavior
-        )
+        if (!pending || pending.kind !== "dispatch" || pending.marker !== event.text) return { action: "handled" };
+        if (!binding || binding.session !== pending.session || binding.generation !== pending.generation) {
+          retireWorkspace(pending, ctx, "held", "Workspace authority changed before start.");
           return { action: "handled" };
-        const check = await legion?.command({
-          text: pending.tool === "legion_launch" ? `launch ${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.id) ?? ""}@${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.revision) ?? 0}` : `workspace ${pending.requestId}`,
-          requestKey: pending.requestId,
-          evidence: evidence(ctx),
-        });
-        if (
-          (check?.kind !== "workspace-stage" && check?.kind !== "launch-stage") ||
-          workspaceRun !== pending ||
-          !binding ||
-          binding.generation !== pending.generation
-        )
+        }
+        if (run || engineering.busy() || !ctx.isIdle() || ctx.hasPendingMessages() || event.streamingBehavior) {
+          retireWorkspace(pending, ctx, "deferred", "Workspace dispatch deferred before start.");
           return { action: "handled" };
+        }
+        let check;
+        try {
+          const model = ctx.model;
+          const auth = model ? await ctx.modelRegistry.getApiKeyAndHeaders(model) : null;
+          if (workspaceRun !== pending || pending.kind !== "dispatch") return { action: "handled" };
+          if (!model || !auth?.ok || (!auth.apiKey && !ctx.modelRegistry.hasConfiguredAuth(model))) {
+            retireWorkspace(pending, ctx, "held", "Workspace authentication is unavailable before start.");
+            return { action: "handled" };
+          }
+          check = await legion?.command({
+            text: pending.tool === "legion_launch" ? `launch ${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.id) ?? ""}@${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.revision) ?? 0}` : `workspace ${pending.requestId}`,
+            requestKey: pending.requestId,
+            evidence: evidence(ctx),
+          });
+        } catch (error) {
+          retireWorkspace(pending, ctx, "held", `Workspace admission lookup unavailable. ${String(error)}`);
+          return { action: "handled" };
+        }
+        if (workspaceRun !== pending || pending.kind !== "dispatch") return { action: "handled" };
+        if ((check?.kind !== "workspace-stage" && check?.kind !== "launch-stage") || !binding || binding.session !== pending.session || binding.generation !== pending.generation) {
+          retireWorkspace(pending, ctx, "held", "Workspace authority changed before start.");
+          return { action: "handled" };
+        }
+        if (run || engineering.busy() || !ctx.isIdle() || ctx.hasPendingMessages()) {
+          retireWorkspace(pending, ctx, "deferred", "Workspace dispatch deferred before start.");
+          return { action: "handled" };
+        }
         pending.kind = "prepared";
         return { action: "continue" };
       }
@@ -827,7 +891,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
   pi.on("agent_settled", async (_event, ctx) => {
-    if (workspaceRun?.session === ctx.sessionManager.getSessionId())
+    if (workspaceRun?.session === ctx.sessionManager.getSessionId() && workspaceRun.kind !== "dispatch" && workspaceRun.kind !== "held")
       workspaceRun = null;
     const previous = run;
     if (
@@ -842,6 +906,7 @@ export default function (pi: ExtensionAPI) {
         "warning",
       );
     await refresh(ctx);
+    await engineering.schedule();
     schedule(ctx);
   });
 }

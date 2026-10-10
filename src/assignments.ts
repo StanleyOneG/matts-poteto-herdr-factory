@@ -12,7 +12,7 @@ import {
   unlinkSync,
   realpathSync,
 } from "node:fs";
-import { join, dirname, relative, isAbsolute, sep } from "node:path";
+import { join, dirname, basename, relative, isAbsolute, sep } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { LegatusId, TaskId, TaskRef } from "./snapshot.js";
@@ -125,9 +125,15 @@ function contains(root: string, path: string) {
   );
 }
 export function persistentRoot(
-  root: string,
+  root: string | undefined,
   location: RepositoryLocation,
 ): string {
+  if (root === undefined) {
+    const primary = location.worktrees[0];
+    if (!primary) throw new Error("Primary project directory is unavailable. No workspace path allocated.");
+    const project = realpathSync(primary);
+    root = join(dirname(project), `worktrees-${basename(project)}_legion`);
+  }
   if (!isAbsolute(root)) throw new Error("Workspace root must be absolute.");
   let existing = root;
   while (!existsSync(existing)) existing = dirname(existing);

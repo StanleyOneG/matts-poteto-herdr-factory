@@ -93,6 +93,7 @@ export async function preflight(pi: ExtensionAPI): Promise<Diagnostic[]> {
     "herdr",
     "poteto-mode",
     "matt-tdd",
+    "matt-teach",
     "implement",
     "code-review",
   ]) {

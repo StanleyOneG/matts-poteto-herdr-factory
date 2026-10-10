@@ -66,7 +66,7 @@ Use a full local branch ref for the intended parent. Legion does not infer `HEAD
 
 Direct work uses its original intake TaskId. Separate direct submissions remain separate tasks. Supported external identities are canonical GitHub issue URLs. Owner and repository names are case-normalized. Unsupported formats fail closed. No remote ticket discovery or mutation occurs. A local task cannot change its shared identity, and another local task under the same Legatus cannot substitute for an existing binding.
 
-The ledger lives at `<canonical Git common directory>/legion/assignments.sqlite`. Primary checkouts, linked worktrees, nested paths, and symlink aliases share it. Independent clones do not. Workspaces live under `<Pi agent directory>/legion/workspaces`, outside all worktrees. The absolute branch, path, parent, and commit remain fixed in the reservation. Preexisting branches, directories, symlinks, or registered worktrees are collisions, not adoption evidence.
+The ledger lives at `<canonical Git common directory>/legion/assignments.sqlite`. Primary checkouts, linked worktrees, nested paths, and symlink aliases share it. Independent clones do not. New workspaces live under `<project-parent>/worktrees-<project-name>_legion/<unique-task-or-run>`, outside all worktrees. Legion derives the project from the canonical primary Git checkout, including when launched from a linked worktree. The container is created if absent and existing contents are preserved. For this repository it is `/workspaces/astraprojects/worktrees-matts-poteto-herdr-factory_legion/`. Previously reserved paths remain pinned; the new convention does not move or delete existing work. The absolute branch, path, parent, and commit remain fixed in the reservation. Preexisting branches, directories, symlinks, or registered worktrees are collisions, not adoption evidence.
 
 ## Recover a workspace request
 
@@ -84,8 +84,8 @@ A definitive failure can be retried through explicit reconciliation only when in
 
 1. Reserve an admitted task and verify that its workspace is ready.
 2. After interpretation settles, run `/legion launch <task-id>@<revision>`.
-3. Inspect the launch result and `/legion status`. A new worker uses your normal configured shell and Pi defaults.
-4. If Pi presents its standard project-trust prompt, review the exact owned folder and its resources yourself. Legion never answers trust or approval prompts.
+3. Inspect the launch result and `/legion status`. A new worker uses your normal configured shell and Pi defaults, in a new no-focus tab in the verified owning Legatus's existing Herdr workspace. Additional interactive Pi sessions belong in panes of that Tribunus's tab; native pi-subagents children need no pane. This layout is separate from Git worktree isolation.
+4. If Pi presents its standard project-trust prompt, review the exact owned folder and its resources yourself. Project proximity and fixture approval are not trust authorization. Legion preserves the cwd/tab/pane, reports the pending human decision, and never answers trust or approval prompts.
 5. After that prerequisite is resolved, explicitly run the same launch command to reconcile the same attempt. Never start another worker to resolve uncertainty.
 
 The guarded `legion_launch` root tool accepts only the saved request ID. It rechecks active authority, exact task revision and scope, durable claim ownership, and Git associations before host effects. Herdr commands use the installed guarded Bash tool without a direct child-process fallback. Each ready claim has one durable launch attempt. Unknown or applied startup retains the attempt, window, worktree, and claim. Missing completion, stale identity, missing resources, or unsupported worker evidence withholds the next stage.
@@ -97,6 +97,24 @@ One bounded assignment names the approved task revision, immutable scope, goal, 
 Restart and reload remain inactive. Explicit resume retains the owner, but never grants permission to repeat an unknown start. `off` stops new dispatch and retains unresolved stages. It does not terminate, drain, or replace a worker. Worker identity and resource evidence are local observations, not authentication of a human or protection against malicious trusted extensions. Launch adds no automatic retry, contention recovery, or Legion runtime cap.
 
 The launch ledger is additive history inside `assignments.sqlite`. Recognized pre-launch ledgers gain a version-2 schema marker and `tribuni` table without changing repository identity or existing ownership. Missing known launch history remains unavailable authority. Private worker bootstrap, capability, endpoint, intent, and receipt files live under `<Pi agent directory>/legion/tribuni/<attempt-id>`. Preserve them when an outcome is uncertain. Status does not repair them.
+
+## Read-only Centurio boundary (bounded T04 work)
+
+Owned exploration/review Centuriones follow configured pstack role models. Mandatory native startup checks actual model/session/cwd and current ownership. Admitted `read`, `grep`, `find`, and `ls` effects execute retained native definitions only after ordinary root/child permission hooks, with unchanged final arguments and a fresh owner check. Existing non-native overrides cause explicit compatibility refusal; Legion does not replace them silently. Unknown ownership and incompatible model or tool changes deny effects.
+
+This supports compatible trusted extensions, not a sandbox against arbitrary in-process code or a continuous veto of provider requests. Known incompatible model switching, including supported `setModel`, blocks affected work when detected at startup or effects; no fallback model is selected. Throwing from Pi 1.0.4's `before_agent_start` or `before_provider_request` is not a request veto. Native permission policies and provider restrictions remain effective.
+
+Disposable live fixtures also use unique owned directories in the project sibling container, never copies of the dirty parent checkout. Running historical trials remain preserved in place. A trust prompt requires immediate operator notification with exact cwd/tab/pane; affected validation remains pending until the human resolves ordinary Pi trust. Do not relocate a fixture, suppress discovery, or change Git isolation to avoid it.
+
+The [stage evidence](docs/verification/t04-owned-centuriones/read-only-effects/results.md) records that stage's verification limits; it is not overall #5 acceptance.
+
+## Legatus preparatory research (bounded T04 work)
+
+After explicit `/legion on`, request `/legion research <bounded task>` (for example, `/legion research Find the public status API and recommend its test seam with file references`). The command persists the exact task and dispatches a correlated research-only principal stage. Its model-only `legion_research` tool is usable only in that stage with a bounded read-only task and configured `how explorer` or `why investigators` role (optional `modelIndex`). The tool returns one exact native async `subagent` launch input. Launch that input unchanged; arbitrary child launches cannot adopt the research intent. Preparation alone is not a launched child. Intake, workspace and engineering dispatches remain separate bounded stages.
+
+Research reuses the same pi-subagents runtime and mandatory guard. The principal retains its selected model; children resolve the existing pstack exploration role configuration without hidden fallback. Each durable record names the logical Legatus, actual session/generation/authority epoch, intent, native run and child session. `/legion status` exposes lifecycle, a bounded finding preview, source/hash and evidence references, not raw thinking or tool logs. Native logical completion and independently observed runner termination remain distinct; failed terminal children remain failed, not accepted work.
+
+`/legion off` prevents preparation and launch, permits already-authorized read-only research to finish, and visibly stays stopping while children are active or unresolved. Supported Pi new/resume, fork and tree transitions are cancelled while such children remain, rather than abandoning their owning runtime. Unexpected shutdown cannot be cancelled: retained records remain visibly unresolved after restart and cannot be adopted by a new generation. This slice does not implement rotation, recovery, successor startup or task-graph orchestration. Unknown/mismatched native activity remains held. Native permission denial is preserved; startup/effect checks are not universal hostile-extension protection. Overall #5 acceptance still requires the remaining integrated evidence and independent review.
 
 ## Task entry and later factory workflows
 

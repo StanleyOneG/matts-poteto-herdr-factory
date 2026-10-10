@@ -11,7 +11,7 @@ import {
   rm,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Legion, type LegionOptions } from "../src/intake.js";
@@ -122,13 +122,14 @@ async function fixture() {
       return { kind: "unknown" as const, message: String(error) };
     }
   };
-  return { root, cwd, git, parent, adapter: new GitWorkspace(cwd, run) };
+  return { root, cwd, git, parent, run, adapter: new GitWorkspace(cwd, run) };
 }
 async function admitted(
   root: string,
   cwd: string,
   adapter: GitWorkspace,
   session: string,
+  projectContainer = false,
 ) {
   const options: LegionOptions = {
     storagePath: join(root, "intake"),
@@ -136,7 +137,7 @@ async function admitted(
     session,
     preflight: async () => [],
     assignments: {
-      workspaceRoot: join(root, "workspaces"),
+      ...(projectContainer ? {} : { workspaceRoot: join(root, "workspaces") }),
       repository: () => adapter,
     },
   };
@@ -847,4 +848,31 @@ test("different assignments use distinct actual worktrees at the intended parent
   await assert.rejects(access(p.path));
   await a.command("off");
   await b.command("off");
+});
+
+test("primary and linked checkout reservations share the project sibling container", async () => {
+  const { root, cwd, git, adapter, run, parent } = await fixture();
+  const linked = join(root, "linked");
+  await git("worktree", "add", "-qb", "linked-fixture", linked, "refs/heads/intended");
+  const a = await admitted(root, cwd, adapter, "primary-container", true);
+  const b = await admitted(root, linked, new GitWorkspace(linked, run), "linked-container", true);
+  try {
+    const paths: string[] = [];
+    for (const current of [a, b]) {
+      await current.command(`reserve ${current.task.id}@1 --parent refs/heads/intended`, "container-reserve");
+      const result = await current.legion.command({ workspaceRequest: "container-reserve" });
+      assert.equal(result.kind, "reserved");
+      if (result.kind !== "reserved") assert.fail("Expected isolated ready worktree");
+      assert.equal(result.workspace.kind, "ready");
+      assert.equal(dirname(result.receipt.reservation.plan.path), join(root, "worktrees-repo_legion"));
+      assert.equal(result.receipt.reservation.plan.commit, parent);
+      paths.push(result.receipt.reservation.plan.path);
+    }
+    assert.notEqual(paths[0], paths[1]);
+    assert.equal(await readFile(join(cwd, "tracked"), "utf8"), "dirty original\n");
+    assert.equal(await readFile(join(cwd, "untracked"), "utf8"), "original sentinel\n");
+  } finally {
+    await a.command("off");
+    await b.command("off");
+  }
 });

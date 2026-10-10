@@ -162,7 +162,7 @@ test("exact native initialization precedes one bounded assignment even when the 
     }; throw new Error("Applied start; receipt lost"); },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "matching-herdr-session", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].map((name) => ({
+        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Pi", status: "ready", message: "Loaded target resources"
@@ -282,7 +282,7 @@ test("a received-only initialization receipt cannot become applied initializatio
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session-reference", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].map((name) => ({
+        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Pi", status: "ready", message: "Target Pi"
@@ -331,7 +331,7 @@ test("the bounded same-generation worker report becomes observable without autho
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session-reference", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].map((name) => ({
+        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Pi", status: "ready", message: "Target Pi"
@@ -421,7 +421,7 @@ test("explicit resume resolves the same retained initialization command without 
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].map((name) => ({
+        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Pi", status: "ready", message: "Target Pi"
@@ -490,7 +490,7 @@ function externalWorker() {
     }; },
     inspectWorker: async ({ cwd }) => actor.observe({
       address, identityEvidence: "exact-session", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].map((name) => ({
+        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Pi", status: "ready", message: "Target Pi"

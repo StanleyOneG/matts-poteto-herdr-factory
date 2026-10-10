@@ -1,6 +1,12 @@
+import { ResearchRequest, ResearchOwner, ResearchRecord, ResearchObservation, ResearchCheck, ResearchStageEvent } from "./owned-children.js";
+import { approvedSeam, currentEngineering } from "./engineering.js";
+import { readCenturio } from "./centuriones.js";
+import { verifyCenturioWorkspace } from "./centurio-workspace.js";
+import { isDeepStrictEqual } from "node:util";
+import { readFileSync, realpathSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
-import { LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
+import { EngineeringObservation, EngineeringRequest, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
 import {
   AssignmentLedger,
   AssignmentConflict,
@@ -38,6 +44,11 @@ import {
   type CommittedResult,
   WorkspaceRequest,
   LaunchRequest,
+  EngineeringProposal,
+  EngineeringRecord,
+  EngineeringDecision,
+  EngineeringDeliveryReceipt,
+  EffectMessage, EffectRecord, EffectReply,
 } from "./snapshot.js";
 
 export type Diagnostic = {
@@ -116,6 +127,15 @@ const Interpretation = z.object({
     sources: z.array(SubmissionRef),
   }),
 });
+const EngineeringDecisionInput = z.object({
+  kind: z.literal("engineering-decision"), requestKey: z.uuid(),
+  request: z.object({ id: z.uuid(), digest: z.string() }).strict(), decision: EngineeringDecision,
+  evidence: z.object({
+    kind: z.literal("legatus"), owner: LegatusId, session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative(),
+    run: z.string().min(1), requests: z.array(z.object({ id: z.uuid(), digest: z.string() }).strict()).min(1),
+  }).strict(),
+}).strict();
+const EngineeringInput = z.discriminatedUnion("kind", [EngineeringRequest, EngineeringDecisionInput]);
 const Message = z.object({
   kind: z.literal("message"),
   text: z.string().min(1),
@@ -135,8 +155,14 @@ export type LegionView = {
   diagnostics: Diagnostic[];
   unavailable: string | null;
   ownerObservations?: ClaimView[];
+  researchOwner?: z.infer<typeof ResearchOwner>;
 };
 export type OperationResult =
+  | { kind: "research-prepared"; research: z.infer<typeof ResearchRecord> }
+  | { kind: "research-current"; owner: z.infer<typeof ResearchOwner> }
+  | { kind: "research-observed" }
+  | { kind: "research-stage"; requestId: string; message: string }
+  | z.infer<typeof EffectReply>
   | CommittedResult
   | { kind: "observed"; view: LegionView }
   | { kind: "rejected"; code: string; message: string }
@@ -161,6 +187,7 @@ type CommandIntent =
   | { kind: "task"; text: string }
   | { kind: "workspace"; id: string }
   | { kind: "launch"; task: z.infer<typeof TaskRef> }
+  | { kind: "research"; task: string }
   | z.infer<typeof WorkspaceRequest>["intent"]
   | { kind: "invalid" };
 export type CommandResult = OperationResult & {
@@ -222,6 +249,8 @@ function commandIntent(text: string): CommandIntent {
         ? { kind: "reconcile", task: task.data }
         : { kind: "invalid" };
     }
+    case "research":
+      return payload.trim() ? { kind: "research", task: payload.trim() } : { kind: "invalid" };
     case "task":
       return payload.trim()
         ? { kind: "task", text: payload }
@@ -236,9 +265,10 @@ export type LegionOptions = {
   session: string;
   preflight: () => Promise<Diagnostic[]>;
   storageFault?: (point: StorageFaultPoint) => void;
-  tribuni?: { host: () => TribunusHost | null };
+  research?: { prepare: (request: z.infer<typeof ResearchRequest>, owner: z.infer<typeof ResearchOwner>) => Promise<unknown> };
+  tribuni?: { host: () => TribunusHost | null; onEngineering?: (unavailable?: string) => void };
   assignments?: {
-    workspaceRoot: string;
+    workspaceRoot?: string;
     repository: () => WorkspaceRepository | null;
     fault?: (point: AssignmentFaultPoint) => void;
   };
@@ -268,7 +298,9 @@ export class Legion {
   private epoch = 0;
   private stopping = false;
   private stopRequested = false;
+  private researchPending = false;
   private invocations = 0;
+  private effectInvocations = new Set<string>();
   private uncertain: { id: string; requestKey: string } | null = null;
   constructor(private options: LegionOptions) {
     this.store = new SnapshotStore(options.storagePath, options.storageFault);
@@ -279,6 +311,7 @@ export class Legion {
     return next;
   }
   private revoke() {
+    if (this.researchPending) { this.stopping = true; return; }
     this.epoch++;
     if (this.invocations) {
       this.stopping = true;
@@ -1040,8 +1073,8 @@ export class Legion {
         const verified = VerifiedWorker.parse(worker);
         if (verified.address.launch !== launch.id || JSON.stringify(verified.address.window) !== JSON.stringify(launch.state.window))
           return hold("worker-identity", "Worker incarnation or local Herdr identity does not match the owned launch. Assignment withheld.");
-        if (verified.resources.cwd !== reservation.plan.path || verified.resources.diagnostics.some((d) => d.status !== "ready") || ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].some((name) => !verified.resources.skills.some((s) => s.name === name)))
-          return hold("worker-resources", "Actual target worktree resources are missing or incompatible. Make required native Herdr, poteto-mode, and Matt workflow skills discoverable. No substitution or assignment.");
+        if (verified.resources.cwd !== reservation.plan.path || verified.resources.diagnostics.some((d) => d.status !== "ready") || ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].some((name) => !verified.resources.skills.some((s) => s.name === name)))
+          return hold("worker-resources", `Actual target worktree resources are missing or incompatible. No substitution or assignment. ${verified.resources.diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" ")}`);
         await save({ kind: "verified", worker: verified });
       }
       if (launch.state.kind === "verified") {
@@ -1083,12 +1116,27 @@ export class Legion {
       }
       if (launch.state.kind === "assigned") {
         const assigned = launch.state;
+        host.watchEffects?.({ worker: assigned.worker, command: assigned.command }, async message => EffectReply.parse(await this.submit(message)), message => this.options.tribuni?.onEngineering?.(message));
+        host.watchEngineering?.({ worker: assigned.worker, command: assigned.command }, async (request) => {
+          const result = await this.submit(request);
+          this.options.tribuni?.onEngineering?.();
+          if (result.kind !== "applied") throw new Error(JSON.stringify(result));
+        }, async (message) => { this.options.tribuni?.onEngineering?.(message); });
         host.watchReports?.({ worker: assigned.worker, command: assigned.command }, async (report) => {
           if (report.command !== assigned.command || JSON.stringify(report.address) !== JSON.stringify(assigned.worker.address) || launch.state.kind !== "assigned") return;
-          launch = await ledger.updateLaunch(reservation, launch, { ...assigned, kind: "reported", report: { outcome: report.outcome, assistantText: report.assistantText, evidence: report.evidence } }, () => true);
+          launch = await ledger.updateLaunch(reservation, launch, { ...launch.state, kind: "reported", report: { outcome: report.outcome, assistantText: report.assistantText, evidence: report.evidence, contract: report.contract, engineering: report.engineering } }, () => true);
         }, async (message) => {
           if (launch.state.kind !== "assigned") return;
-          launch = await ledger.updateLaunch(reservation, launch, { kind: "held", last: assigned, code: "report-evidence-unavailable", message: `Worker report evidence is unavailable. Preserve the applied assignment and receipt. ${message}` }, () => true);
+          launch = await ledger.updateLaunch(reservation, launch, { kind: "held", last: launch.state, code: "report-evidence-unavailable", message: `Worker report evidence is unavailable. Preserve the applied assignment and receipt. ${message}` }, () => true);
+        }, async (observation) => {
+          if (observation.command !== assigned.command || JSON.stringify(observation.address) !== JSON.stringify(assigned.worker.address) || launch.state.kind !== "assigned") return;
+          const current = launch.state;
+          launch = await ledger.updateLaunch(reservation, launch, { ...current, worker: { ...current.worker, resources: { ...current.worker.resources, contract: observation.contract } } }, () => true);
+        }, async observation => {
+          if (observation.command !== assigned.command || !isDeepStrictEqual(observation.address, assigned.worker.address)) return;
+          const current = launch.state;
+          if (current.kind !== "assigned" && current.kind !== "reported") return;
+          launch = await ledger.updateLaunch(reservation, launch, { ...current, worker: { ...current.worker, resources: { ...current.worker.resources, children: observation.children } } }, () => true);
         });
       }
       return result();
@@ -1108,8 +1156,10 @@ export class Legion {
       const claims = await this.claims(snapshot);
       const launches = await this.launchViews(snapshot, claims.byTask);
       const unresolvedLaunch = [...launches.values()].some((launch) => launch.kind !== "not-launched" && launch.kind !== "prepared");
+      const unresolvedResearch = !!snapshot?.researchHold || !!snapshot?.research.some(record => !["prepared", "process-terminal"].includes(record.child.state.kind));
       return {
-        mode: this.stopping || (this.stopRequested && unresolvedLaunch) ? "stopping" : this.binding ? "active" : "inactive",
+        mode: this.stopping || unresolvedResearch && (!this.binding || this.stopRequested) || (this.stopRequested && unresolvedLaunch || !this.binding && snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown")) ? "stopping" : this.binding ? "active" : "inactive",
+        ...(snapshot && this.binding ? { researchOwner: ResearchOwner.parse({ role: "legatus", owner: snapshot.id, session: this.options.session, generation: this.binding.generation, epoch: this.epoch }) } : {}),
         ownerObservations: claims.all,
         snapshot,
         tasks:
@@ -1142,6 +1192,8 @@ export class Legion {
     }
   }
   command(raw: unknown): Promise<CommandResult> {
+    const delivery = z.object({ engineeringDelivery: z.uuid() }).strict().safeParse(raw);
+    if (delivery.success) return this.deliverEngineering(delivery.data.engineeringDelivery).then(result => ({ ...result, disposition: "workspace" }));
     const launchExecution = z.object({ launchRequest: z.string().min(1) }).strict().safeParse(raw);
     if (launchExecution.success) return this.executeLaunch(launchExecution.data.launchRequest).then((result) => ({ ...result, disposition: "workspace" }));
     const execution = z
@@ -1170,6 +1222,7 @@ export class Legion {
       reconcile: "workspace",
       workspace: "workspace",
       launch: "workspace",
+      research: "workspace",
       invalid: "none",
     } satisfies Record<CommandIntent["kind"], CommandResult["disposition"]>;
     const disposition = dispositions[intent.kind];
@@ -1186,7 +1239,7 @@ export class Legion {
       return Promise.resolve(
         reject(
           "usage",
-          "Use on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, or launch <task-id>@<revision>. Use task to escape reserved arguments.",
+          "Use on, task <text>, research <bounded task>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, or launch <task-id>@<revision>. Use task to escape reserved arguments.",
         ),
       );
     if (
@@ -1206,6 +1259,17 @@ export class Legion {
       return this.state().then((view) => ({ kind: "observed", view }));
     }
     const epoch = this.epoch;
+    if (intent.kind === "research") return this.serialize(async () => {
+      const view = await this.state(), state = view.snapshot;
+      if (!state || !view.researchOwner || view.mode !== "active" || this.stopRequested || epoch !== this.epoch) return reject("research-inactive", "Activate Legion before requesting preparatory research.");
+      if (input.evidence.generation !== null && input.evidence.generation !== view.researchOwner.generation) return reject("research-owner", "Research command generation is stale.");
+      if (state.researchHold || state.researchRequests.some(stage => stage.state.kind !== "settled")) return reject("research-stage", "An earlier research stage is unsettled. Inspect status; no duplicate dispatch.");
+      const expected = state.revision++;
+      state.researchRequests.push({ id: z.uuid().parse(input.requestKey), task: intent.task, owner: view.researchOwner, state: { kind: "requested" } });
+      try { await this.store.save(state, expected, () => epoch === this.epoch && !!this.binding && !this.stopping); }
+      catch (error) { return { kind: "uncertain", requestKey: input.requestKey, message: `Research stage persistence uncertain. Preserve the same request. ${String(error)}` }; }
+      return { kind: "research-stage", requestId: input.requestKey, message: "Bounded preparatory research request saved. Correlated model-origin preparation and native launch are still required." };
+    });
     if (intent.kind === "launch")
       return this.serialize(async () => {
         const view = await this.state();
@@ -1275,7 +1339,7 @@ export class Legion {
         return {
           kind: "observed",
           view: {
-            mode: "inactive",
+            mode: snapshot?.researchHold || snapshot?.research.some(record => !["prepared", "process-terminal"].includes(record.child.state.kind)) ? "stopping" : "inactive",
             snapshot,
             ownerObservations: claims.all,
             tasks:
@@ -1528,7 +1592,309 @@ export class Legion {
       }
     });
   }
+  private submitEffect(message: z.infer<typeof EffectMessage>): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const view = await this.state(), state = view.snapshot, binding = this.binding;
+      if (!state || !binding || this.uncertain) return reject("effect-controller", "Current effect controller is unavailable or uncertain. Preserve the same intent.");
+      if (message.kind === "centurio-owner-check") {
+        const pin = message.pin, task = view.tasks.find(task => task.id === pin.task.id), launch = task?.launch;
+        if (view.mode !== "active" || epoch !== this.epoch || this.stopping || pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || pin.epoch !== epoch)
+          return reject("centurio-controller", "The child owner is no longer the current controller. No child work admitted.");
+        if (task?.eligibility !== "admitted" || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || (launch?.kind !== "assigned" && !(message.stage === "read" && launch?.kind === "reported")))
+          return reject("centurio-assignment", "The child no longer has the current owned assignment.");
+        try {
+          if (this.approval(state, pin.task) !== pin.scope || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
+            return reject("centurio-pin", "The child task, scope, assignment, or principal incarnation changed.");
+        } catch (error) { return reject("centurio-pin", String(error)); }
+        return { kind: "centurio-owner-current", id: message.id, child: message.child };
+      }
+      if (message.kind === "effect-observation") {
+        const record = state.effects.find(effect => effect.intent.id === message.id && effect.digest === message.digest);
+        if (!record) return reject("effect-identity", "No matching retained admission for this observation.");
+        if (record.state.kind === "completed" || record.state.kind === "refused")
+          return isDeepStrictEqual(record.state, message.state) ? { kind: "effect", effect: record } : reject("effect-conflict", "Terminal observation conflicts with retained evidence.");
+        record.state = message.state;
+        const expected = state.revision++;
+        try {
+          await this.store.save(state, expected, () => binding === this.binding);
+          if (message.state.kind !== "unknown" && this.effectInvocations.delete(message.id)) this.invocations--;
+          if (this.stopping && !this.invocations) this.revoke();
+          return { kind: "effect", effect: record };
+        } catch (error) { return reject("effect-observation-unknown", `Retain the same effect observation for reconciliation. ${String(error)}`); }
+      }
+      const intent = message.intent, pin = intent.pin;
+      const existing = state.effects.find(effect => effect.intent.id === intent.id || effect.intent.pin.workerSession === pin.workerSession && effect.intent.pin.workerGeneration === pin.workerGeneration && effect.intent.call.id === intent.call.id && (effect.intent.origin?.kind === "centurio" ? effect.intent.origin.session : null) === (intent.origin?.kind === "centurio" ? intent.origin.session : null));
+      if (existing) return isDeepStrictEqual(existing.intent, intent) ? { kind: "effect", effect: existing } : reject("effect-conflict", "Call identity already belongs to a different retained intent. No retry.");
+      if (view.mode !== "active" || epoch !== this.epoch || this.stopping) return reject("effect-revoked", "No new effect admission after controller revocation.");
+      if (state.effects.some(effect => effect.intent.pin.workerSession === pin.workerSession && effect.intent.pin.workerGeneration === pin.workerGeneration && effect.state.kind === "unknown"))
+        return reject("effect-unresolved", "A prior native effect outcome is unknown. Reconcile the same identity before new work.");
+      const decision = state.engineering.find(record => record.id === intent.decision.id && record.digest === intent.decision.digest);
+      if (!decision || currentEngineering(state.engineering, pin)?.id !== decision.id || !isDeepStrictEqual(decision.pin, pin) || decision.state.kind !== "decided" || decision.state.decision.kind !== "approve" || decision.state.delivery.kind !== "applied" || decision.state.delivery.command !== intent.decision.command)
+        return reject("effect-decision", "Exact same-assignment applied seam approval is required.");
+      const seam = approvedSeam(state.engineering, decision);
+      if (!seam || decision.proposal.kind === "exception" && !isDeepStrictEqual(intent.seam, { id: seam.id, digest: seam.digest }))
+        return reject("effect-exception", "The exception must retain its exact current approved seam and behavior.");
+      if (decision.proposal.kind === "exception" && intent.call.name === "bash" && isDeepStrictEqual(intent.call.input, decision.proposal.alternative.input) && state.effects.some(effect => isDeepStrictEqual(effect.intent.pin, pin) && effect.state.kind === "outstanding"))
+        return reject("effect-verification-order", "Complete earlier admitted effects before running alternative verification.");
+      const task = view.tasks.find(task => task.id === pin.task.id), launch = task?.launch;
+      if (pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || pin.epoch !== epoch || task?.eligibility !== "admitted" || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || launch?.kind !== "assigned")
+        return reject("effect-authority", "Principal, task, reservation, or controller authority changed.");
+      try {
+        if (this.approval(state, pin.task) !== pin.scope || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
+          return reject("effect-pin", "Approval no longer addresses the exact current assignment.");
+        let effectCwd = task.claim.reservation.plan.path;
+        if (intent.origin?.kind === "centurio") {
+          const origin = intent.origin;
+          const child = readCenturio({ path: origin.intent, digest: origin.child.digest }).intent;
+          const observed = launch.worker.resources.children?.find(value => value.id === origin.child.id);
+          if (child.id !== origin.child.id || child.purpose !== "implementation" || !child.writable || !isDeepStrictEqual(child.owner, launch.worker.address) || child.assignment.command !== pin.assignment || child.assignment.value.scope !== pin.scope || child.writable.parentCwd !== effectCwd || child.cwd !== origin.cwd || child.writable.workspace.plan.branch !== origin.branch || child.writable.workspace.plan.commit !== origin.base || !observed?.evidence.includes(origin.intent) || ["unknown", "mismatch", "prepared", "process-terminal"].includes(observed.state.kind)) return reject("effect-child", "Child identity/workspace does not join this current owned assignment.");
+          if (child.writable.seam.id !== seam.id || child.writable.seam.digest !== seam.digest || !isDeepStrictEqual(child.writable.seam.proposal, seam.proposal)) return reject("effect-child-seam", "Child context does not retain the exact current approved public seam.");
+          verifyCenturioWorkspace(child.writable.workspace, child.writable.parentCwd);
+          const header = z.object({ type: z.literal("session"), id: z.string(), cwd: z.string() }).parse(JSON.parse(readFileSync(origin.journal, "utf8").split("\n")[0] ?? "null"));
+          if (header.id !== origin.session || realpathSync(header.cwd) !== origin.cwd || !intent.call.journal.startsWith(`${origin.journal}#`)) return reject("effect-child-journal", "Actual child session journal does not join its effect.");
+          effectCwd = child.cwd;
+        }
+        if (intent.contract.verification.kind !== "verified" || intent.contract.cwd !== effectCwd)
+          return reject("effect-contract", "Current selected resources and complete native loading are required.");
+        for (const resource of intent.contract.resources) {
+          let reason: "content-changed" | "canonical-target-changed" | "unavailable" | null = null;
+          try {
+            if (realpathSync(resource.path) !== resource.canonicalPath) reason = "canonical-target-changed";
+            else if (createHash("sha256").update(readFileSync(resource.path)).digest("hex") !== resource.digest) reason = "content-changed";
+          } catch { reason = "unavailable"; }
+          if (reason) return {
+            kind: "resource-invalidated", intent: { id: intent.id, digest: createHash("sha256").update(JSON.stringify(intent)).digest("hex") },
+            resource: { path: resource.path, reason }, message: "The controller observed invalid selected resource proof. Retire it and load the current contract again.",
+          };
+        }
+        const record = EffectRecord.parse({ intent, digest: createHash("sha256").update(JSON.stringify(intent)).digest("hex"), state: { kind: "outstanding" } });
+        state.effects.push(record);
+        const expected = state.revision++;
+        await this.store.save(state, expected, () => epoch === this.epoch && binding === this.binding && !this.stopping);
+        this.effectInvocations.add(intent.id);
+        this.invocations++;
+        return { kind: "effect", effect: record };
+      } catch (error) {
+        this.uncertain = { id: state.id, requestKey: intent.id };
+        this.revoke();
+        return { kind: "uncertain", requestKey: intent.id, message: `Admission outcome is uncertain. Preserve and reconcile the same identity. ${String(error)}` };
+      }
+    });
+  }
+  private observeEngineering(observation: z.infer<typeof EngineeringObservation>): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const view = await this.state(), binding = this.binding;
+      const state = view.snapshot, evidence = observation.evidence;
+      const record = state?.engineering.find(record => record.id === observation.request.id && record.digest === observation.request.digest);
+      if (!state || !binding || view.mode !== "active" || epoch !== this.epoch) return reject("inactive", "Engineering observation retained at the worker. Resume the controller to reconcile it.");
+      if (!record || record.state.kind !== "decided" || record.state.delivery.command !== observation.delivery.command) return reject("engineering-request", "Observation does not address a committed decision.");
+      const pin = record.pin;
+      if (evidence.owner !== pin.owner || evidence.session !== pin.session || evidence.generation !== pin.generation || evidence.epoch !== pin.epoch || evidence.assignment !== pin.assignment || evidence.reservation !== pin.reservation || evidence.scope !== pin.scope || JSON.stringify(evidence.task) !== JSON.stringify(pin.task) || createHash("sha256").update(JSON.stringify(evidence.address)).digest("hex") !== pin.addressDigest)
+        return reject("engineering-pin", "Observation does not address the pinned worker proposal.");
+      const result: CommittedResult = { kind: "applied", receipt: { legatus: state.id, requestKey: observation.delivery.command, sequence: state.receipts.length, message: "Retained worker delivery and continuation evidence. No effect admitted." } };
+      const rank = { pending: 0, dispatched: 1, applied: 2 };
+      if (record.state.delivery.kind === "applied") {
+        const prior = record.state.delivery;
+        if (rank[observation.delivery.continuation.kind] < rank[prior.continuation.kind]) return result;
+        if (rank[observation.delivery.continuation.kind] === rank[prior.continuation.kind])
+          return JSON.stringify(prior) === JSON.stringify(observation.delivery) ? result : reject("engineering-delivery", "Conflicting worker delivery evidence. Preserve both records.");
+      }
+      record.state.delivery = observation.delivery;
+      const expected = state.revision++;
+      try {
+        await this.store.save(state, expected, () => epoch === this.epoch && binding === this.binding && !this.stopping);
+        return result;
+      } catch (error) { return reject("engineering-observation-unknown", `Worker evidence publication is unresolved. Preserve it for reconciliation. ${String(error)}`); }
+    });
+  }
+  private deliverEngineering(id: string): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const view = await this.state();
+      const state = view.snapshot, binding = this.binding;
+      const record = state?.engineering.find(record => record.id === id);
+      const host = this.options.tribuni?.host();
+      if (!state || !binding || view.mode !== "active" || epoch !== this.epoch)
+        return reject("inactive", "Engineering delivery requires current controller authority.");
+      if (!record || record.state.kind !== "decided" || currentEngineering(state.engineering, record.pin)?.id !== record.id) return reject("engineering-request", "No current decided engineering request.");
+      const pin = record.pin, task = view.tasks.find(task => task.id === pin.task.id), launch = task?.launch;
+      if (pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || pin.epoch !== epoch || task?.eligibility !== "admitted" || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || (launch?.kind !== "assigned" && launch?.kind !== "reported"))
+        return reject("engineering-pin", "The decision no longer addresses the current owned assignment and controller.");
+      try {
+        if (this.approval(state, pin.task) !== pin.scope || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
+          return reject("engineering-pin", "The task, scope, or worker changed before delivery.");
+        if (!host?.deliverEngineering) return reject("engineering-transport", "The addressed engineering transport is unavailable. Decision retained.");
+        const receipt = EngineeringDeliveryReceipt.parse(await host.deliverEngineering({ worker: launch.worker, record }));
+        if (receipt.command !== record.state.delivery.command) return reject("engineering-delivery", "Delivery receipt does not match the retained decision command.");
+        if (epoch !== this.epoch || binding !== this.binding || this.stopping) return reject("revoked", "Delivery authority changed. Preserve the worker receipt for reconciliation.");
+        record.state.delivery = receipt;
+        const expected = state.revision++;
+        await this.store.save(state, expected, () => epoch === this.epoch && binding === this.binding && !this.stopping);
+        return { kind: "applied", receipt: { legatus: state.id, requestKey: receipt.command, sequence: state.receipts.length,
+          message: "Worker retained the engineering decision. Continuation is separately observed. No effect admitted." } };
+      } catch (error) {
+        return reject("engineering-delivery-unknown", `Engineering delivery is unresolved. Preserve the same command and decision. ${String(error)}`);
+      }
+    });
+  }
+  private submitEngineering(message: z.infer<typeof EngineeringInput>): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const view = await this.state();
+      const state = view.snapshot;
+      if (!state || view.unavailable) return reject("unavailable", "Engineering authority records are unavailable.");
+      const fingerprint = createHash("sha256").update(JSON.stringify(message)).digest("hex");
+      const retained = state.receipts.find(r => r.result.receipt.requestKey === message.requestKey);
+      if (retained) return retained.fingerprint === fingerprint ? retained.result : reject("request-conflict", "Request key has a different payload.");
+      if (this.uncertain) return reject("reconcile", `Reconcile request ${this.uncertain.requestKey} before engineering work.`);
+      const binding = this.binding;
+      const evidence = message.evidence;
+      if (!binding || view.mode !== "active" || epoch !== this.epoch) return reject("inactive", "Legion is inactive. No engineering authority granted.");
+      if (message.kind === "engineering-decision" && state.engineering.some(r => r.id === message.request.id && r.digest === message.request.digest && r.pin.workerSession === evidence.session))
+        return reject("engineering-self-approval", "A worker cannot approve its own engineering proposal.");
+      if (evidence.owner !== state.id || evidence.session !== this.options.session || evidence.generation !== binding.generation || evidence.epoch !== epoch)
+        return reject("engineering-owner", "Engineering request does not address the current Legatus generation and epoch.");
+      const request = message.kind === "engineering-decision" ? state.engineering.find(r => r.id === message.request.id && r.digest === message.request.digest) : null;
+      if (message.kind === "engineering-decision" && (!request || request.state.kind !== "open" || !message.evidence.requests.some(r => r.id === request.id && r.digest === request.digest)))
+        return reject("engineering-request", "The exact open engineering proposal is required in this Legatus decision turn.");
+      const pin = message.kind === "engineering-request" ? {
+        owner: state.id, session: message.evidence.session, generation: message.evidence.generation, epoch: message.evidence.epoch,
+        task: message.evidence.task, scope: message.evidence.scope, reservation: message.evidence.reservation, assignment: message.evidence.assignment,
+        launch: message.evidence.address.launch, workerSession: message.evidence.address.session, workerGeneration: message.evidence.address.generation,
+        addressDigest: createHash("sha256").update(JSON.stringify(message.evidence.address)).digest("hex"),
+      } : request?.pin;
+      if (!pin || pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || pin.epoch !== epoch)
+        return reject("engineering-pin", "The engineering proposal belongs to a prior controller authority.");
+      const task = view.tasks.find(t => t.id === pin.task.id);
+      const launch = task?.launch;
+      if (task?.eligibility !== "admitted" || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || launch?.kind !== "assigned")
+        return reject("engineering-assignment", "Engineering requires the current owned ready assignment.");
+      try {
+        if (this.approval(state, pin.task) !== pin.scope || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
+          return reject("engineering-pin", "Task scope, assignment, or worker incarnation changed. No engineering authority granted.");
+      } catch (error) { return reject("engineering-pin", String(error)); }
+      const latest = currentEngineering(state.engineering, pin);
+      if (message.kind === "engineering-decision" && latest?.id !== request?.id)
+        return reject("engineering-superseded", "A newer proposal retired this decision authority.");
+      if (message.kind === "engineering-request") {
+        if (latest ? latest.state.kind !== "decided" || latest.state.delivery.kind !== "applied" || !isDeepStrictEqual(message.previous, { id: latest.id, digest: latest.digest }) : message.previous !== undefined)
+          return reject("engineering-predecessor", "A successive request must name the exact latest delivered proposal. Preserve pending work.");
+        if (state.effects.some(effect => isDeepStrictEqual(effect.intent.pin, pin) && (effect.state.kind === "outstanding" || effect.state.kind === "unknown")))
+          return reject("engineering-effects", "Resolve admitted effects before proposing another engineering contract.");
+        if (message.proposal.kind === "exception") {
+          const proposal = message.proposal;
+          const seam = state.engineering.find(record => record.id === proposal.seam.id && record.digest === proposal.seam.digest && isDeepStrictEqual(record.pin, pin));
+          if (!seam || !approvedSeam(state.engineering, { ...seam, proposal }))
+            return reject("engineering-exception", "An exception requires one behavior of the exact current approved and delivered seam in this assignment.");
+        }
+        state.engineering.push(EngineeringRecord.parse({
+          id: message.requestKey, pin, proposal: message.proposal, ...(message.previous ? { previous: message.previous } : {}),
+          digest: createHash("sha256").update(JSON.stringify({ pin, proposal: message.proposal, ...(message.previous ? { previous: message.previous } : {}) })).digest("hex"),
+          requestEvidence: message.evidence.journal, state: { kind: "open" },
+        }));
+      } else {
+        if (!request || message.evidence.session === pin.workerSession) return reject("engineering-self-approval", "A worker cannot approve its own engineering proposal.");
+        request.state = {
+          kind: "decided", decision: message.decision,
+          by: { session: message.evidence.session, generation: message.evidence.generation, run: message.evidence.run },
+          delivery: { kind: "pending", command: message.requestKey },
+        };
+      }
+      const result: CommittedResult = { kind: "applied", receipt: {
+        legatus: state.id, requestKey: message.requestKey, sequence: state.receipts.length + 1,
+        message: message.kind === "engineering-request" ? "Saved engineering proposal. Tests and implementation remain unauthorized." : "Saved Legatus engineering decision and pending worker delivery. No new effect admitted.",
+      } };
+      state.receipts.push({ fingerprint, result });
+      const expected = state.revision++;
+      try {
+        await this.store.save(state, expected, () => this.epoch === epoch && this.binding === binding && !this.stopping);
+        return result;
+      } catch (error) {
+        this.uncertain = { id: state.id, requestKey: message.requestKey };
+        this.revoke();
+        return { kind: "uncertain", requestKey: message.requestKey, message: `Engineering publication is uncertain. Reconcile the same request before another effect. ${String(error)}` };
+      }
+    });
+  }
+  private submitResearch(message: z.infer<typeof ResearchRequest> | z.infer<typeof ResearchObservation> | z.infer<typeof ResearchCheck> | z.infer<typeof ResearchStageEvent> | { kind: "research-hold"; owner: z.infer<typeof ResearchOwner>; reason: string }): Promise<OperationResult> {
+    return this.serialize(async () => {
+      const state = this.selected ? await this.store.read(this.selected) : null;
+      const binding = this.binding;
+      const owner = message.owner;
+      if (!state || !binding || owner.owner !== state.id || owner.session !== this.options.session || owner.generation !== binding.generation || owner.epoch !== this.epoch)
+        return reject("research-owner", "Research requires the exact current Legatus session, generation and authority epoch. Retained children cannot be adopted.");
+      const expected = state.revision++;
+      const current = () => this.binding === binding && this.epoch === owner.epoch;
+      try {
+        if (message.kind === "research-dispatch" || message.kind === "research-settled") {
+          const stage = state.researchRequests.find(stage => stage.id === message.id && isDeepStrictEqual(stage.owner, owner));
+          if (!stage || message.kind === "research-dispatch" && (stage.state.kind !== "requested" || this.stopping || this.stopRequested) || message.kind === "research-settled" && (stage.state.kind === "requested" || stage.state.marker !== message.marker)) return reject("research-stage", "Research stage marker is absent, stale or already dispatched.");
+          stage.state = message.kind === "research-dispatch" ? { kind: "dispatched", marker: message.marker } : { kind: "settled", marker: message.marker };
+          await this.store.save(state, expected, current);
+          return { kind: "research-observed" };
+        }
+        if (message.kind === "research") {
+          const stage = state.researchRequests.find(stage => stage.id === message.requestKey && isDeepStrictEqual(stage.owner, owner) && stage.task === message.task && stage.state.kind === "dispatched");
+          if (!stage || stage.state.kind !== "dispatched") return reject("research-stage", "Model preparation must match the exact saved dispatched research task and owner.");
+          if (this.stopping || this.stopRequested || state.researchHold || state.research.some(record => !isDeepStrictEqual(record.owner, owner) && !["prepared", "process-terminal"].includes(record.child.state.kind) || ["unknown", "mismatch", "launch-unresolved", "corroboration-pending"].includes(record.child.state.kind)))
+            return reject("research-held", "Research is stopping or retained child ownership/lifecycle is unresolved. No new preparation.");
+          if (!this.options.research) return reject("research-runtime", "Owned native research runtime is unavailable.");
+          if (state.research.some(record => record.id === message.requestKey)) return reject("research-duplicate", "This research request already exists. Inspect its retained intent; do not relaunch.");
+          const record = ResearchRecord.parse(await this.options.research.prepare(message, owner));
+          if (!current() || this.stopping || record.id !== message.requestKey || !isDeepStrictEqual(record.owner, owner) || record.task !== message.task || record.child.id !== record.id || record.child.purpose !== "exploration" || record.child.state.kind !== "prepared")
+            return reject("research-preparation", "Research preparation changed authority or returned a contradictory intent. Preserve its evidence.");
+          state.research.push(record);
+          stage.state = { kind: "prepared", marker: stage.state.marker };
+          await this.store.save(state, expected, current);
+          return { kind: "research-prepared", research: record };
+        }
+        if (message.kind === "research-hold") {
+          state.researchHold ??= message.reason;
+        } else if (message.kind === "research-owner-check") {
+          const record = state.research.find(record => record.id === message.id);
+          if (!record || record.intent.digest !== message.digest || !isDeepStrictEqual(record.owner, owner) || state.researchHold)
+            return reject("research-intent", "No exact unheld durable owned research intent.");
+          if (message.stage === "read") {
+            if (["prepared", "process-terminal", "unknown", "mismatch"].includes(record.child.state.kind)) return reject("research-state", "This research child is not authorized for further work.");
+            return { kind: "research-current", owner };
+          }
+          if (this.stopping || this.stopRequested || record.child.state.kind !== "prepared" || !state.researchRequests.some(stage => stage.id === record.id && stage.state.kind === "prepared")) return reject("research-launch", "No fresh research launch after stopping or admission.");
+          record.child.state = { kind: "launch-unresolved" };
+        } else {
+          if (!state.research.some(record => record.id === message.command)) return reject("research-command", "Observation does not address an owned research command.");
+          for (const child of message.children) {
+            const record = state.research.find(record => record.id === child.id);
+            if (!record || !isDeepStrictEqual(record.owner, owner) || record.child.model !== child.model || child.purpose !== "exploration") return reject("research-observation", "Observation contains an unowned or contradictory child.");
+            if (message.sequence <= record.sequence) continue;
+            // An earlier prepared projection must never reopen a launched intent.
+            if (child.state.kind !== "prepared" || record.child.state.kind === "prepared") {
+              if (!["unknown", "mismatch", "process-terminal"].includes(record.child.state.kind)) record.child = child;
+            }
+            record.sequence = message.sequence;
+          }
+        }
+        this.researchPending = !!state.researchHold || state.research.some(record => !["prepared", "process-terminal"].includes(record.child.state.kind));
+        await this.store.save(state, expected, current);
+        if (this.stopping && !this.researchPending && !this.invocations) this.revoke();
+        return message.kind === "research-owner-check" ? { kind: "research-current", owner } : { kind: "research-observed" };
+      } catch (error) {
+        this.researchPending = true;
+        this.stopping = true;
+        return { kind: "uncertain", requestKey: "requestKey" in message ? message.requestKey : "research", message: `Research persistence/effect outcome is unresolved. Preserve owned evidence; no replacement. ${String(error)}` };
+      }
+    });
+  }
   submit(raw: unknown): Promise<OperationResult> {
+    const research = z.union([ResearchRequest, ResearchObservation, ResearchCheck, ResearchStageEvent, z.strictObject({ kind: z.literal("research-hold"), owner: ResearchOwner, reason: z.string().min(1) })]).safeParse(raw);
+    if (research.success) return this.submitResearch(research.data);
+    const effect = EffectMessage.safeParse(raw);
+    if (effect.success) return this.submitEffect(effect.data);
+    const observation = EngineeringObservation.safeParse(raw);
+    if (observation.success) return this.observeEngineering(observation.data);
+    const engineering = EngineeringInput.safeParse(raw);
+    if (engineering.success) return this.submitEngineering(engineering.data);
     const input = z.union([Message, Interpretation]).safeParse(raw);
     if (!input.success)
       return Promise.resolve(reject("invalid", "Invalid submission."));

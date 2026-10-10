@@ -1,3 +1,5 @@
+import { ResearchRecord, ResearchStage } from "./owned-children.js";
+import { ContractEvidence } from "./engineering-contract.js";
 import {
   mkdirSync,
   existsSync,
@@ -102,6 +104,97 @@ export const LaunchRequest = z.object({
   generation: z.int().positive(), epoch: z.int().nonnegative(),
   repository: z.string(), repositoryId: z.uuid(), attempt: z.uuid().nullable().default(null),
 });
+export const EngineeringRef = z.strictObject({ id: z.uuid(), digest: z.string() });
+export const EngineeringProposal = z.discriminatedUnion("kind", [z.strictObject({
+  kind: z.literal("seam"),
+  seam: z.string().trim().min(1),
+  behaviors: z.array(z.string().trim().min(1)).min(1),
+  verification: z.string().trim().min(1),
+}), z.strictObject({
+  kind: z.literal("exception"), seam: EngineeringRef, behavior: z.string().trim().min(1),
+  omittedTest: z.string().trim().min(1), rationale: z.string().trim().min(1),
+  alternative: z.strictObject({ description: z.string().trim().min(1), input: z.strictObject({ command: z.string().trim().min(1), timeout: z.number().positive().optional() }) }),
+})]);
+export const EngineeringDecision = z.object({
+  kind: z.enum(["approve", "decline", "escalate"]), rationale: z.string().trim().min(1),
+}).strict();
+export const EngineeringDeliveryReceipt = z.strictObject({
+  kind: z.literal("applied"), command: z.uuid(), evidence: z.string().min(1),
+  continuation: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("pending") }),
+    z.strictObject({ kind: z.literal("dispatched"), evidence: z.string().min(1) }),
+    z.strictObject({ kind: z.literal("applied"), evidence: z.string().min(1) }),
+  ]),
+});
+export const EngineeringRecord = z.strictObject({
+  id: z.uuid(),
+  pin: z.strictObject({
+    owner: LegatusId, session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative(),
+    task: TaskRef.strict(), scope: z.string(), reservation: z.uuid(), assignment: z.uuid(),
+    launch: z.uuid(), workerSession: z.string(), workerGeneration: z.uuid(), addressDigest: z.string(),
+  }),
+  proposal: EngineeringProposal,
+  previous: EngineeringRef.optional(),
+  digest: z.string(),
+  requestEvidence: z.string().min(1),
+  state: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("open") }),
+    z.strictObject({
+      kind: z.literal("decided"), decision: EngineeringDecision,
+      by: z.strictObject({ session: z.string(), generation: z.int().positive(), run: z.string().min(1) }),
+      delivery: z.union([z.strictObject({ kind: z.literal("pending"), command: z.uuid() }), EngineeringDeliveryReceipt]),
+    }),
+  ]),
+});
+export const EffectIntent = z.strictObject({
+  id: z.uuid(), pin: EngineeringRecord.shape.pin,
+  decision: z.strictObject({ id: z.uuid(), digest: z.string(), command: z.uuid() }),
+  seam: EngineeringRef.optional(),
+  call: z.strictObject({ id: z.string().min(1), name: z.enum(["bash", "write", "edit"]), rawInput: z.json().optional(), input: z.json(), journal: z.string().min(1) }),
+  contract: ContractEvidence,
+  origin: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("workspace-preparation"), child: z.uuid(), rootCall: z.string(), journal: z.string() }),
+    z.strictObject({ kind: z.literal("centurio"), child: EngineeringRef, intent: z.string(), run: z.string(), session: z.string(), journal: z.string(), cwd: z.string(), branch: z.string(), base: z.string() }),
+  ]).optional(),
+});
+export const EffectOutcome = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("refused"), evidence: z.string().min(1), reason: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("completed"), evidence: z.string().min(1), isError: z.boolean(), exitCode: z.int().optional() }),
+  z.strictObject({ kind: z.literal("unknown"), evidence: z.string().min(1), reason: z.string().min(1) }),
+]);
+export const EffectRecord = z.strictObject({
+  intent: EffectIntent, digest: z.string(),
+  state: z.union([z.strictObject({ kind: z.literal("outstanding") }), EffectOutcome]),
+});
+export const EngineeringEvidence = z.strictObject({
+  decision: EngineeringRef, seam: EngineeringRef, effects: z.array(EngineeringRef),
+  alternative: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("not-required") }),
+    z.strictObject({ kind: z.literal("unverified"), reason: z.string().min(1) }),
+    z.strictObject({ kind: z.literal("verified"), effect: EngineeringRef, evidence: z.string().min(1), exitCode: z.literal(0) }),
+  ]),
+});
+export const EngineeringResult = EngineeringEvidence.extend({ priorExceptions: z.array(EngineeringEvidence) });
+export const CenturioOwnerCheck = z.strictObject({
+  kind: z.literal("centurio-owner-check"), id: z.uuid(), pin: EngineeringRecord.shape.pin,
+  child: EngineeringRef, stage: z.enum(["launch", "read"]),
+});
+export const EffectMessage = z.discriminatedUnion("kind", [
+  CenturioOwnerCheck,
+  z.strictObject({ kind: z.literal("effect-admission"), intent: EffectIntent.extend({ call: EffectIntent.shape.call.required({ rawInput: true }) }) }),
+  z.strictObject({ kind: z.literal("effect-observation"), id: z.uuid(), digest: z.string(), state: EffectOutcome }),
+]);
+export const EffectReply = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("centurio-owner-current"), id: z.uuid(), child: EngineeringRef }),
+  z.strictObject({ kind: z.literal("effect"), effect: EffectRecord }),
+  z.strictObject({
+    kind: z.literal("resource-invalidated"), intent: z.strictObject({ id: z.uuid(), digest: z.string() }),
+    resource: z.strictObject({ path: z.string(), reason: z.enum(["content-changed", "canonical-target-changed", "unavailable"]) }),
+    message: z.string(),
+  }),
+  z.strictObject({ kind: z.literal("rejected"), code: z.string(), message: z.string() }),
+  z.strictObject({ kind: z.literal("uncertain"), requestKey: z.string(), message: z.string() }),
+]);
 export const SnapshotSchema = z.object({
   version: z.literal(1),
   id: LegatusId,
@@ -111,6 +204,11 @@ export const SnapshotSchema = z.object({
   attachments: z.array(z.object({ session: z.string(), generation: z.int() })),
   workspaceRequests: z.array(WorkspaceRequest).default([]),
   launchRequests: z.array(LaunchRequest).default([]),
+  researchRequests: z.array(ResearchStage).default([]),
+  research: z.array(ResearchRecord).default([]),
+  researchHold: z.string().nullable().default(null),
+  engineering: z.array(EngineeringRecord).default([]),
+  effects: z.array(EffectRecord).default([]),
   submissions: z.array(
     z.object({
       id: SubmissionId,

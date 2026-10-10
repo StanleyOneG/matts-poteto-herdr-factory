@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { ContractEvidence } from "./engineering-contract.js";
 import { createHash } from "node:crypto";
-import { TaskRef } from "./snapshot.js";
+import { TaskRef, LegatusId, EngineeringProposal, EngineeringResult, EngineeringRef, EngineeringRecord, EngineeringDeliveryReceipt, EffectMessage, EffectReply } from "./snapshot.js";
 export const LaunchId = z.uuid().brand<"LaunchId">();
 export const WindowIdentity = z.object({
   endpoint: z.string(), server: z.string(), workspace: z.string(), tab: z.string(), pane: z.string(), terminal: z.string(),
@@ -8,7 +9,11 @@ export const WindowIdentity = z.object({
 export const WorkerAddress = z.object({
   launch: LaunchId, window: WindowIdentity, session: z.string(), generation: z.uuid(),
 });
+import { CenturioView } from "./owned-children.js";
+export { CenturioView } from "./owned-children.js";
+export const CenturioObservation = z.strictObject({ address: WorkerAddress, command: z.uuid(), sequence: z.int().positive(), children: z.array(CenturioView) });
 export const ResourceEvidence = z.object({
+  contract: ContractEvidence.optional(), children: z.array(CenturioView).optional(),
   cwd: z.string(), skills: z.array(z.object({
     name: z.string(), path: z.string()
   })),
@@ -58,7 +63,7 @@ const Progress = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("reported"), worker: VerifiedWorker, initialization: Initialization, command: z.uuid(), assignment: BoundedAssignment, application: z.string(), report: z.object({
-      outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string(), evidence: z.array(z.string())
+      engineering: EngineeringResult.optional(), contract: ContractEvidence.optional(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string(), evidence: z.array(z.string())
     })
   }),
 ]);
@@ -90,7 +95,7 @@ type Projected<T> = T extends {
 function projectProgress(state: ProgressState): Projected<ProgressState> {
   const worker = "worker" in state ? {
     ...state.worker, resources: {
-      ...state.worker.resources, skills: state.worker.resources.skills.filter((s) => ["herdr", "poteto-mode", "matt-tdd", "implement", "code-review"].includes(s.name))
+      ...state.worker.resources, skills: state.worker.resources.skills.filter((s) => ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "tdd", "teach", "implement", "code-review"].includes(s.name))
     }
   } : null;
   if ("initialization" in state) {
@@ -121,14 +126,38 @@ export type LaunchView = (ReturnType<typeof projectLaunch> & {
 export type LaunchResult = Omit<LaunchRecord, "state"> & {
   state: ReturnType<typeof projectLaunch>;
 };
-export const WorkerReport = z.object({
-  address: WorkerAddress, command: z.uuid(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string().max(4000), evidence: z.array(z.string())
+export const ContractObservation = z.object({
+  address: WorkerAddress, command: z.uuid(), sequence: z.int().positive(), contract: ContractEvidence,
 });
+export const WorkerReport = z.object({
+  address: WorkerAddress, command: z.uuid(), engineering: EngineeringResult.optional(), contract: ContractEvidence.optional(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string().max(4000), evidence: z.array(z.string())
+});
+export const EngineeringRequest = z.object({
+  kind: z.literal("engineering-request"), requestKey: z.uuid(), proposal: EngineeringProposal, previous: EngineeringRef.optional(),
+  evidence: z.object({
+    kind: z.literal("tribunus"), owner: LegatusId, session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative(),
+    address: WorkerAddress, assignment: z.uuid(), reservation: z.uuid(), task: TaskRef, scope: z.string(), journal: z.string().min(1),
+  }).strict(),
+}).strict();
+export const EngineeringObservation = z.strictObject({
+  kind: z.literal("engineering-observation"),
+  request: z.strictObject({ id: z.uuid(), digest: z.string() }),
+  delivery: EngineeringDeliveryReceipt,
+  evidence: EngineeringRequest.shape.evidence,
+});
+export const EngineeringPublication = z.discriminatedUnion("kind", [EngineeringRequest, EngineeringObservation]);
 export type TribunusHost = {
+  watchEffects?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onMessage: (message: z.infer<typeof EffectMessage>) => Promise<z.infer<typeof EffectReply>>, onUnavailable: (message: string) => void): void;
+  deliverEngineering?(input: {
+    worker: z.infer<typeof VerifiedWorker>; record: z.infer<typeof EngineeringRecord>;
+  }): Promise<z.infer<typeof EngineeringDeliveryReceipt>>;
+  watchEngineering?(input: {
+    worker: z.infer<typeof VerifiedWorker>; command: string;
+  }, onRequest: (request: z.infer<typeof EngineeringPublication>) => Promise<void>, onUnavailable: (message: string) => Promise<void>): void;
   watchReports?(input: {
     worker: z.infer<typeof VerifiedWorker>;
     command: string;
-  }, onReport: (report: z.infer<typeof WorkerReport>) => Promise<void>, onUnavailable: (message: string) => Promise<void>): void;
+  }, onReport: (report: z.infer<typeof WorkerReport>) => Promise<void>, onUnavailable: (message: string) => Promise<void>, onContract?: (observation: z.infer<typeof ContractObservation>) => Promise<void>, onChildren?: (observation: z.infer<typeof CenturioObservation>) => Promise<void>): void;
   createWindow(input: {
     launch: LaunchRecord;
     cwd: string;

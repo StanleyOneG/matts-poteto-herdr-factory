@@ -91,3 +91,7 @@ Use the five default triage labels. Before triaging, read `docs/agents/triage-la
 ### Domain docs
 
 Use a single-context layout. Before exploring the codebase, read `docs/agents/domain.md`.
+
+### Legion development
+
+Before implementing or resuming development of Legion, or opening or closing its development/test Herdr tabs, read `docs/agents/legion-engineering-policy.md`. Its tab-cleanup rule applies to the coordinator and all subagents.
