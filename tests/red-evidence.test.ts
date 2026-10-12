@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -31,9 +31,42 @@ test("red evidence records the declared assertion before execution and rejects n
   assert.equal(spawnSync(process.execPath, [checker, "check", declaration, unrelated]).status, 1);
 });
 
-test("the known Slice 06 setup failure is not classified as delivery behavior evidence", () => {
-  const result = spawnSync(process.execPath, [checker, "check", "docs/verification/t04-owned-centuriones/checks/16-delivery-mutation-declaration.json", "docs/verification/t04-owned-centuriones/checks/06-delivery-red.txt"], { encoding: "utf8" });
+test("retrospective delivery evidence rejects a setup failure even when the declared assertion matches", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "legion-delivery-red-evidence-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const declaration = join(root, "declaration.json"), output = join(root, "red.txt");
+  writeFileSync(declaration, JSON.stringify({ scenario: "delivery retains exactly one report", assertion: "BEHAVIOR exactly one retained delivery report" }));
+  const setupFailure = `TAP version 13
+# Subtest: delivery retains exactly one report
+not ok 1 - delivery retains exactly one report
+  ---
+  duration_ms: 1
+  failureType: 'testCodeFailure'
+  error: 'setup failed: BEHAVIOR exactly one retained delivery report'
+  code: 'ERR_ASSERTION'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+`;
+  writeFileSync(output, setupFailure);
+  const result = spawnSync(process.execPath, [checker, "check", declaration, output], { encoding: "utf8" });
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stdout, /REJECTED_RED/);
   assert.match(result.stdout, /retrospective-output-check/);
+  assert.equal(result.stderr, "");
+
+  writeFileSync(output, setupFailure.replace("setup failed: ", ""));
+  const behavioral = spawnSync(process.execPath, [checker, "check", declaration, output], { encoding: "utf8" });
+  assert.equal(behavioral.status, 0, behavioral.stdout + behavioral.stderr);
+  assert.match(behavioral.stdout, /EXPECTED_ASSERTION_RED/);
+  assert.match(behavioral.stdout, /retrospective-output-check/);
 });
