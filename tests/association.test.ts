@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fork, type ChildProcess } from "node:child_process";
+import { execFileSync, fork, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
@@ -38,6 +38,94 @@ async function send(child: ChildProcess, text: string, requestKey: string) {
   child.send({ text, requestKey });
   return result;
 }
+async function checkout(t: { after: (cleanup: () => Promise<void>) => void }) {
+  const directory = await mkdtemp(join(tmpdir(), "legion-checkout-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const context = join(directory, "repo");
+  execFileSync("git", ["init", "--quiet", context]);
+  execFileSync("git", ["-C", context, "-c", "user.name=Legion Test", "-c", "user.email=legion@example.invalid", "commit", "--quiet", "--allow-empty", "-m", "Fixture"]);
+  return { directory, context, storagePath: join(directory, "state") };
+}
+test("association: different sessions competing on and task in one checkout cannot both activate", { timeout: 20000 }, async t => {
+  const { storagePath, context } = await checkout(t);
+  const subjects = [worker(storagePath, context, "session-a", "on", "activate"), worker(storagePath, context, "session-b", "task Bounded task", "task")];
+  try {
+    const results = await start(subjects);
+    assert.equal(results.filter(r => r.state.mode === "active").length, 1, "One checkout permits only one active Legatus across sessions");
+    const winner = results.findIndex(r => r.state.mode === "active");
+    const loser = 1 - winner;
+    assert.equal(results[loser]?.result.kind, "rejected");
+    assert.equal(results[loser]?.state.snapshot, null, "A denied session must not publish its own history");
+    const owner = subjects[winner], candidate = subjects[loser];
+    assert.ok(owner && candidate);
+    const history = results[winner]?.state.snapshot;
+    assert.ok(history);
+    assert.equal((await send(owner.child, "off", "release")).state.mode, "inactive");
+    const next = await send(candidate.child, "task Own new history", "retry");
+    assert.equal(next.result.kind, "saved");
+    assert.equal(next.state.mode, "active");
+    assert.notEqual(next.state.snapshot?.id, history.id, "Different sessions retain separate routes/history");
+    assert.equal(next.state.snapshot?.submissions[0]?.text, "Own new history");
+    await send(candidate.child, "off", "off");
+  } finally { await Promise.all(subjects.map(s => stop(s.child))); }
+});
+test("association: checkout root, nested cwd and symlink share exclusion but a linked worktree is independent", async t => {
+  const { directory, context, storagePath } = await checkout(t);
+  const nested = join(context, "nested"), alias = join(directory, "alias"), linked = join(directory, "linked");
+  await mkdir(nested);
+  await symlink(context, alias, "dir");
+  execFileSync("git", ["-C", context, "worktree", "add", "--quiet", "-b", "independent", linked]);
+  const options = { storagePath, context, session: "root-session", preflight: async () => [] };
+  const owner = new Legion(options);
+  const subjects = [{ subject: owner, session: options.session }];
+  try {
+    assert.equal((await command(owner, options.session, "on", "owner")).kind, "applied");
+    for (const cwd of [nested, alias, join(alias, "nested")]) {
+      const candidate = new Legion({ ...options, context: cwd, session: "other-session" });
+      subjects.push({ subject: candidate, session: "other-session" });
+      assert.equal((await command(candidate, "other-session", "task Must not overlap", "contend")).kind, "rejected", `Alias/nested cwd ${cwd} cannot evade checkout ownership`);
+      assert.equal((await candidate.state()).mode, "inactive");
+      assert.equal((await candidate.state()).snapshot, null);
+    }
+    const independent = new Legion({ ...options, context: linked, session: "independent-session" });
+    subjects.push({ subject: independent, session: "independent-session" });
+    assert.equal((await command(independent, "independent-session", "on", "independent")).kind, "applied");
+    assert.equal((await independent.state()).mode, "active");
+    assert.equal((await owner.state()).mode, "active");
+    const original = (await owner.state()).snapshot;
+    assert.ok(original);
+    assert.notEqual((await independent.state()).snapshot?.id, original.id);
+    await command(owner, options.session, "off", "release-root");
+    const nestedSession = subjects[1];
+    assert.ok(nestedSession);
+    assert.equal((await command(nestedSession.subject, nestedSession.session, "on", "nested-after-off")).kind, "applied");
+    assert.equal((await nestedSession.subject.state()).snapshot?.context, nested, "Exclusion canonicalization must not rewrite saved route identity");
+    await command(nestedSession.subject, nestedSession.session, "off", "release-nested");
+    assert.equal((await command(owner, options.session, "on", "restore-root")).kind, "applied");
+    assert.equal((await owner.state()).snapshot?.id, original.id);
+    assert.equal((await owner.state()).snapshot?.context, context);
+  } finally {
+    await Promise.all(subjects.map(({ subject, session }) => command(subject, session, "off", "cleanup")));
+  }
+});
+test("association: malformed Git markers and unresolved cwd aliases fail visibly without activating", async t => {
+  const { directory, context, storagePath } = await checkout(t);
+  const malformed = join(context, "malformed"), dangling = join(directory, "dangling");
+  await mkdir(malformed);
+  await writeFile(join(malformed, ".git"), "not a gitdir identity\n");
+  await symlink(join(directory, "absent"), dangling, "dir");
+  for (const cwd of [malformed, dangling, join(context, "missing")]) {
+    const subject = new Legion({ storagePath, context: cwd, session: "unresolved", preflight: async () => [] });
+    const result = await command(subject, "unresolved", "task Cannot authorize work", "unresolved");
+    assert.equal(result.kind, "rejected");
+    if (result.kind === "rejected") {
+      assert.equal(result.code, "ownership");
+      assert.match(result.message, /Exclusive checkout ownership is unavailable/);
+    }
+    assert.equal((await subject.state()).mode, "inactive");
+    assert.equal((await subject.state()).snapshot, null);
+  }
+});
 for (const text of ["on", "  Exact original task\n"]) {
   test(`cross-process first ${JSON.stringify(text)} has one association and no competing owner`, { timeout: 20000 }, async () => {
     for (let round = 0; round < 4; round++) {
@@ -76,21 +164,23 @@ for (const text of ["on", "  Exact original task\n"]) {
     }
   });
 }
-test("cross-process activation versus resume of a different ID has one lifetime association owner", { timeout: 20000 }, async () => {
+test("association: cross-process on versus resume in different sessions has one lifetime checkout owner", { timeout: 20000 }, async t => {
   for (let round = 0; round < 4; round++) {
-    const root = await mkdtemp(join(tmpdir(), "legion-association-resume-"));
-    const context = "/resume/repo";
+    const { storagePath: root, context } = await checkout(t);
     const original = new Legion({ storagePath: root, context, session: "original-session", preflight: async () => [] });
     assert.equal((await command(original, "original-session", "Original acknowledged history", "original")).kind, "saved");
     const id = (await original.state()).snapshot?.id;
     assert.ok(id);
     await command(original, "original-session", "off", "original-off");
-    const session = "shared-target-session";
-    const subjects = [worker(root, context, session, "on", "activate"), worker(root, context, session, `resume ${id}`, "resume")];
+    const sessions = ["activation-session", "resume-session"];
+    const subjects = [worker(root, context, "activation-session", "on", "activate"), worker(root, context, "resume-session", `resume ${id}`, "resume")];
     try {
       const results = await start(subjects);
       assert.equal(results.filter(r => r.state.mode === "active").length, 1);
-      const winner = results.find(r => r.state.mode === "active");
+      const winnerIndex = results.findIndex(r => r.state.mode === "active");
+      const winner = results[winnerIndex];
+      const session = sessions[winnerIndex];
+      assert.ok(session);
       assert.ok(winner?.state.snapshot);
       assert.equal(winner.result.kind, "applied");
       assert.equal(results.find(r => r.state.mode === "inactive")?.result.kind, "rejected");
@@ -102,7 +192,7 @@ test("cross-process activation versus resume of a different ID has one lifetime 
     } finally { await Promise.all(subjects.map(s => stop(s.child))); }
   }
 });
-test("an interrupted initial owner releases both leases on death, with independent associations and byte-preserving status", { timeout: 20000 }, async () => {
+test("an interrupted initial owner excludes other checkout sessions until death, with independent checkouts and byte-preserving status", { timeout: 20000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "legion-association-held-"));
   const context = "/held/repo", session = "held-session";
   const subject = worker(root, context, session, "Unacknowledged task", "not-received", "before-commit");
@@ -121,12 +211,13 @@ test("an interrupted initial owner releases both leases on death, with independe
     assert.equal((await reopened.state()).mode, "inactive");
     assert.deepEqual(await bytes(), before);
     assert.equal((await command(reopened, session, "on", "no-overlap")).kind, "rejected");
-    for (const opt of [{ ...options, session: "independent-session" }, { ...options, context: "/independent/repo" }]) {
-      const independent = new Legion(opt);
-      assert.equal((await command(independent, opt.session, "on", "independent")).kind, "applied");
-      assert.equal((await independent.state()).mode, "active");
-      await command(independent, opt.session, "off", "off");
-    }
+    const competing = new Legion({ ...options, session: "competing-session" });
+    assert.equal((await command(competing, "competing-session", "on", "contend")).kind, "rejected");
+    assert.equal((await competing.state()).mode, "inactive");
+    const independent = new Legion({ ...options, context: "/independent/repo" });
+    assert.equal((await command(independent, session, "on", "independent")).kind, "applied");
+    assert.equal((await independent.state()).mode, "active");
+    await command(independent, session, "off", "off");
     await stop(subject.child);
     assert.equal((await command(reopened, session, `resume ${id}`, "recover-after-death")).kind, "applied");
     assert.equal((await reopened.state()).snapshot?.id, id);
@@ -145,12 +236,14 @@ test("failed partial acquisition and uncertain writes release only their handles
   const candidate = new Legion({ ...options, session: "candidate" });
   assert.equal((await command(candidate, "candidate", `resume ${id}`, "failed-resume")).kind, "rejected");
   assert.equal((await owner.state()).mode, "active");
-  assert.equal((await command(candidate, "candidate", "on", "after-failure")).kind, "applied");
-  assert.notEqual((await candidate.state()).snapshot?.id, id);
-  await command(candidate, "candidate", "off", "candidate-off");
+  assert.equal((await command(candidate, "candidate", "on", "after-failure")).kind, "rejected");
+  assert.equal((await candidate.state()).mode, "inactive");
   const observer = new Legion({ ...options, session: "observer" });
   assert.equal((await command(observer, "observer", `resume ${id}`, "guard-still-held")).kind, "rejected");
   await command(owner, "owner", "off", "owner-off");
+  assert.equal((await command(candidate, "candidate", "on", "after-owner-off")).kind, "applied");
+  assert.notEqual((await candidate.state()).snapshot?.id, id);
+  await command(candidate, "candidate", "off", "candidate-off");
   let fail = true;
   const uncertain = new Legion({ ...options, storageFault: point => {
     if (fail && point === "before-commit") { fail = false; throw new Error("Test-owned interrupted commit"); }

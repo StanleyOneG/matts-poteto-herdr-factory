@@ -24,6 +24,7 @@ export const ApprovalPin = z.object({ task: TaskRef, scope: z.string() });
 export const Reservation = z.object({
   id: ReservationId,
   repository: z.uuid().brand<"RepositoryId">(),
+  // Historical field name for a task-source key; uniqueness is run-local.
   shared: z.string(),
   owner: LegatusId,
   task: TaskId,
@@ -76,7 +77,8 @@ const StoredReceipt = z.object({
 });
 const Identity = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
+    owner: LegatusId,
     repository: z.uuid(),
     commonDir: z.string(),
   })
@@ -155,16 +157,34 @@ export class AssignmentConflict extends Error {
     super(message);
   }
 }
+/** The run ID, not the Git common directory or issue URL, owns this namespace. */
 export class AssignmentLedger {
   readonly path: string;
   private root: string;
-  constructor(
-    readonly commonDir: string,
-    private fault?: (point: AssignmentFaultPoint) => void,
-    private expectedRepository: string | null = null,
-    private historyRequired = false,
-  ) {
-    this.root = join(commonDir, "legion");
+  readonly commonDir: string;
+  readonly owner: z.infer<typeof LegatusId>;
+  private fault: ((point: AssignmentFaultPoint) => void) | undefined;
+  private expectedRepository: string | null;
+  private historyRequired: boolean;
+  constructor({
+    commonDir,
+    owner,
+    fault,
+    expectedRepository = null,
+    historyRequired = false,
+  }: {
+    commonDir: string;
+    owner: z.infer<typeof LegatusId>;
+    fault?: ((point: AssignmentFaultPoint) => void) | undefined;
+    expectedRepository?: string | null;
+    historyRequired?: boolean;
+  }) {
+    this.commonDir = commonDir;
+    this.owner = owner;
+    this.fault = fault;
+    this.expectedRepository = expectedRepository;
+    this.historyRequired = historyRequired;
+    this.root = join(commonDir, "legion", "runs", LegatusId.parse(owner));
     this.path = join(this.root, "assignments.sqlite");
   }
   private identity(recovery: boolean) {
@@ -176,10 +196,20 @@ export class AssignmentLedger {
         ? pending
         : null;
     if (!path) {
-      if (this.expectedRepository || this.historyRequired)
+      if (this.expectedRepository || this.historyRequired) {
+        const legacy = join(this.commonDir, "legion");
+        if (
+          ["assignments.sqlite", "assignments.initialized", "assignments.pending"].some(
+            (name) => existsSync(join(legacy, name)),
+          )
+        )
+          throw new Error(
+            "Legacy shared assignment history is unsupported for run ownership. Preserve its records and pinned resources; an Emperor decision is required. No migration or adoption performed.",
+          );
         throw new Error(
           "Known assignment history is missing. History cannot be reset.",
         );
+      }
       if (existsSync(this.path) || existsSync(pending))
         throw new Error(
           "Assignment initialization is unavailable. History cannot be reset.",
@@ -189,6 +219,7 @@ export class AssignmentLedger {
     const identity = Identity.parse(JSON.parse(readFileSync(path, "utf8")));
     if (
       identity.commonDir !== this.commonDir ||
+      identity.owner !== this.owner ||
       (this.expectedRepository &&
         identity.repository !== this.expectedRepository)
     )
@@ -212,9 +243,12 @@ export class AssignmentLedger {
       );
     if (!identity) {
       mkdirSync(this.root, { recursive: true, mode: 0o700 });
+      sync(dirname(this.root));
+      sync(dirname(dirname(this.root)));
       sync(this.commonDir);
       const value = Identity.parse({
-        version: 1,
+        version: 2,
+        owner: this.owner,
         repository: randomUUID(),
         commonDir: this.commonDir,
       });
@@ -329,9 +363,11 @@ export class AssignmentLedger {
     return "current";
   }
   async launchState(reservation: Reservation, known: string | null = null): Promise<LaunchView> {
+    if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(false);
     if (!db) throw new Error("Known assignment history unavailable.");
     try {
+      this.confirmReservation({ db, reservation });
       if (this.launchSchema(db, known !== null) === "legacy") return { kind: "not-launched" };
       const row = db.prepare("SELECT value FROM tribuni WHERE reservation=?").get(reservation.id);
       if (known && !row) throw new Error("Known launch row is missing. History cannot be reset.");
@@ -341,6 +377,7 @@ export class AssignmentLedger {
     } finally { db.close(); }
   }
   async beginLaunch(reservation: Reservation, owned: () => boolean, known: string | null = null): Promise<LaunchRecord> {
+    if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(true, owned);
     if (!db) throw new Error("Assignment history unavailable.");
     try {
@@ -374,6 +411,7 @@ export class AssignmentLedger {
     } finally { try { db.exec("ROLLBACK"); } catch {} db.close(); }
   }
   async updateLaunch(reservation: Reservation, prior: LaunchRecord, state: LaunchRecord["state"], owned: () => boolean, startEvidence = prior.startEvidence) {
+    if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(true, owned);
     if (!db) throw new Error("Launch history unavailable.");
     try {
@@ -396,14 +434,18 @@ export class AssignmentLedger {
     if (
       !existsSync(join(this.root, "assignments.pending")) ||
       existsSync(join(this.root, "assignments.initialized"))
-    )
+    ) {
+      const db = await this.open(false);
+      db?.close();
       return;
+    }
     const db = await this.open(true, owned, true);
     db?.close();
   }
   async observations(
     owner: z.infer<typeof LegatusId>,
   ): Promise<{ claims: ClaimView[]; byTask: Map<string, ClaimView> }> {
+    if (owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(false);
     if (!db) return { claims: [], byTask: new Map() };
     try {
@@ -412,15 +454,15 @@ export class AssignmentLedger {
         .all()
         .map((row) => Reservation.parse(JSON.parse(rowValue(row))));
       const byTask = new Map<string, ClaimView>();
-      const claims = reservations.map((reservation) =>
-        reservation.owner === owner
-          ? ({
-              kind: "owned",
-              reservation,
-              workspace: this.workspace(db, reservation),
-            } satisfies ClaimView)
-          : ({ kind: "foreign", reservation } satisfies ClaimView),
-      );
+      const claims = reservations.map((reservation) => {
+        if (reservation.owner !== this.owner)
+          throw new Error("Reservation belongs to another run. Preserve assignment history.");
+        return {
+          kind: "owned",
+          reservation,
+          workspace: this.workspace(db, reservation),
+        } satisfies ClaimView;
+      });
       const bindings = z
         .array(z.object({ task: TaskId, shared: z.string() }))
         .parse(
@@ -430,14 +472,28 @@ export class AssignmentLedger {
         );
       for (const binding of bindings) {
         const found = claims.find(
-          (claim) => claim.reservation.shared === binding.shared,
+          (claim) =>
+            claim.reservation.shared === binding.shared &&
+            claim.reservation.task === binding.task,
         );
-        byTask.set(binding.task, found ?? { kind: "unreserved" });
+        if (!found) throw new Error("Known reservation ownership evidence is missing. Preserve assignment history and pinned resources.");
+        byTask.set(binding.task, found);
       }
+      if (
+        claims.some((claim) => !bindings.some((binding) =>
+          binding.task === claim.reservation.task && binding.shared === claim.reservation.shared,
+        ))
+      )
+        throw new Error("Known task binding is missing. Preserve assignment history and pinned resources.");
       return { claims, byTask };
     } finally {
       db.close();
     }
+  }
+  private confirmReservation({ db, reservation }: { db: DatabaseSync; reservation: Reservation }) {
+    const claim = db.prepare("SELECT value FROM claims WHERE id=?").get(reservation.id);
+    if (reservation.owner !== this.owner || !claim || rowValue(claim) !== JSON.stringify(reservation))
+      throw new Error("Known reservation ownership evidence is missing or changed. Preserve assignment history and pinned resources.");
   }
   private workspace(
     db: DatabaseSync,
@@ -480,19 +536,23 @@ export class AssignmentLedger {
     return hold ? WorkspaceState.parse(JSON.parse(rowValue(hold))) : state;
   }
   async progress(reservation: Reservation): Promise<WorkspaceState> {
+    if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(false);
     if (!db) throw new Error("Assignment history unavailable.");
     try {
+      this.confirmReservation({ db, reservation });
       return this.workspace(db, reservation, false);
     } finally {
       db.close();
     }
   }
   async hold(reservation: Reservation, state: WorkspaceState | null) {
+    if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(true);
     if (!db) throw new Error("Assignment history unavailable.");
     try {
       db.exec("BEGIN IMMEDIATE");
+      this.confirmReservation({ db, reservation });
       if (state)
         db.prepare("INSERT OR REPLACE INTO holds VALUES(?,?)").run(
           reservation.id,
@@ -513,6 +573,7 @@ export class AssignmentLedger {
     request: string,
     fingerprint: string,
   ) {
+    if (owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(false);
     if (!db) return null;
     try {
@@ -521,6 +582,7 @@ export class AssignmentLedger {
         .get(owner, request);
       if (!raw) return null;
       const stored = StoredReceipt.parse(JSON.parse(rowValue(raw)));
+      this.confirmReservation({ db, reservation: stored.receipt.reservation });
       if (stored.fingerprint !== fingerprint)
         throw new AssignmentConflict(
           "request-conflict",
@@ -544,6 +606,7 @@ export class AssignmentLedger {
     plan: z.infer<typeof WorkspacePlan>;
     owned: () => boolean;
   }) {
+    if (input.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(true, input.owned, true);
     if (!db) throw new Error("Assignment storage unavailable.");
     try {
@@ -558,7 +621,7 @@ export class AssignmentLedger {
       )
         throw new AssignmentConflict(
           "binding-conflict",
-          "Local task identity is already bound to another shared task.",
+          "Local task identity is already bound to another task source.",
         );
       const alias = db
         .prepare("SELECT task FROM bindings WHERE owner=? AND shared=?")
@@ -580,8 +643,13 @@ export class AssignmentLedger {
         .prepare("SELECT value FROM claims WHERE shared=?")
         .get(input.shared);
       let reservation: Reservation;
-      if (raw) reservation = Reservation.parse(JSON.parse(rowValue(raw)));
-      else {
+      if (raw) {
+        reservation = Reservation.parse(JSON.parse(rowValue(raw)));
+        if (!existingBinding || reservation.owner !== input.owner || reservation.task !== input.task.id)
+          throw new Error("Known task binding is missing or changed. Preserve assignment history and pinned resources.");
+      } else {
+        if (existingBinding)
+          throw new Error("Known reservation ownership evidence is missing. Preserve assignment history and pinned resources.");
         const identity = Identity.parse(
           JSON.parse(
             rowValue(
@@ -649,6 +717,7 @@ export class AssignmentLedger {
     step: z.infer<typeof Step>,
     owned: () => boolean,
   ): Promise<AssignmentOperation | null> {
+    if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(true, owned);
     if (!db) throw new Error("Assignment storage unavailable.");
     try {

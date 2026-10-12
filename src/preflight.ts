@@ -36,8 +36,8 @@ export async function preflight(pi: ExtensionAPI): Promise<Diagnostic[]> {
   ].every((k) => typeof Reflect.get(pi, k) === "function");
   add(
     "Pi",
-    VERSION === "1.0.4" && contracts ? "ready" : "unverified",
-    `Observed Pi ${VERSION}. T01 runtime target is 1.0.4 with input and settled hooks.`,
+    VERSION === "1.1.0" && contracts ? "ready" : "unverified",
+    `Observed Pi ${VERSION}. Tested runtime target is 1.1.0 with input and settled hooks.`,
   );
   try {
     const { DatabaseSync } = await import("node:sqlite");
@@ -84,9 +84,9 @@ export async function preflight(pi: ExtensionAPI): Promise<Diagnostic[]> {
     : null;
   add(
     "pi-subagents",
-    !subagent ? "missing" : subVersion === "0.76.1" ? "ready" : "unverified",
+    !subagent ? "missing" : subVersion === "0.77.0" ? "ready" : "unverified",
     subagent
-      ? `Loaded root tool ${subagent.sourceInfo.path}. Observed ${subVersion ?? "unknown provenance"}. Tested target 0.76.1.`
+      ? `Loaded root tool ${subagent.sourceInfo.path}. Observed ${subVersion ?? "unknown provenance"}. Tested target 0.77.0.`
       : "Load the pi-subagents root tool in this context.",
   );
   for (const name of [

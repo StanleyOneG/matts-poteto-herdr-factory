@@ -1,3 +1,4 @@
+import { checkoutIdentity } from "./checkout-identity.js";
 import { ResearchRecord, ResearchStage } from "./owned-children.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import {
@@ -633,7 +634,6 @@ export class SnapshotStore {
   }
   async acquireAssociation(input: {
     context: string;
-    session: string;
     resume: string | null;
   }): Promise<DatabaseSync> {
     if (
@@ -644,7 +644,7 @@ export class SnapshotStore {
     return this.acquirePath(
       join(
         this.root,
-        `association.v1.${digest(input.context)}.${digest(input.session)}.lock`,
+        `association.v1.${digest(checkoutIdentity(input.context))}.lock`,
       ),
     );
   }

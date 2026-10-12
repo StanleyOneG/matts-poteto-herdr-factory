@@ -34,7 +34,7 @@ export async function prepareCenturioWorkspace(input: {
   const clean = await input.run(`git -C '${input.cwd.replaceAll("'", "'\\''")}' status --porcelain=v1 --untracked-files=all`);
   if (clean.kind !== "finished" || clean.code !== 0 || clean.output.trim()) throw new Error("Writable child preparation requires an explicitly committed clean task base. Dirty parent work is not copied or silently omitted.");
   const task = TaskRef.parse({ id: input.id, revision: 1 });
-  const ledger = new AssignmentLedger(location.commonDir);
+  const ledger = new AssignmentLedger({ commonDir: location.commonDir, owner: LegatusId.parse(input.owner) });
   const plan = { branch: `refs/heads/legion/centurio-${input.id}`, path: `${persistentRoot(undefined, location)}/centurio-${input.id}`, parent: input.baseRef, commit };
   const { receipt } = await ledger.reserve({ owner: LegatusId.parse(input.owner), task, scope: input.scope,
     shared: sharedIdentity(task.id, null), request: input.id, fingerprint: JSON.stringify({ parentCwd: input.cwd, plan, scope: input.scope }), plan, owned: input.current });

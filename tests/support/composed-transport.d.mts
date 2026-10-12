@@ -4,6 +4,8 @@ export function exerciseRace(kind: "contract", options: { resourceCase: string; 
 
 export function exerciseRace(kind: "admission", options: { effectCase: string }): Promise<{ root: string; view: import("../../src/intake.js").LegionView }>;
 
+export function exerciseRace(kind: "readiness", options?: { readinessCase: string }): Promise<{ root: string; doctor: string; view: import("../../src/intake.js").LegionView; prompts: string[] }>;
+
 export function exerciseChildStartup(inherited: boolean): Promise<{ root: string; initializationError: string | null; command: unknown; inheritedBootstrap: string | null }>;
 
 export function exerciseRace(kind: "child-preparation", options?: { childCase: string }): Promise<{ root: string; view: import("../../src/intake.js").LegionView }>;

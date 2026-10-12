@@ -33,15 +33,16 @@ async function repository() {
   };
   return { root, git };
 }
-async function legatus(
-  root: string,
-  git: WorkspaceRepository,
-  session: string,
-  fault?: LegionOptions["storageFault"],
-) {
+async function legatus({ root, git, session, fault, context = join(root, "checkout") }: {
+  root: string;
+  git: WorkspaceRepository;
+  session: string;
+  fault?: LegionOptions["storageFault"];
+  context?: string;
+}) {
   const options: LegionOptions = {
     storagePath: join(root, session),
-    context: join(root, "checkout"),
+    context,
     session,
     preflight: async () => [],
     storageFault: (point) => fault?.(point),
@@ -106,7 +107,7 @@ test("unreadable storage cannot hide stopping or release an unsettled invocation
       worktrees: [join(root, "checkout")],
     };
   };
-  const a = await legatus(root, git, "session-corrupt-stopping");
+  const a = await legatus({ root, git, session: "session-corrupt-stopping" });
   await a.command(
     `reserve ${a.task.id}@1 --parent refs/heads/intended`,
     "corrupt-stop",
@@ -138,7 +139,7 @@ test("unreadable storage cannot hide stopping or release an unsettled invocation
 
 test("off at authorization await boundaries never starts discovery after revocation or releases an unsettled owner", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-authorization-boundary");
+  const a = await legatus({ root, git, session: "session-authorization-boundary" });
   for (let cut = 0; cut <= 24; cut++) {
     if (cut) await a.command(`resume ${a.owner}`);
     const request = `boundary-${cut}`;
@@ -242,7 +243,7 @@ for (const phase of ["locate", "parent", "inspect"] as const) {
         return original(plan);
       };
     }
-    const a = await legatus(root, git, `session-read-${phase}`);
+    const a = await legatus({ root, git, session: `session-read-${phase}` });
     await a.command(
       `reserve ${a.task.id}@1 --parent refs/heads/intended`,
       "read",
@@ -291,7 +292,7 @@ for (const phase of ["locate", "parent", "inspect"] as const) {
 
 test("concurrent exact request delivery returns one immutable receipt without a duplicate effect", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-delivery");
+  const a = await legatus({ root, git, session: "session-delivery" });
   await a.command(
     `reserve ${a.task.id}@1 --parent refs/heads/intended`,
     "delivery",
@@ -344,7 +345,7 @@ for (const affected of [true, false]) {
       workspace,
       parent: "a".repeat(40),
     });
-    const a = await legatus(root, git, `session-decision-${affected}`);
+    const a = await legatus({ root, git, session: `session-decision-${affected}` });
     await a.command(
       `reserve ${a.task.id}@1 --parent refs/heads/intended`,
       "decision",
@@ -425,7 +426,7 @@ for (const affected of [true, false]) {
 
 test("one owner cannot substitute another local task for an already bound external identity", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-alias");
+  const a = await legatus({ root, git, session: "session-alias" });
   const source = "https://github.com/Fixture/Project/issues/12";
   await a.command(
     `reserve ${a.task.id}@1 --parent refs/heads/intended --source ${source}`,
@@ -474,7 +475,7 @@ test("one owner cannot substitute another local task for an already bound extern
 
 test("explicit resume recovers only known interrupted ledger publication without a Git effect", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-initialization");
+  const a = await legatus({ root, git, session: "session-initialization" });
   assert.ok(a.options.assignments);
   let fail = true;
   a.options.assignments.fault = (point) => {
@@ -518,7 +519,7 @@ test("explicit resume recovers only known interrupted ledger publication without
 
 test("revocation at durable dispatch never starts the Git invocation", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-dispatch-race");
+  const a = await legatus({ root, git, session: "session-dispatch-race" });
   assert.ok(a.options.assignments);
   a.options.assignments.fault = (point) => {
     if (point === "after-dispatch") void a.command("off");
@@ -551,7 +552,7 @@ test("matching resources without a success receipt remain unknown after reopenin
     workspace: null,
     parent: "a".repeat(40),
   });
-  const a = await legatus(root, git, "session-unknown");
+  const a = await legatus({ root, git, session: "session-unknown" });
   let fault = true;
   assert.ok(a.options.assignments);
   a.options.assignments.fault = (point) => {
@@ -607,12 +608,12 @@ test("matching resources without a success receipt remain unknown after reopenin
 test("uncertain deferred publication revokes execution even when the request survived", async () => {
   const { root, git } = await repository();
   let fail = false;
-  const a = await legatus(root, git, "session-publication", (point) => {
+  const a = await legatus({ root, git, session: "session-publication", fault: (point) => {
     if (fail && point === "after-commit") {
       fail = false;
       throw new Error("Lost pending receipt");
     }
-  });
+  } });
   fail = true;
   const recorded = await a.command(
     `reserve ${a.task.id}@1 --parent refs/heads/intended`,
@@ -679,7 +680,7 @@ test("off revokes immediately, drains the child, and retains a visible approval 
     workspace: null,
     parent: "a".repeat(40),
   });
-  const a = await legatus(root, git, "session-stop");
+  const a = await legatus({ root, git, session: "session-stop" });
   await a.command(
     `reserve ${a.task.id}@1 --parent refs/heads/intended`,
     "stop",
@@ -713,7 +714,7 @@ test("off revokes immediately, drains the child, and retains a visible approval 
 
 test("explicit reconciliation retries a proven failed branch at the original plan", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-retry");
+  const a = await legatus({ root, git, session: "session-retry" });
   await a.command(
     `reserve ${a.task.id}@1 --parent refs/heads/intended`,
     "failed",
@@ -792,7 +793,7 @@ test("successful reservation verifies both stages and exact replay never creates
       return { kind: "succeeded" };
     },
   };
-  const a = await legatus(root, ready, "session-ready");
+  const a = await legatus({ root, git: ready, session: "session-ready" });
   const text = `reserve ${a.task.id}@1 --parent refs/heads/intended`;
   assert.equal((await a.command(text, "ready")).kind, "deferred");
   const result = await a.legion.command({ workspaceRequest: "ready" });
@@ -831,7 +832,7 @@ test("successful reservation verifies both stages and exact replay never creates
 
 test("unavailable assignment authority retains its exact pending request and gives explicit fresh authorization guidance", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-busy-guidance");
+  const a = await legatus({ root, git, session: "session-busy-guidance" });
   assert.ok(a.options.assignments);
   a.options.assignments.fault = (point) => {
     if (point === "before-reservation-commit")
@@ -874,10 +875,12 @@ test("unavailable assignment authority retains its exact pending request and giv
   await a.command("off");
 });
 
-test("simultaneous distinct Legati elect one same-task owner and retain the losing blocker after restart", async () => {
+test("independent Legati reserve the same issue in distinct run-owned workspaces after restart", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "contender-a");
-  const b = await legatus(root, git, "contender-b");
+  const a = await legatus({ root, git, session: "contender-a" });
+  const linked = join(root, "linked");
+  await mkdir(linked);
+  const b = await legatus({ root, git, session: "contender-b", context: linked });
   assert.notEqual(a.owner, b.owner);
   assert.notEqual(a.task.id, b.task.id);
   let release!: () => void, entered!: () => void;
@@ -934,69 +937,55 @@ test("simultaneous distinct Legati elect one same-task owner and retain the losi
   await both;
   release();
   const results = await running;
-  assert.deepEqual(results.map((r) => r.kind).sort(), [
-    "ownership-blocked",
-    "reserved",
-  ]);
-  const winner = results.find((r) => r.kind === "reserved");
-  const loser = results.find((r) => r.kind === "ownership-blocked");
-  if (winner?.kind !== "reserved" || loser?.kind !== "ownership-blocked")
-    assert.fail("Expected one owner and one blocker");
-  assert.deepEqual(winner.workspace, { kind: "ready" });
-  assert.deepEqual(loser.reservation, winner.receipt.reservation);
-  assert.equal(branches.size, 1);
-  assert.equal(workspaces.size, 1);
-  for (const actor of [a, b]) {
+  assert.deepEqual(results.map((r) => r.kind), ["reserved", "reserved"]);
+  const [one, two] = results;
+  if (one?.kind !== "reserved" || two?.kind !== "reserved")
+    assert.fail("Expected independent run ownership");
+  assert.deepEqual(one.workspace, { kind: "ready" });
+  assert.deepEqual(two.workspace, { kind: "ready" });
+  assert.notEqual(one.receipt.reservation.id, two.receipt.reservation.id);
+  assert.notEqual(one.receipt.reservation.repository, two.receipt.reservation.repository);
+  assert.notEqual(one.receipt.reservation.plan.branch, two.receipt.reservation.plan.branch);
+  assert.notEqual(one.receipt.reservation.plan.path, two.receipt.reservation.plan.path);
+  assert.equal(branches.size, 2);
+  assert.equal(workspaces.size, 2);
+  for (const [actor, result] of [[a, one], [b, two]] as const) {
     await actor.command("off");
     const restarted = await new Legion(actor.options).state();
     assert.equal(restarted.mode, "inactive");
     assert.equal(restarted.ownerObservations?.length, 1);
     const claim = restarted.tasks[0]?.claim;
-    if (actor.owner === winner.receipt.reservation.owner) {
-      assert.equal(claim?.kind, "owned");
-      if (claim?.kind !== "owned") assert.fail("Expected retained winner");
-      assert.deepEqual(claim.workspace, { kind: "ready" });
-      assert.deepEqual(claim.reservation, winner.receipt.reservation);
-    } else {
-      assert.equal(claim?.kind, "foreign");
-      if (claim?.kind !== "foreign")
-        assert.fail("Expected retained loser blocker");
-      assert.deepEqual(claim.reservation, winner.receipt.reservation);
-    }
+    if (claim?.kind !== "owned") assert.fail("Expected only this run's reservation");
+    assert.deepEqual(claim.workspace, { kind: "ready" });
+    assert.deepEqual(claim.reservation, result.receipt.reservation);
+    assert.equal(claim.reservation.owner, actor.owner);
   }
 });
 
-test("two Legati retain one external reservation and its ownership blocker after reopening", async () => {
+test("a later run in the same checkout cannot inherit the previous run's issue ownership", async () => {
   const { root, git } = await repository();
-  const a = await legatus(root, git, "session-a");
-  const b = await legatus(root, git, "session-b");
-  assert.notEqual(a.task.id, b.task.id);
+  const a = await legatus({ root, git, session: "session-a" });
   const source = "https://github.com/Example/Project/issues/7";
   const reserve = (task: typeof a.task) =>
     `reserve ${task.id}@1 --parent refs/heads/parent --source ${source}`;
-  const deferredA = await a.command(reserve(a.task), "reserve-a");
-  assert.equal(deferredA.kind, "deferred");
-  const owned = await a.legion.command({ workspaceRequest: "reserve-a" });
-  assert.equal(owned.kind, "reserved");
-  const deferredB = await b.command(reserve(b.task), "reserve-b");
-  assert.equal(deferredB.kind, "deferred");
-  const rejected = await b.legion.command({ workspaceRequest: "reserve-b" });
-  assert.equal(rejected.kind, "ownership-blocked");
-  if (owned.kind !== "reserved" || rejected.kind !== "ownership-blocked")
-    assert.fail("Expected reservation and blocker");
-  assert.equal(rejected.reservation.id, owned.receipt.reservation.id);
-  assert.equal(rejected.reservation.owner, a.owner);
-  assert.equal(owned.workspace.kind, "held");
+  await a.command(reserve(a.task), "reserve-a");
+  const one = await a.legion.command({ workspaceRequest: "reserve-a" });
+  if (one.kind !== "reserved") assert.fail("Expected first run's reservation");
   await a.command("off");
+  const b = await legatus({ root, git, session: "session-b" });
+  await b.command(reserve(b.task), "reserve-b");
+  const two = await b.legion.command({ workspaceRequest: "reserve-b" });
+  if (two.kind !== "reserved") assert.fail("Expected separate run's reservation");
+  assert.notEqual(two.receipt.reservation.id, one.receipt.reservation.id);
+  assert.equal(two.receipt.reservation.owner, b.owner);
+  assert.equal(one.receipt.reservation.owner, a.owner);
   await b.command("off");
-  const reopened = await new Legion(b.options).state();
-  assert.equal(reopened.mode, "inactive");
-  assert.equal(reopened.tasks[0]?.claim.kind, "foreign");
-  if (reopened.tasks[0]?.claim.kind !== "foreign")
-    assert.fail("Expected retained foreign owner");
-  assert.equal(
-    reopened.tasks[0].claim.reservation.id,
-    owned.receipt.reservation.id,
-  );
-  assert.equal(reopened.tasks[0].claim.reservation.owner, a.owner);
+  for (const [actor, receipt] of [[a, one.receipt], [b, two.receipt]] as const) {
+    const reopened = await new Legion(actor.options).state();
+    assert.equal(reopened.mode, "inactive");
+    const claim = reopened.tasks[0]?.claim;
+    if (claim?.kind !== "owned") assert.fail("Expected this run's preserved ownership");
+    assert.deepEqual(claim.reservation, receipt.reservation);
+    assert.equal(reopened.ownerObservations?.length, 1);
+  }
 });

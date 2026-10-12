@@ -352,14 +352,15 @@ export class Legion {
         fallback,
       };
     try {
-      const observed = await new AssignmentLedger(
+      const observed = await new AssignmentLedger({
         commonDir,
-        this.options.assignments?.fault,
-        snapshot.workspaceRequests.find(
+        owner: snapshot.id,
+        fault: this.options.assignments?.fault,
+        expectedRepository: snapshot.workspaceRequests.find(
           (r) => r.repository === commonDir && r.repositoryId,
         )?.repositoryId ?? null,
-        true,
-      ).observations(snapshot.id);
+        historyRequired: true,
+      }).observations(snapshot.id);
       return {
         all: observed.claims,
         byTask: observed.byTask,
@@ -491,13 +492,14 @@ export class Legion {
               "Request key has a different payload.",
             );
           if (prior.repository) {
-            const replay = await new AssignmentLedger(
-              prior.repository,
-              this.options.assignments.fault,
-              state.workspaceRequests.find(
+            const replay = await new AssignmentLedger({
+              commonDir: prior.repository,
+              owner: state.id,
+              fault: this.options.assignments.fault,
+              expectedRepository: state.workspaceRequests.find(
                 (r) => r.repository === prior.repository && r.repositoryId,
               )?.repositoryId ?? null,
-            ).replay(state.id, prior.id, fingerprint);
+            }).replay(state.id, prior.id, fingerprint);
             if (replay) return this.reservationResult(replay, state.id);
           }
           const receipt = state.receipts.find(
@@ -638,14 +640,15 @@ export class Legion {
         locatedAuthority.state.workspaceRequests.find(
           (r) => r.repository === location.commonDir && r.repositoryId,
         )?.repositoryId ?? null;
-      const ledger = new AssignmentLedger(
-        location.commonDir,
-        dependencies.fault,
-        knownRepository,
-        locatedAuthority.state.workspaceRequests.some(
+      const ledger = new AssignmentLedger({
+        commonDir: location.commonDir,
+        owner: locatedAuthority.state.id,
+        fault: dependencies.fault,
+        expectedRepository: knownRepository,
+        historyRequired: locatedAuthority.state.workspaceRequests.some(
           (r) => r.repository === location.commonDir,
         ),
-      );
+      });
       if (request.repository && request.repository !== location.commonDir)
         return reject(
           "repository",
@@ -966,15 +969,33 @@ export class Legion {
       reservation.owner,
     );
   }
-  private async launchViews(snapshot: LegatusSnapshot | null, claims: Map<string, ClaimView>) {
+  private async launchViews({ snapshot, claims, fallback }: {
+    snapshot: LegatusSnapshot | null;
+    claims: Map<string, ClaimView>;
+    fallback: ClaimView;
+  }) {
     const views = new Map<string, LaunchView>();
     if (!snapshot) return views;
-    for (const [task, claim] of claims) {
-      if (claim.kind !== "owned") continue;
+    for (const { id: task } of snapshot.tasks) {
+      const claim = claims.get(task) ?? fallback;
+      if (claim.kind !== "owned") {
+        if (snapshot.launchRequests.some((request) => request.task.id === task))
+          views.set(task, { kind: "unavailable", message: claim.kind === "unavailable" ? claim.message : "Known launch ownership is unavailable. Preserve its workers and resources." });
+        continue;
+      }
       const request = snapshot.workspaceRequests.find((r) => r.repositoryId === claim.reservation.repository);
-      if (!request?.repository) continue;
+      if (!request?.repository) {
+        views.set(task, { kind: "unavailable", message: "Assignment repository witness is unavailable. Preserve launch history." });
+        continue;
+      }
       try {
-        views.set(task, await new AssignmentLedger(request.repository, this.options.assignments?.fault, request.repositoryId, true).launchState(claim.reservation, snapshot.launchRequests.find((r) => r.task.id === task && r.attempt)?.attempt ?? null));
+        views.set(task, await new AssignmentLedger({
+          commonDir: request.repository,
+          owner: snapshot.id,
+          fault: this.options.assignments?.fault,
+          expectedRepository: request.repositoryId,
+          historyRequired: true,
+        }).launchState(claim.reservation, snapshot.launchRequests.find((r) => r.task.id === task && r.attempt)?.attempt ?? null));
       } catch (error) { views.set(task, { kind: "unavailable", message: String(error) }); }
     }
     return views;
@@ -997,7 +1018,13 @@ export class Legion {
       const location = await git.locate();
       await this.authorized(request, epoch);
       if (location.commonDir !== request.repository) throw new Error("Repository association changed.");
-      const ledger = new AssignmentLedger(location.commonDir, this.options.assignments?.fault, request.repositoryId, true);
+      const ledger = new AssignmentLedger({
+        commonDir: location.commonDir,
+        owner: authority.state.id,
+        fault: this.options.assignments?.fault,
+        expectedRepository: request.repositoryId,
+        historyRequired: true,
+      });
       const observed = await ledger.observations(authority.state.id);
       await this.authorized(request, epoch);
       const claim = observed.byTask.get(request.task.id);
@@ -1154,7 +1181,7 @@ export class Legion {
         : await this.store.find(this.options.session, this.options.context);
       if (snapshot && this.uncertain?.id === snapshot.id) this.uncertain = null;
       const claims = await this.claims(snapshot);
-      const launches = await this.launchViews(snapshot, claims.byTask);
+      const launches = await this.launchViews({ snapshot, claims: claims.byTask, fallback: claims.fallback });
       const unresolvedLaunch = [...launches.values()].some((launch) => launch.kind !== "not-launched" && launch.kind !== "prepared");
       const unresolvedResearch = !!snapshot?.researchHold || !!snapshot?.research.some(record => !["prepared", "process-terminal"].includes(record.child.state.kind));
       return {
@@ -1335,7 +1362,7 @@ export class Legion {
         if (snapshot && this.uncertain?.id === snapshot.id)
           this.uncertain = null;
         const claims = await this.claims(snapshot);
-        const launches = await this.launchViews(snapshot, claims.byTask);
+        const launches = await this.launchViews({ snapshot, claims: claims.byTask, fallback: claims.fallback });
         return {
           kind: "observed",
           view: {
@@ -1409,14 +1436,13 @@ export class Legion {
               kind: "acquiring",
               association: await this.store.acquireAssociation({
                 context: this.options.context,
-                session: this.options.session,
                 resume,
               }),
             };
       } catch (error) {
         return reject(
           "ownership",
-          `Exclusive association ownership is unavailable. ${String(error)}`,
+          `Exclusive checkout ownership is unavailable. ${String(error)}`,
         );
       }
       let adopted = false;
@@ -1466,13 +1492,15 @@ export class Legion {
             ),
           )) {
             try {
-              await new AssignmentLedger(
+              await new AssignmentLedger({
                 commonDir,
-                this.options.assignments?.fault,
-                state.workspaceRequests.find(
+                owner: state.id,
+                fault: this.options.assignments?.fault,
+                expectedRepository: state.workspaceRequests.find(
                   (r) => r.repository === commonDir && r.repositoryId,
                 )?.repositoryId ?? null,
-              ).recoverExisting(() => epoch === this.epoch);
+                historyRequired: true,
+              }).recoverExisting(() => epoch === this.epoch);
             } catch (error) {
               return reject(
                 "assignment-recovery",

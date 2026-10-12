@@ -571,7 +571,7 @@ test("read-only status of another Legatus never redirects the active owner", asy
   const { legion, command, options } = await fixture();
   await command("First");
   const id = (await legion.state()).snapshot?.id;
-  const other = new Legion({ ...options, session: "other-session" });
+  const other = new Legion({ ...options, context: "/disposable/independent-repo", session: "other-session" });
   await other.command({
     text: "Second",
     requestKey: "second",

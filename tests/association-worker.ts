@@ -5,9 +5,12 @@ const [storagePath, context, session, text, requestKey, phase] = process.argv.sl
 if (!storagePath || !context || !session || !text || !requestKey)
   throw new Error("Association worker arguments required.");
 const go = once(process, "message").then(([raw]) => z.object({ at: z.number() }).parse(raw));
+let started = false;
 const legion = new Legion({
   storagePath, context, session,
   preflight: async () => {
+    if (started) return [];
+    started = true;
     process.send?.({ kind: "ready" });
     const { at } = await go;
     while (Date.now() < at) {}

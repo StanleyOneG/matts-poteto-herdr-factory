@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createServer, connect } from 'node:net';
 import { installTribunus } from '../../src/tribunus-host.ts';
@@ -23,9 +24,11 @@ const pane={workspace_id:'offline-w',tab_id:'offline-t',pane_id:'offline-p',term
 fs.writeFileSync(join(bin,'herdr'),`#!/usr/bin/env node\nconst a=process.argv.slice(2); console.log(a[0]==='--version' ? '0.9.1' : JSON.stringify(a[0]==='status'?{status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(socketPath)}}:a[1]==='get'?{result:{pane:${JSON.stringify(pane)}}}:{result:{process_info:{foreground_processes:[{pid:${process.pid}}]}}}));\n`,{mode:0o700});
 process.env.PATH=bin+':'+process.env.PATH; process.env.HERDR_ENV='1';process.env.HERDR_PANE_ID='offline-p';
 const handlers=new Map(), tools=new Map(), entries=[]; const journal=join(root,'session.jsonl');fs.writeFileSync(journal,'');
-const skill='/home/vscode/.pi/agent/npm/node_modules/@zenspc/pi-pstack/skills/poteto-mode/SKILL.md';
+const pstack='/home/vscode/.pi/agent/git/github.com/StanleyOneG/stanley-pi-pstack';
+const skill=join(pstack,'skills/poteto-mode/SKILL.md');
+const subagentsEntry=fileURLToPath(import.meta.resolve('pi-subagents'));
 for (const name of ['matt-tdd', 'matt-teach']) fs.cpSync(new URL(`../../.agents/skills/${name}`, import.meta.url), join(metadata.cwd, '.agents/skills', name), { recursive: true });
-const commands=[{name:'pstack',source:'extension',sourceInfo:{path:'/home/vscode/.pi/agent/npm/node_modules/@zenspc/pi-pstack/extensions/pstack/index.ts'}},...['herdr','poteto-mode','matt-tdd','matt-teach','implement','code-review'].map(name=>({name:'skill:'+name,source:'skill',sourceInfo:{path:name==='poteto-mode'?skill:['matt-tdd','matt-teach'].includes(name)?join(metadata.cwd,'.agents/skills',name,'SKILL.md'):'/offline/'+name+'/SKILL.md'}}))];
+const commands=[{name:'pstack',source:'extension',sourceInfo:{path:join(pstack,'extensions/pstack/index.ts')}},...['herdr','poteto-mode','matt-tdd','matt-teach','implement','code-review'].map(name=>({name:'skill:'+name,source:'skill',sourceInfo:{path:name==='poteto-mode'?skill:['matt-tdd','matt-teach'].includes(name)?join(metadata.cwd,'.agents/skills',name,'SKILL.md'):'/offline/'+name+'/SKILL.md'}}))];
 let pendingMessages=false;
 const ctx={mode:'tui',cwd:metadata.cwd,isProjectTrusted:()=>true,isIdle:()=>true,hasPendingMessages:()=>pendingMessages,sessionManager:{getSessionId:()=>session,getSessionFile:()=>journal,getBranch:()=>entries,getLeafId:()=>entries.at(-1)?.id},ui:{setStatus:()=>{}}};
 function append(entry){const e={id:randomUUID(),...entry};entries.push(e);fs.appendFileSync(journal,JSON.stringify(e)+'\n');return e;}
@@ -66,7 +69,7 @@ fs.openSync = function(path, ...args) {
 syncBuiltinESMExports();
 let hello;
 
-const pi={events:createEventBus(),on:(name,fn)=>handlers.set(name,fn),getCommands:()=>commands,getSettings:()=>({}),getAllTools:()=>[...['read','bash','write','edit'].map(name=>({name,sourceInfo:{path:tools.has(name)?'controlled-legion-extension':`builtin:${name}`}})),{name:'subagent',exposure:'model-only',sourceInfo:{path:'/home/vscode/.pi/agent/npm/node_modules/pi-subagents/index.js'}}],registerCommand:()=>{},registerTool:(tool)=>tools.set(tool.name,tool),sendMessage:()=>{},appendEntry:(customType,data)=>append({type:'custom',customType,data}),sendUserMessage:(prompt)=>{
+const pi={events:createEventBus(),on:(name,fn)=>handlers.set(name,fn),getCommands:()=>commands,getSettings:()=>({}),getAllTools:()=>[...['read','bash','write','edit'].map(name=>({name,sourceInfo:{path:tools.has(name)?'controlled-legion-extension':`builtin:${name}`}})),{name:'subagent',exposure:'model-only',sourceInfo:{path:subagentsEntry}}],registerCommand:()=>{},registerTool:(tool)=>tools.set(tool.name,tool),sendMessage:()=>{},appendEntry:(customType,data)=>append({type:'custom',customType,data}),sendUserMessage:(prompt)=>{
  queueMicrotask(async()=>{
   await handlers.get('input')({source:'extension',text:prompt},ctx);
   const init=prompt.startsWith('/skill:');

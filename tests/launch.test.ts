@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Legion } from "../src/intake.js";
@@ -81,8 +81,10 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
     assert.equal(result.workspace.kind, "ready");
     return result.receipt.reservation;
   };
+  assert.ok(initial.snapshot);
   return {
-    legion, command, task, ready, git, options, root
+    legion, command, task, ready, git, options, root,
+    ledgerRoot: join(commonDir, "legion", "runs", initial.snapshot.id)
   };
 }
 test("an admitted task without a confirmed claim cannot authorize launch", async () => {
@@ -210,7 +212,7 @@ for (const cut of ["before-launch-migration-commit", "after-launch-migration-com
       throw new Error("Migration crash cut"); });
     try {
       const reservation = await f.ready();
-      const identityPath = join(f.root, "repo.git", "legion", "assignments.initialized");
+      const identityPath = join(f.ledgerRoot, "assignments.initialized");
       const before = await readFile(identityPath, "utf8");
       f.options.tribuni.host = () => ({
         createWindow: async () => assert.fail("Migration cut cannot create a window"),
@@ -388,7 +390,7 @@ test("missing known launch history cannot be interpreted as a pre-launch reposit
       launchRequest: "launch"
     });
     const { DatabaseSync } = await import("node:sqlite");
-    const db = new DatabaseSync(join(f.root, "repo.git", "legion", "assignments.sqlite"));
+    const db = new DatabaseSync(join(f.ledgerRoot, "assignments.sqlite"));
     try {
       db.exec("DROP TABLE tribuni; DROP TABLE legion_schema;");
     }
@@ -530,7 +532,7 @@ test("busy unavailable initialized claim authority cannot authorize a launch sta
   try {
     await f.ready();
     const { DatabaseSync } = await import("node:sqlite");
-    const db = new DatabaseSync(join(f.root, "repo.git", "legion", "assignments.sqlite"));
+    const db = new DatabaseSync(join(f.ledgerRoot, "assignments.sqlite"));
     try {
       db.exec("BEGIN EXCLUSIVE");
       const result = await f.command(`launch ${f.task.id}@1`, "busy-launch");
@@ -705,4 +707,25 @@ test("unreadable retained report evidence is visible as a hold and never a fabri
   finally {
     await f.command("off");
   }
+});
+
+
+test("missing run ownership evidence keeps a known worker launch visibly unavailable without duplicate effects", async () => {
+  const { actor, host } = externalWorker();
+  const f = await fixture(host);
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "known-launch");
+    await f.legion.command({ launchRequest: "known-launch" });
+    assert.equal(actor.started.length, 1);
+    await rm(join(f.ledgerRoot, "assignments.initialized"));
+    const before = await readFile(join(f.ledgerRoot, "assignments.sqlite"));
+    for (const text of ["status", "doctor"]) await f.command(text);
+    const view = await f.legion.state();
+    assert.equal(view.tasks[0]?.claim.kind, "unavailable");
+    assert.equal(view.tasks[0]?.launch.kind, "unavailable");
+    assert.equal((await f.command(`launch ${f.task.id}@1`, "missing-owner")).kind, "rejected");
+    assert.equal(actor.started.length, 1);
+    assert.deepEqual(await readFile(join(f.ledgerRoot, "assignments.sqlite")), before);
+  } finally { await f.command("off"); }
 });

@@ -9,6 +9,7 @@ import fs from "node:fs";
 import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { join, dirname, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { execFile, exec as shell } from "node:child_process";
 import { promisify } from "node:util";
@@ -21,7 +22,8 @@ import { stripFrontmatter, createReadTool, createReadToolDefinition, createGrepT
 import { validateToolArguments } from "@earendil-works/pi-ai";
 
 const execute = promisify(execFile), executeShell = promisify(shell);
-const pstack = "/home/vscode/.pi/agent/npm/node_modules/@zenspc/pi-pstack";
+const pstack = "/home/vscode/.pi/agent/git/github.com/StanleyOneG/stanley-pi-pstack";
+const subagentsEntry = fileURLToPath(import.meta.resolve("pi-subagents"));
 const skill = join(pstack, "skills/poteto-mode/SKILL.md");
 const commands = [{ name: "pstack", source: "extension", sourceInfo: { path: join(pstack, "extensions/pstack/index.ts") } }, ...["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map(name => ({ name: `skill:${name}`, source: "skill", sourceInfo: { path: name === "poteto-mode" ? skill : `/controlled/${name}/SKILL.md` } }))];
 async function until(predicate, label) {
@@ -52,7 +54,7 @@ function runtime(cwd, session, journal) {
     registerTool: tool => tools.set(tool.name, tool), registerCommand: (name, command) => registeredCommands.set(name, command),
     getCommands: () => discovered,
     getSettings: () => ({}),
-    getAllTools: () => [...["read", "grep", "find", "ls", "bash", "write", "edit"].map(name => ({ name, sourceInfo: { path: tools.has(name) ? "controlled-legion-extension" : `builtin:${name}` } })), ...["subagent", "subagents_enable"].map(name => ({ name, exposure: "model-only", sourceInfo: { path: "/home/vscode/.pi/agent/npm/node_modules/pi-subagents/index.js" } }))],
+    getAllTools: () => [...["read", "grep", "find", "ls", "bash", "write", "edit"].map(name => ({ name, sourceInfo: { path: tools.has(name) ? "controlled-legion-extension" : `builtin:${name}` } })), ...["subagent", "subagents_enable"].map(name => ({ name, exposure: "model-only", sourceInfo: { path: subagentsEntry } }))],
     sendMessage: message => append({ type: "custom_message", ...message }),
     appendEntry: (customType, data) => append({ type: "custom", customType, data }),
     sendUserMessage: prompt => { prompts.push(prompt); if (sendFailure) { sendFailure = false; throw new Error("Controlled send outcome uncertain after enqueue"); } }
@@ -252,6 +254,30 @@ export async function exerciseRace(kind, census) {
     }
     return { result: { structuredContent: { output, exit_code: exitCode, truncated: false }, content: [{ type: "text", text: output }] } };
   });
+  if (kind === "readiness") {
+    const scenario = census?.readinessCase;
+    if (scenario === "missing-pi-contract") controller.pi.sendUserMessage = undefined;
+    if (["unknown-subagents", "unsupported-subagents", "missing-subagents", "hidden-subagents"].includes(scenario)) {
+      const discoveredTools = controller.pi.getAllTools();
+      const unsupported = join(root, "unsupported-subagents");
+      if (scenario === "unsupported-subagents") {
+        await mkdir(unsupported);
+        await writeFile(join(unsupported, "package.json"), JSON.stringify({ name: "pi-subagents", version: "9.9.9" }));
+      }
+      controller.pi.getAllTools = () => discoveredTools.flatMap(tool => tool.name !== "subagent" ? [tool]
+        : scenario === "missing-subagents" ? []
+        : [{ ...tool, exposure: scenario === "hidden-subagents" ? "hidden" : tool.exposure, sourceInfo: { path: scenario === "unsupported-subagents" ? join(unsupported, "index.js") : scenario === "unknown-subagents" ? join(root, "unknown/index.js") : tool.sourceInfo.path } }]);
+    }
+    if (["missing-pstack", "unsupported-pstack"].includes(scenario)) {
+      const unsupported = join(root, "unsupported-pstack");
+      if (scenario === "unsupported-pstack") {
+        await mkdir(unsupported);
+        await writeFile(join(unsupported, "package.json"), JSON.stringify({ name: "@zenspc/pi-pstack", version: "9.9.9" }));
+      }
+      controller.resources(commands.flatMap(command => command.name !== "pstack" ? [command]
+        : scenario === "missing-pstack" ? [] : [{ ...command, sourceInfo: { path: join(unsupported, "index.ts") } }]));
+    }
+  }
   extension(controller.pi);
   async function state() {
     const before = controller.notices.length;
@@ -272,6 +298,20 @@ export async function exerciseRace(kind, census) {
   }
   try {
     await controller.emit("session_start");
+    if (kind === "readiness") {
+      const history = () => fs.existsSync(controller.ctx.sessionManager.getSessionFile()) ? fs.readFileSync(controller.ctx.sessionManager.getSessionFile()) : null;
+      const before = history();
+      await controller.command("doctor");
+      const doctor = controller.notices.at(-1);
+      assert.deepEqual(history(), before, "Doctor must preserve history bytes");
+      await controller.command("task Fix the Ready label");
+      await drain();
+      const admitted = await state(), savedHistory = history();
+      await controller.command("doctor");
+      assert.deepEqual(history(), savedHistory, "Doctor must preserve saved history bytes");
+      assert.deepEqual(await state(), admitted, "Doctor must not activate, repair or mutate saved state");
+      return { root, doctor, view: admitted, prompts: [...controller.prompts] };
+    }
     await controller.command("task Fix the Ready label");
     await drain(); await until(() => controller.prompts.length === 1, "initial intake prompt");
     assert.equal(await controller.start(controller.prompts.shift()), true);
