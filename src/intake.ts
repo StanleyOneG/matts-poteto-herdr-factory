@@ -1,3 +1,4 @@
+import { ContextAlerts, ContextSample, type ContextAlert, type ContextObservation } from "./context-alerts.js";
 import { isDeepStrictEqual } from "node:util";
 import { checkoutIdentity } from "./checkout-identity.js";
 import { loadLegionSettings, selectTribunusModel, type LegionSettings, type TribunusModelIntent, type WorkflowChoice } from "./legion-settings.js";
@@ -148,6 +149,7 @@ export type LegionView = {
   diagnostics: Diagnostic[];
   unavailable: string | null;
   ownerObservations?: ClaimView[];
+  context: Record<string, ContextObservation>;
 };
 export type OperationResult =
   | z.infer<typeof EffectReply>
@@ -268,6 +270,8 @@ export type LegionOptions = {
   session: string;
   preflight: (settings?: LegionSettings) => Promise<Diagnostic[]>;
   loadSettings?: () => Promise<LegionSettings>;
+  onContextAlert?: (alert: ContextAlert) => void;
+  onContextUpdate?: () => void;
   storageFault?: (point: StorageFaultPoint) => void;
   tribuni?: { host: () => TribunusHost | null; onUnavailable?: (message: string) => void };
   assignments?: {
@@ -301,6 +305,19 @@ function release(lock: DatabaseSync) {
   }
 }
 export class Legion {
+  private contextAlerts = new ContextAlerts();
+  private contextWatchers: Array<() => void> = [];
+  private contextSequences = new Map<string, number>();
+  private contextAssignmentHold(): string | null {
+    const sample = this.contextAlerts.view().legatus?.sample;
+    return sample && sample.kind !== "fresh" ? "Current Legatus context observation is unresolved. Preserve affected work; no new assignment or cleanup is authorized by this observation. Obtain a fresh current estimate before dispatch." : null;
+  }
+  async observeContext(input: { session: string; generation: number; model: string | null; sample: unknown }): Promise<void> {
+    if (!this.binding || this.stopping || !this.selected || input.session !== this.options.session || input.generation !== this.binding.generation || !this.settings) return;
+    const sample = ContextSample.parse(input.sample);
+    const alert = this.contextAlerts.observe("legatus", { identity: `${this.selected}:${input.session}:${input.generation}:${this.epoch}`, model: input.model, sample }, this.settings.context);
+    if (alert) this.options.onContextAlert?.(alert);
+  }
   private store: SnapshotStore;
   private settings: LegionSettings | null = null;
   private activationDiagnostics: Diagnostic[] = [];
@@ -343,6 +360,8 @@ export class Legion {
   }
   private revoke() {
     this.epoch++;
+    this.contextAlerts.invalidate("Owner authority revoked; observation unresolved");
+    for (const dispose of this.contextWatchers.splice(0)) dispose();
     if (this.invocations) {
       this.stopping = true;
       return;
@@ -459,11 +478,18 @@ export class Legion {
     request: z.infer<typeof WorkspaceRequest> | z.infer<typeof LaunchRequest>,
     epoch: number,
   ) {
+    const current = await this.ownedTaskAuthority(request, epoch);
+    if (request.nativeDispatch) this.nativeAuthority(current.state, request.nativeDispatch, request.evidence.session, request.generation);
+    return current;
+  }
+  private async ownedTaskAuthority(
+    request: z.infer<typeof WorkspaceRequest> | z.infer<typeof LaunchRequest>,
+    epoch: number,
+  ) {
     this.workspaceAuthority(request, epoch);
     const state = this.selected ? await this.store.read(this.selected) : null;
     this.workspaceAuthority(request, epoch);
     if (!state) throw new Error("Intake authority is unavailable.");
-    if (request.nativeDispatch) this.nativeAuthority(state, request.nativeDispatch, request.evidence.session, request.generation);
     const task = !("intent" in request) ? request.task :
       request.intent.kind === "reserve"
         ? request.intent.task
@@ -1045,6 +1071,8 @@ export class Legion {
       const request = snapshot?.launchRequests.find((r) => r.id === id);
       if (!request) return reject("launch-request", "No durably saved host launch request exists.");
       const authority = await this.authorized(request, epoch);
+      const contextHold = this.contextAssignmentHold();
+      if (contextHold) return reject("context-unresolved", contextHold);
       this.workspaceAuthority(request, epoch);
       this.invocations++;
       entered = true;
@@ -1220,6 +1248,33 @@ export class Legion {
       }
       if (launch.state.kind === "assigned") {
         const assigned = launch.state;
+        const principal = `tribunus:${assigned.worker.address.launch}`;
+        const identity = JSON.stringify({ principal, address: assigned.worker.address, command: assigned.command, owner: this.selected, generation: request.generation, epoch });
+        if (this.settings && !this.contextAlerts.view()[principal]) this.contextAlerts.observe(principal, { identity, model: assigned.assignment.modelPin?.model ?? null, sample: { kind: "missing", tokens: null, contextWindow: assigned.worker.resources.principal?.contextWindow ?? null, sampledAt: Date.now(), reason: "Awaiting current addressed Tribunus context observation" } }, this.settings.context);
+        const dispose = host.watchContext?.({ worker: assigned.worker, command: assigned.command }, async observation => {
+          const current = await this.ownedTaskAuthority(request, epoch);
+          if (request.nativeDispatch) {
+            const origin = this.appliedNativeAuthority(current.state, request.nativeDispatch, request.evidence.session, request.generation);
+            if (origin.dispatch.workflow !== assigned.assignment.workflow) return;
+          }
+          if (!this.settings || observation.authority.owner !== current.state.id || observation.authority.session !== this.options.session || observation.authority.generation !== request.generation || observation.authority.epoch !== epoch || observation.command !== assigned.command || !isDeepStrictEqual(observation.address, assigned.worker.address)) return;
+          const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
+          if (!(progress.kind === "assigned" || progress.kind === "reported") || progress.command !== assigned.command || !isDeepStrictEqual(progress.worker.address, assigned.worker.address) || !isDeepStrictEqual(progress.assignment, assigned.assignment)) return;
+          if (observation.sequence <= (this.contextSequences.get(identity) ?? 0)) return;
+          this.contextSequences.set(identity, observation.sequence);
+          const sample: ContextSample = assigned.assignment.modelPin && observation.model !== assigned.assignment.modelPin.model ? { ...observation.sample, kind: "stale", reason: "Actual assigned model changed; observation unresolved" } : observation.sample;
+          const alert = this.contextAlerts.observe(principal, { identity, model: observation.model, sample }, this.settings.context);
+          if (alert) this.options.onContextAlert?.(alert);
+          this.options.onContextUpdate?.();
+        }, (message, observation) => {
+          try { this.workspaceAuthority(request, epoch); } catch { return; }
+          const previous = this.contextAlerts.view()[principal];
+          if (!previous || previous.identity !== identity || !this.settings) return;
+          if (observation && (observation.authority.owner !== this.selected || observation.authority.session !== this.options.session || observation.authority.generation !== request.generation || observation.authority.epoch !== epoch || observation.command !== assigned.command || !isDeepStrictEqual(observation.address, assigned.worker.address) || observation.sequence <= (this.contextSequences.get(identity) ?? 0))) return;
+          this.contextAlerts.observe(principal, { ...previous, sample: { ...previous.sample, kind: "stale", reason: message } }, this.settings.context);
+          this.options.onContextUpdate?.();
+        });
+        if (dispose) this.contextWatchers.push(dispose);
         host.watchEffects?.({ worker: assigned.worker, command: assigned.command }, async message => EffectReply.parse(await this.submit(message)), message => this.options.tribuni?.onUnavailable?.(message));
         host.watchReports?.({ worker: assigned.worker, command: assigned.command }, async (report) => {
           if (report.command !== assigned.command || JSON.stringify(report.address) !== JSON.stringify(assigned.worker.address) || launch.state.kind !== "assigned") return;
@@ -1254,6 +1309,7 @@ export class Legion {
       const unresolvedResearch = hasLegacyResearchHold(snapshot);
       return {
         mode: this.stopping || unresolvedResearch && (!this.binding || this.stopRequested) || (this.stopRequested && unresolvedLaunch || !this.binding && snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown")) ? "stopping" : this.binding ? "active" : "inactive",
+        context: this.contextAlerts.view(),
         ownerObservations: claims.all,
         snapshot,
         tasks:
@@ -1283,6 +1339,7 @@ export class Legion {
         mode: this.stopping ? "stopping" : this.binding ? "active" : "inactive",
         snapshot: null,
         tasks: [],
+        context: this.contextAlerts.view(),
         ...this.settingsView(),
         diagnostics: this.activationDiagnostics,
         unavailable: String(error),
@@ -1290,12 +1347,19 @@ export class Legion {
     }
   }
   private nativeAuthority(state: LegatusSnapshot, id: string, session: string, generation: number) {
+    const origin = this.appliedNativeAuthority(state, id, session, generation);
+    if (origin.dispatch.workflow !== state.workflowChoice.requestedWorkflow || workflowFailure(state.workflowChoice))
+      throw new Error("No current native workflow eligibility for new managed dispatch.");
+    return origin;
+  }
+  // Pinned assignment observation requires its applied origin, not eligibility for future dispatch.
+  private appliedNativeAuthority(state: LegatusSnapshot, id: string, session: string, generation: number) {
     const source = state.submissions.find(source => source.workflowDispatch && "id" in source.workflowDispatch && source.workflowDispatch.id === id);
     const dispatch = source?.workflowDispatch;
     if (!this.binding || this.stopping || !dispatch || dispatch.kind !== "applied-native" ||
         session !== this.options.session || dispatch.session !== session || generation !== this.binding.generation ||
-        dispatch.generation !== generation || dispatch.workflow !== state.workflowChoice.requestedWorkflow || workflowFailure(state.workflowChoice))
-      throw new Error("No applied current native workflow authority. Off, conflict, resume or uncertain delivery withholds managed dispatch.");
+        dispatch.generation !== generation)
+      throw new Error("No applied current native workflow origin. Off, resume or uncertain delivery withholds observation and managed dispatch.");
     return { source, dispatch };
   }
   async nativeWorkflow(raw: unknown): Promise<OperationResult> {
@@ -1454,6 +1518,8 @@ export class Legion {
     const epoch = this.epoch;
     if (intent.kind === "launch")
       return this.serialize(async () => {
+        const contextHold = this.contextAssignmentHold();
+        if (contextHold) return reject("context-unresolved", contextHold);
         const view = await this.state();
         const task = view.tasks.find((t) => t.id === intent.task.id);
         if (view.mode !== "active") return reject("inactive", "Activate or explicitly resume Legion before launching work.");
@@ -1531,6 +1597,7 @@ export class Legion {
           view: {
             mode: hasLegacyResearchHold(snapshot) || snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown") ? "stopping" : "inactive",
             snapshot,
+            context: id === this.selected ? this.contextAlerts.view() : {},
             ownerObservations: claims.all,
             tasks:
               snapshot?.tasks.map((t) => ({

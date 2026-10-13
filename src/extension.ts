@@ -1,3 +1,4 @@
+import { sampleContext, contextStatus, type ContextAlert } from "./context-alerts.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
@@ -120,6 +121,22 @@ export default function (pi: ExtensionAPI) {
     try {
       ctx.ui.notify(text, level);
     } catch {}
+  }
+  function modelState(view: LegionView) {
+    const { context: _telemetry, ...state } = view;
+    return state;
+  }
+  function deliverContextAlert(alert: ContextAlert) {
+    const ctx = liveContext;
+    if (!ctx || !binding || binding.session !== ctx.sessionManager.getSessionId()) return;
+    const content = `Advisory context ${alert.level} for ${alert.principal}. ${contextStatus(alert)}. Ask for concise progress, remaining work and child state before deciding safe finish versus handoff. The meter does not establish readiness, completion or safe settlement. Preserve work when state is unknown. Do not interrupt in-flight effects; native compaction remains enabled. This alert authorizes no handoff mechanics, replacement or cleanup.`;
+    report(ctx, content, "warning");
+    pi.sendMessage({ customType: "legion-context-alert", display: true, details: alert, content }, { triggerTurn: true, deliverAs: "followUp" });
+  }
+  async function observeContext(ctx: ExtensionContext, invalidation?: "compaction" | "stale") {
+    if (!legion || !binding || binding.session !== ctx.sessionManager.getSessionId()) return;
+    await legion.observeContext({ session: binding.session, generation: binding.generation, model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null, sample: sampleContext(ctx.getContextUsage?.(), invalidation) });
+    await refresh(ctx, false);
   }
   function evidence(
     ctx: ExtensionContext,
@@ -254,7 +271,7 @@ export default function (pi: ExtensionAPI) {
       );
     }
   }
-  async function refresh(ctx: ExtensionContext) {
+  async function refresh(ctx: ExtensionContext, presentDecisions = true) {
     if (!legion) return;
     const view = await legion.state();
     if (
@@ -280,8 +297,9 @@ export default function (pi: ExtensionAPI) {
             ? "Legion stopping | owned work retained"
             : "Legion inactive",
       );
+      ctx.ui.setStatus("legion-context", Object.entries(view.context).map(([principal, observation]) => `${principal} ${contextStatus(observation)}`).join(" | ") || undefined);
     } catch {}
-    await showDecisions(ctx, view);
+    if (presentDecisions) await showDecisions(ctx, view);
   }
   async function holdNative(ctx: ExtensionContext, source: { id: string; revision: number }, message: string) {
     if (legion && binding) await legion.nativeWorkflow({ kind: "hold", source, message, session: binding.session, generation: binding.generation });
@@ -449,6 +467,8 @@ export default function (pi: ExtensionAPI) {
     workspaceAttempts.clear();
     registerNativeAliases(ctx);
     legion = new Legion({
+      onContextAlert: deliverContextAlert,
+      onContextUpdate: () => { if (liveContext) void refresh(liveContext, false).catch(error => { if (liveContext) report(liveContext, `Context UI observation unresolved. Preserve work. ${String(error)}`, "warning"); }); },
       storagePath: join(getAgentDir(), "legion"),
       context: realpathSync(ctx.cwd),
       session: ctx.sessionManager.getSessionId(),
@@ -463,8 +483,15 @@ export default function (pi: ExtensionAPI) {
     });
     try {
       ctx.ui.setStatus("legion-intake", "Legion inactive");
+      ctx.ui.setStatus("legion-context", undefined);
     } catch {}
   });
+  pi.on("turn_end", async (_event, ctx) => { await observeContext(ctx); });
+  pi.on("session_before_compact", async (_event, ctx) => { await observeContext(ctx, "compaction"); });
+  pi.on("session_compact_failed", async (_event, ctx) => { await observeContext(ctx, "stale"); });
+  pi.on("session_compact", async (_event, ctx) => { await observeContext(ctx, "compaction"); });
+  pi.on("model_select", async (_event, ctx) => { await observeContext(ctx, "stale"); });
+  pi.on("agent_start", async (_event, ctx) => { await observeContext(ctx, "stale"); });
   pi.on("session_before_switch", async (_event, ctx) => {
     await off(ctx);
   });
@@ -541,6 +568,7 @@ export default function (pi: ExtensionAPI) {
             run = null;
         }
         await refresh(ctx);
+        if (result.disposition === "activate" || result.disposition === "resume") await observeContext(ctx);
         if (result.disposition === "resume" && result.kind === "applied") {
           if (
             ctx.isIdle() &&
@@ -815,7 +843,7 @@ export default function (pi: ExtensionAPI) {
       return;
     }
     if (nativeRun?.kind === "prepared" && event.prompt === nativeRun.prompt && nativeRun.evidence.session === ctx.sessionManager.getSessionId()) {
-      return { systemPrompt: `${event.systemPrompt}\n\n${nativeInstructions}`, message: { customType: "legion-native-workflow", display: false, content: `Exact saved sources and current state\n${JSON.stringify({ sources: nativeRun.evidence.sources, state: nativeRun.data })}`, details: { dispatch: nativeRun.id } } };
+      return { systemPrompt: `${event.systemPrompt}\n\n${nativeInstructions}`, message: { customType: "legion-native-workflow", display: false, content: `Exact saved sources and current state\n${JSON.stringify({ sources: nativeRun.evidence.sources, state: modelState(nativeRun.data) })}`, details: { dispatch: nativeRun.id } } };
     }
     if (
       workspaceRun?.kind === "prepared" &&
@@ -845,7 +873,7 @@ export default function (pi: ExtensionAPI) {
       message: {
         customType: "legion-interpretation",
         display: false,
-        content: `Legion interpretation data\n${JSON.stringify({ sources: run.evidence.sources, state: run.data })}`,
+        content: `Legion interpretation data\n${JSON.stringify({ sources: run.evidence.sources, state: modelState(run.data) })}`,
         details: undefined,
       },
     };
@@ -945,6 +973,7 @@ export default function (pi: ExtensionAPI) {
       const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
       if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready")) throw new Error(modeHold ?? diagnostics.map(diagnostic => diagnostic.message).join(" "));
       if (nativeRequestCall) throw new Error("Another bounded workflow request is unsettled. Inspect its result before requesting another stage.");
+      if (/^\s*launch(?:\s|$)/.test(args.command)) await observeContext(ctx);
       nativeRequestCall = toolCallId;
       try {
         const result = await current.nativeRequest({ text: args.command, requestKey: `${captured.id}/${toolCallId}`, dispatch: captured.id, session: captured.evidence.session, generation: captured.evidence.generation });
@@ -981,6 +1010,7 @@ export default function (pi: ExtensionAPI) {
         binding?.generation !== captured.generation
       )
         throw new Error("No current correlated workspace stage.");
+      if (tool === "legion_launch") await observeContext(ctx);
       const guarded: ConstructorParameters<typeof GitWorkspace>[1] = async (command) => {
         if (tool === "legion_launch") {
           const request = (await current.state()).snapshot?.launchRequests.find((r) => r.id === args.requestId);

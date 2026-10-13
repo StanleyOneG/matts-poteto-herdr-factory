@@ -75,7 +75,12 @@ for (const legacyHold of [false, true]) test(`ordinary Legatus research keeps na
     assert.match(outcome.refused.content.map(part => part.text).join("\n"), /Ordinary native permission denial/);
     assert.deepEqual(outcome.nativeInputs, [{}, { agent: "scout", task: "Find the API", model: "configured/native", tools: ["read"], extensionBindings: { "unrelated/1": { value: "preserved" } } }], "Denial never reaches native execute; admitted input is unchanged");
     if (legacyHold && outcome.command !== "on") assert.equal(z.object({ mode: z.literal("stopping") }).safeParse(outcome.after).success, true);
-    assert.deepEqual(outcome.after, outcome.before, "Direct native research is not automatically owned, persisted or settled by Legion");
+    // Principal context sampling may refresh its timestamp; it does not own native research.
+    const observedState = z.object({ context: z.record(z.string(), z.unknown()).default({}) }).passthrough();
+    const { context: beforeContext, ...before } = observedState.parse(outcome.before);
+    const { context: afterContext, ...after } = observedState.parse(outcome.after);
+    assert.deepEqual(Object.keys(afterContext), Object.keys(beforeContext), "No Centurio context monitor is added");
+    assert.deepEqual(after, before, "Direct native research is not automatically owned, persisted or settled by Legion");
   }
 });
 

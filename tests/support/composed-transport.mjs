@@ -31,7 +31,7 @@ async function until(predicate, label) {
 }
 function runtime(cwd, session, journal) {
   fs.writeFileSync(journal, JSON.stringify({ type: "session", id: session, cwd }) + "\n");
-  const handlers = new Map(), tools = new Map(), registeredCommands = new Map(), entries = [], prompts = [], notices = [];
+  const handlers = new Map(), tools = new Map(), registeredCommands = new Map(), entries = [], prompts = [], notices = [], statuses = [], sent = [];
   const nativeTools = new Map([createReadToolDefinition(cwd), createGrepToolDefinition(cwd), createFindToolDefinition(cwd), createLsToolDefinition(cwd), createBashToolDefinition(cwd), createEditToolDefinition(cwd), createWriteToolDefinition(cwd)].map(tool => [tool.name, tool]));
   let discovered = commands, onBranch = null;
   let idle = true, pending = false, rootCall = null, onIdle = null, onAuth = null, authenticated = true, sendFailure = false;
@@ -43,11 +43,13 @@ function runtime(cwd, session, journal) {
     isIdle: () => { const hook = onIdle; onIdle = null; hook?.(); return idle; },
     hasPendingMessages: () => pending,
     sessionManager: { getSessionId: () => session, getSessionFile: () => journal, getBranch: () => { const hook = onBranch; onBranch = null; hook?.(); return entries; }, getLeafId: () => entries.at(-1)?.id },
-    ui: { notify: message => notices.push(message), setStatus: () => {} },
+    ui: { notify: message => notices.push(message), setStatus: (key, text) => statuses.push({ key, text }) },
+    getContextUsage: () => usage,
     model, thinkingLevel: "high",
     modelRegistry: { find: (provider, id) => provider === model.provider && id === model.id ? model : undefined, getProvider: () => ({}), getError: () => undefined, getAvailable: () => [model], getApiKeyAndHeaders: async () => { throw new Error("Legion must not resolve or refresh credentials"); }, hasConfiguredAuth: () => { const hook = onAuth; onAuth = null; hook?.(); return authenticated; } },
     executeTool: async (name, input) => { const id = `${rootCall}/nested/${randomUUID()}`; const result = await call(name, input, id, rootCall); return { ...(result.result ? result : { result }), toolCall: { id, name, arguments: input }, isError: result.isError ?? false }; }
   };
+  let usage = { tokens: 1000, contextWindow: 272000, percent: 0.37 };
   const events = new EventEmitter();
   const pi = {
     events: { emit: (name, value) => events.emit(name, value), on: (name, handler) => { events.on(name, handler); return () => events.off(name, handler); } },
@@ -56,7 +58,7 @@ function runtime(cwd, session, journal) {
     getCommands: () => [...discovered, ...[...registeredCommands.keys()].map(name => ({ name, source: "extension" }))],
     getSettings: () => ({}), getThinkingLevel: () => ctx.thinkingLevel,
     getAllTools: () => [...["read", "grep", "find", "ls", "bash", "write", "edit"].map(name => ({ name, sourceInfo: { path: tools.has(name) ? "controlled-legion-extension" : `builtin:${name}` } })), ...["subagent", "subagents_enable"].map(name => ({ name, exposure: "model-only", sourceInfo: { path: subagentsEntry } }))],
-    sendMessage: message => append({ type: "custom_message", ...message }),
+    sendMessage: (message, options) => { sent.push({ message, options }); return append({ type: "custom_message", ...message }); },
     appendEntry: (customType, data) => append({ type: "custom", customType, data }),
     sendUserMessage: prompt => { prompts.push(prompt); if (sendFailure) { sendFailure = false; throw new Error("Controlled send outcome uncertain after enqueue"); } }
   };
@@ -141,10 +143,11 @@ function runtime(cwd, session, journal) {
     assert.equal(idle, false, "Only an admitted model turn can emit agent_settled");
     if (native) pi.appendEntry("pstack-mode", { enabled: true });
     append({ type: "message", message: { role: "assistant", content: [{ type: "text", text }], stopReason } });
+    await emit("turn_end");
     idle = true;
     await emit("agent_settled");
   }
-  return { pi, ctx, prompts, notices, emit, call, start, startCustom, settle, invoke: (name, text) => registeredCommands.get(name)?.handler(text, ctx), onBranch: hook => { onBranch = hook; }, resources: value => { discovered = value; }, setAuth: value => { authenticated = value; }, failSend: () => { sendFailure = true; }, setPending: value => { pending = value; }, setIdle: value => { idle = value; }, onIdle: hook => { onIdle = hook; }, onAuth: hook => { onAuth = hook; }, external: handler => { external = handler; }, command: text => registeredCommands.has("legion") ? registeredCommands.get("legion").handler(text, ctx) : "Command /legion is unavailable in this session." };
+  return { pi, ctx, prompts, notices, statuses, sent, setUsage: value => { usage = value; }, emit, call, start, startCustom, settle, invoke: (name, text) => registeredCommands.get(name)?.handler(text, ctx), onBranch: hook => { onBranch = hook; }, resources: value => { discovered = value; }, setAuth: value => { authenticated = value; }, failSend: () => { sendFailure = true; }, setPending: value => { pending = value; }, setIdle: value => { idle = value; }, onIdle: hook => { onIdle = hook; }, onAuth: hook => { onAuth = hook; }, external: handler => { external = handler; }, command: text => registeredCommands.has("legion") ? registeredCommands.get("legion").handler(text, ctx) : "Command /legion is unavailable in this session." };
 }
 
 export async function exerciseChildStartup(inherited) {
@@ -306,6 +309,7 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
     }
   }
   if (scenario === "workflow-collision") controller.pi.registerCommand("implement", { handler: () => "Existing resource preserved" });
+  if (scenario === "context-low-thresholds") { await mkdir(join(repo, ".pi")); await writeFile(join(repo, ".pi", "legion.json"), JSON.stringify({ context: { warningTokens: 10, escalationTokens: 20 } })); }
   extension(controller.pi);
   async function state() {
     const before = controller.notices.length;
@@ -327,6 +331,49 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
   }
   try {
     await controller.emit("session_start");
+    if (["context-legatus", "context-invalidations", "context-low-thresholds", "context-owner"].includes(scenario)) {
+      if (scenario === "context-low-thresholds") controller.setUsage({ tokens: 9, contextWindow: 1000000 });
+      await controller.command("on");
+      if (scenario === "context-low-thresholds" || scenario === "context-owner") {
+        const observations = [];
+        if (scenario === "context-owner") {
+          controller.setUsage({ tokens: 150000, contextWindow: 272000 }); await controller.emit("turn_end");
+          observations.push((await state()).context);
+          await controller.command("off"); await controller.command("on");
+          await controller.emit("turn_end"); observations.push((await state()).context);
+        } else {
+          for (const tokens of [9, 10, 19, 20]) {
+            controller.setUsage({ tokens, contextWindow: 1000000 }); await controller.emit("turn_end"); observations.push((await state()).context);
+          }
+        }
+        return { root, observations, sent: controller.sent, statuses: controller.statuses, view: await state() };
+      }
+      if (scenario === "context-invalidations") {
+        const observations = [];
+        for (const [usage, event] of [
+          [{ tokens: 150000, contextWindow: 272000 }, "turn_end"],
+          [{ tokens: 1, contextWindow: 272000 }, "session_before_compact"],
+          [{ tokens: 1, contextWindow: 272000 }, "session_compact"],
+          [{ tokens: 1, contextWindow: 272000 }, "session_compact_failed"],
+          [undefined, "turn_end"],
+          [{ tokens: null, contextWindow: 272000 }, "turn_end"],
+          [{ tokens: 1, contextWindow: 272000 }, "model_select"],
+          [{ tokens: 150001, contextWindow: 272000 }, "turn_end"],
+          [{ tokens: 149999, contextWindow: 272000 }, "turn_end"],
+          [{ tokens: 150000, contextWindow: 272000 }, "turn_end"],
+        ]) {
+          controller.setUsage(usage); await controller.emit(event); observations.push((await state()).context);
+        }
+        return { root, observations, sent: controller.sent, statuses: controller.statuses, view: await state() };
+      }
+      const observations = [];
+      for (const tokens of [134999, 135000, 140000, 150000, null, 150001, 149999, 150000, 134999, 150000, 134999, 135000]) {
+        controller.setUsage({ tokens, contextWindow: 1000000, percent: tokens === null ? null : tokens / 10000 });
+        await controller.emit("turn_end");
+        observations.push((await state()).context);
+      }
+      return { root, observations, sent: controller.sent, statuses: controller.statuses, view: await state() };
+    }
     if (kind === "readiness") {
       const history = () => fs.existsSync(controller.ctx.sessionManager.getSessionFile()) ? fs.readFileSync(controller.ctx.sessionManager.getSessionFile()) : null;
       const before = history();
@@ -364,6 +411,7 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
         const view = await state();
         return { root, prompt: "", nativeWrite: {}, observations, view };
       }
+      if (scenario === "workflow-context") { await controller.command("on"); await controller.emit("turn_end"); }
       if (scenario === "workflow-conflict") await controller.command("poteto-mode=on Future Tribunus profile only");
       if (scenario === "workflow-sticky") controller.pi.appendEntry("pstack-mode", { enabled: true });
       if (scenario === "workflow-uncertain") controller.failSend();
@@ -398,11 +446,16 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       if (scenario === "workflow-witness") controller.pi.on("message_end", event => { if (event.message.role === "user") event.message.content[0].text += "\nForeign transformation"; });
       assert.equal(await controller.start(queued), true);
       const user = controller.ctx.sessionManager.getBranch().findLast(entry => entry.message?.role === "user");
+      if (scenario === "workflow-context") {
+        const entry = controller.ctx.sessionManager.getBranch().findLast(entry => entry.customType === "legion-native-workflow");
+        observations.telemetryInContext = "context" in JSON.parse(entry.content.split("\n")[1]).state;
+        return { root, prompt: user.message.content[0].text, nativeWrite: {}, observations, view: await state() };
+      }
       if (scenario === "workflow-permission") controller.pi.on("tool_call", event => event.toolName === "write" ? { block: true, reason: "Ordinary native skill permission denial" } : undefined);
       const nativeWrite = await controller.call("write", { path: join(repo, "native.txt"), content: "Native skill tools remain native." });
       observations.nativeCanary = fs.existsSync(join(repo, "native.txt"));
       if (scenario === "workflow-witness") observations.managedRefused = (await controller.call("legion_request", { command: "workspace fabricated" })).isError === true;
-      if (scenario === "workflow-launch") {
+      if (scenario === "workflow-launch" || scenario === "workflow-context-profile") {
         const source = (await state()).snapshot.submissions[0];
         for (const goal of ["Fix first approved ticket", "Fix second approved ticket"]) {
           const admitted = await controller.call("legion_intake", { kind: "new-task", source: { id: source.id, revision: source.revision }, goal, acceptance: ["Approved behavior works"], questions: [] });
@@ -421,6 +474,28 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
         assert.equal(launch.details?.kind, "launch-stage", JSON.stringify(launch));
         const assigned = await controller.call("legion_launch", { requestId: launch.details.requestId });
         assert.equal(assigned.details?.kind, "launched", JSON.stringify(assigned));
+        if (scenario === "workflow-context-profile") {
+          observations.monitoredTokens = [];
+          observations.contextKinds = [];
+          observations.futureProfiles = [];
+          observations.pinnedAssignments = [];
+          for (const [command, tokens] of [["poteto-mode=on Future workers only", 135000], ["poteto-mode=off", 150000]]) {
+            await controller.command(command);
+            worker.setUsage({ tokens, contextWindow: 272000, percent: tokens / 2720 });
+            await worker.emit("turn_end");
+            await until(async () => {
+              const sample = Object.values((await state()).context).find(item => item.identity.includes("tribunus"))?.sample;
+              return sample?.tokens === tokens || sample?.kind === "stale";
+            }, "existing assignment observation after future profile change");
+            const current = await state();
+            const sample = Object.values(current.context).find(item => item.identity.includes("tribunus"))?.sample;
+            observations.monitoredTokens.push(sample?.tokens);
+            observations.contextKinds.push(sample?.kind);
+            observations.futureProfiles.push(current.snapshot.workflowChoice.profile);
+            observations.pinnedAssignments.push(current.tasks[0].launch.assignment);
+          }
+          observations.contextAlerts = controller.sent.filter(item => item.message.customType === "legion-context-alert").map(item => item.message.details.level);
+        }
         assert.equal((await controller.call("write", { path: join(repo, "after-stage.txt"), content: "Ordinary tools remain available after managed stages." })).isError ?? false, false);
       }
       if (scenario === "workflow-authority") {
@@ -524,6 +599,12 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       assert.equal(fs.readFileSync(join(reservation.details.receipt.reservation.plan.path, ".git"), "utf8").startsWith("gitdir: "), true, "The allocated task directory is an actual isolated Git worktree");
     }
     await controller.settle(); await drain();
+    if (scenario === "context-block-launch") {
+      controller.setUsage({ tokens: null, contextWindow: 272000 });
+      await controller.emit("session_compact");
+      await controller.command(`launch ${task.id}@1`);
+      return { root, notices: controller.notices, view: await state(), created: fs.existsSync(createdFile) };
+    }
     await controller.command(`launch ${task.id}@1`);
     const launching = await state(), launch = launching.snapshot.launchRequests.at(-1).id;
     assert.equal(await controller.start(controller.prompts.shift()), true);
@@ -539,6 +620,66 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
     assert.equal((await state()).tasks[0].launch.kind, "assigned");
     await controller.settle(); await drain();
     const assignment = (await state()).tasks[0].launch;
+    if (scenario === "context-worker-disposal") {
+      await worker.emit("turn_end");
+      await until(async () => Object.values((await state()).context).some(item => item.identity.includes("tribunus") && item.sample.tokens === 1000), "baseline actual worker sample");
+      const entries = worker.ctx.sessionManager.getBranch().length, prompts = worker.prompts.length;
+      const sessionId = worker.ctx.sessionManager.getSessionId;
+      let checks = 0, stopped = null;
+      // Revoke at the real server's Pi incarnation read, after the client request has arrived.
+      worker.ctx.sessionManager.getSessionId = () => {
+        checks++;
+        stopped ??= controller.command("off");
+        return sessionId();
+      };
+      try {
+        const source = join(root, "pending-context.json");
+        const destination = join(profile, "legion", "tribuni", assignment.worker.address.launch, assignment.worker.address.generation);
+        const sample = { capability: workerDescriptor.capability, observation: { authority: workerDescriptor.authority, address: assignment.worker.address, command: assignment.command, sequence: 100, model: "controlled/selected", sample: { kind: "fresh", tokens: 150000, contextWindow: 272000, sampledAt: Date.now() } } };
+        await writeFile(source, JSON.stringify(sample));
+        await execute(process.execPath, ["--import", "tsx", "tests/context-event-worker.ts", source, join(destination, `${assignment.command}.pending.context.json`)], { cwd: process.cwd() });
+        await until(() => stopped !== null, "owner revoked during actual live context check");
+        await stopped;
+        await writeFile(source, JSON.stringify({ ...sample, observation: { ...sample.observation, sequence: 101 } }));
+        await execute(process.execPath, ["--import", "tsx", "tests/context-event-worker.ts", source, join(destination, `${assignment.command}.after-disposal.context.json`)], { cwd: process.cwd() });
+        assert.equal(checks, 1, "Disposed observation cannot make another current-assignment request");
+        assert.equal(worker.ctx.sessionManager.getBranch().length, entries, "Canceled context checks must not append principal transcript entries");
+        assert.equal(worker.prompts.length, prompts, "Canceled context checks must not start principal turns");
+        return { root, observations: [], sent: controller.sent, statuses: controller.statuses, view: await state() };
+      } finally { worker.ctx.sessionManager.getSessionId = sessionId; }
+    }
+    if (scenario === "context-worker-switch" || scenario === "context-worker-shutdown") {
+      const observations = [];
+      const entries = worker.ctx.sessionManager.getBranch().length, prompts = worker.prompts.length;
+      worker.setUsage({ tokens: 135000, contextWindow: 272000, percent: 50 });
+      await worker.emit("turn_end");
+      await until(async () => Object.values((await state()).context).some(item => item.identity.includes("tribunus") && item.sample.tokens === 135000), "current actual worker sample");
+      observations.push((await state()).context);
+      await worker.emit(scenario.endsWith("switch") ? "session_start" : "session_shutdown");
+      const source = join(root, "delayed-context.json");
+      await writeFile(source, JSON.stringify({ capability: workerDescriptor.capability, observation: { authority: workerDescriptor.authority, address: assignment.worker.address, command: assignment.command, sequence: 100, model: "controlled/selected", sample: { kind: "fresh", tokens: 150000, contextWindow: 272000, sampledAt: Date.now() } } }));
+      await execute(process.execPath, ["--import", "tsx", "tests/context-event-worker.ts", source, join(profile, "legion", "tribuni", assignment.worker.address.launch, assignment.worker.address.generation, `${assignment.command}.delayed.context.json`)], { cwd: process.cwd() });
+      await until(async () => Object.values((await state()).context).some(item => item.identity.includes("tribunus") && /Current worker context is unresolved/.test(item.sample.reason ?? "")), "visible delayed actual worker rejection");
+      observations.push((await state()).context);
+      assert.equal(worker.ctx.sessionManager.getBranch().length, entries, "Context checks must not append principal transcript entries");
+      assert.equal(worker.prompts.length, prompts, "Context checks must not start principal turns");
+      return { root, observations, sent: controller.sent, statuses: controller.statuses, view: await state() };
+    }
+    if (scenario === "context-worker") {
+      const observations = [];
+      for (const [tokens, event] of [[150000, "turn_end"], [null, "session_compact"], [150001, "turn_end"], [134999, "turn_end"]]) {
+        worker.setUsage({ tokens, contextWindow: 272000, percent: tokens === null ? null : tokens / 2720 });
+        await worker.emit(event);
+        await until(async () => Object.values((await state()).context ?? {}).some(item => item.identity.includes("tribunus") && item.sample.tokens === tokens), "addressed context publication");
+        observations.push((await state()).context);
+      }
+      await worker.settle();
+      await until(async () => (await state()).tasks[0].launch.kind === "reported", "context worker final report");
+      worker.setUsage({ tokens: 150000, contextWindow: 272000, percent: 55 });
+      await worker.emit("turn_end");
+      await until(() => controller.sent.length === 2, "context after final report");
+      return { root, observations, sent: controller.sent, statuses: controller.statuses, view: await state() };
+    }
     if (scenario === "launch-profile") return { root, view: await state(), startupCommand: JSON.parse(await readFile(join(root, "startup-command.json"), "utf8")), prompts: [...worker.prompts], entries: worker.ctx.sessionManager.getBranch(), workerDescriptor };
     assert.equal("testContract" in assignment.assignment, false);
     assert.equal((await state()).snapshot.engineering.length, 0);

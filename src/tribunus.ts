@@ -1,3 +1,4 @@
+import { ContextSample } from "./context-alerts.js";
 import { z } from "zod";
 import { AssignmentModelPinSchema, ThinkingSchema, WorkflowChoiceSchema, type StartupSelection, type WorkflowChoice } from "./legion-settings.js";
 import { ContractEvidence } from "./engineering-contract.js";
@@ -12,6 +13,11 @@ export const WorkerAddress = z.object({
 });
 import { CenturioView } from "./owned-children.js";
 export { CenturioView } from "./owned-children.js";
+export const ContextAuthority = z.strictObject({ owner: z.uuid(), session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative() });
+export const TribunusContextObservation = z.strictObject({
+  authority: ContextAuthority, address: WorkerAddress, command: z.uuid(), sequence: z.int().positive(), model: z.string().nullable(), sample: ContextSample,
+});
+export const TribunusContextEnvelope = z.strictObject({ capability: z.string(), observation: TribunusContextObservation });
 export const CenturioObservation = z.strictObject({ address: WorkerAddress, command: z.uuid(), sequence: z.int().positive(), children: z.array(CenturioView) });
 export const PrincipalObservation = z.object({
   model: z.string().nullable(), thinking: ThinkingSchema.nullable(), contextWindow: z.number().nullable(),
@@ -158,6 +164,7 @@ export const WorkerReport = z.object({
   address: WorkerAddress, command: z.uuid(), engineering: EngineeringResult.optional(), contract: ContractEvidence.optional(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string().max(4000), evidence: z.array(z.string())
 });
 export type TribunusHost = {
+  watchContext?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onObservation: (observation: z.infer<typeof TribunusContextObservation>) => Promise<void>, onUnavailable: (message: string, observation?: z.infer<typeof TribunusContextObservation>) => void): () => void;
   watchEffects?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onMessage: (message: z.infer<typeof EffectMessage>) => Promise<z.infer<typeof EffectReply>>, onUnavailable: (message: string) => void): void;
   watchReports?(input: {
     worker: z.infer<typeof VerifiedWorker>;

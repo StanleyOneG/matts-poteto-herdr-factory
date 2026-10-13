@@ -376,6 +376,45 @@ test("the bounded same-generation worker report becomes observable without autho
     await f.command("off");
   }
 });
+test("late context-check failures cannot replace a newer sample or mutate revoked ownership state", async () => {
+  const window = { endpoint: "/test/local.sock", server: "local-instance", workspace: "w-test", tab: "t-test", pane: "p-test", terminal: "term-test" };
+  let address: import("zod").z.infer<typeof import("../src/tribunus.js").WorkerAddress>;
+  const observer: {
+    emit: Parameters<NonNullable<TribunusHost["watchContext"]>>[1];
+    unavailable: Parameters<NonNullable<TribunusHost["watchContext"]>>[2];
+  } = { emit: async () => {}, unavailable: () => {} };
+  const host: TribunusHost = {
+    createWindow: async () => window,
+    startPi: async ({ launch }) => { address = { launch: launch.id, window, session: "actual-pi", generation: "7c3ace99-1c9d-4e36-a316-d88f6a183c11" }; },
+    inspectWorker: async ({ cwd }) => ({ address, identityEvidence: "exact-session-reference", resources: { cwd,
+      principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 },
+      skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map(name => ({ name, path: `/skills/${name}/SKILL.md` })), diagnostics: [{ name: "Tribunus model", status: "ready", message: "Target native model metadata" }] } }),
+    initialize: async ({ command }) => ({ profile: "matt", command, address, nativePrompt: mattInitializationPrompt(command), skillPath: "", modeEntry: "observed-off", settledEntry: "idle-settlement" }),
+    assign: async () => ({ application: "assignment-entry" }),
+    watchContext: (_input, onObservation, onUnavailable) => { observer.emit = onObservation; observer.unavailable = onUnavailable; return () => {}; },
+  };
+  const f = await fixture(host);
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "launch");
+    await f.legion.command({ launchRequest: "launch" });
+    const view = await f.legion.state(), assigned = view.tasks[0]?.launch;
+    assert.ok(view.snapshot && assigned?.kind === "assigned");
+    const observation = { authority: { owner: view.snapshot.id, session: "controller", generation: view.snapshot.generation, epoch: view.snapshot.launchRequests[0]?.epoch ?? 0 },
+      address: assigned.worker.address, command: assigned.command, model: "controlled/selected", sequence: 1,
+      sample: { kind: "fresh", tokens: 135000, contextWindow: 272000, sampledAt: Date.now() } } satisfies import("zod").z.infer<typeof import("../src/tribunus.js").TribunusContextObservation>;
+    await observer.emit(observation);
+    await observer.emit({ ...observation, sequence: 2, sample: { ...observation.sample, tokens: 140000 } });
+    const newer = (await f.legion.state()).context;
+    observer.unavailable("Late old-session current check failed", observation);
+    assert.deepEqual((await f.legion.state()).context, newer);
+    await f.command("off");
+    const revoked = (await f.legion.state()).context;
+    observer.unavailable("Late callback after revocation", { ...observation, sequence: 3 });
+    assert.deepEqual((await f.legion.state()).context, revoked);
+  } finally { await f.command("off"); }
+});
+
 test("missing known launch history cannot be interpreted as a pre-launch repository or create another worker", async () => {
   const window = {
     endpoint: "/test/local.sock", server: "local-instance", workspace: "w-test", tab: "t-test", pane: "p-test", terminal: "term-test"

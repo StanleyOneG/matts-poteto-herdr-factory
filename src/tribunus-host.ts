@@ -1,7 +1,8 @@
+import { sampleContext } from "./context-alerts.js";
 import { Centuriones, CenturioRequest, type NativeCenturioIntent } from "./centuriones.js";
 import { privateFile, publish } from "./private-evidence.js";
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from "node:crypto";
-import { createServer, type Server } from "node:net";
+import { connect, createServer, type Server } from "node:net";
 import { execFile } from "node:child_process";
 import { isDeepStrictEqual, promisify } from "node:util";
 import { mkdirSync, openSync, readFileSync, closeSync, fsyncSync, existsSync, lstatSync, realpathSync, readdirSync, watch } from "node:fs";
@@ -13,14 +14,12 @@ import { Type } from "typebox";
 import { EffectIntent, EffectMessage, EffectReply, EffectRecord, EffectOutcome, CenturioOwnerCheck } from "./snapshot.js";
 import { StartupSelectionSchema, WorkflowChoiceSchema } from "./legion-settings.js";
 import { preflight } from "./preflight.js";
-import { mattInitializationPrompt, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, type TribunusHost } from "./tribunus.js";
+import { mattInitializationPrompt, ContextAuthority, TribunusContextEnvelope, TribunusContextObservation, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, type TribunusHost } from "./tribunus.js";
 import type { GuardedCommand } from "./git-workspace.js";
 import { prepareCenturioWorkspace, CenturioAllocationHeld } from "./centurio-workspace.js";
 const exec = promisify(execFile);
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-const Authority = z.object({
-  owner: z.uuid(), session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative()
-});
+const Authority = ContextAuthority;
 const Descriptor = z.object({
   launch: LaunchRecord, cwd: z.string(), capability: z.string(), authority: Authority,
   workflowChoice: WorkflowChoiceSchema.optional(), startupSelection: StartupSelectionSchema.optional()
@@ -28,9 +27,12 @@ const Descriptor = z.object({
 const Hello = z.object({
   address: WorkerAddress, endpoint: z.string(), journal: z.string(), pid: z.int().positive()
 });
-const Frame = z.object({
+const ControlFrame = z.object({
   capability: z.string(), authority: Authority, reservation: z.uuid(), scope: z.string(), address: WorkerAddress, command: z.uuid(), kind: z.enum(["inspect", "initialize", "assign"]), assignment: BoundedAssignment.nullable()
 }).strict();
+const ContextCheckFrame = ControlFrame.extend({ kind: z.literal("context-current"), nonce: z.uuid(), assignment: z.null() });
+const Frame = z.union([ControlFrame, ContextCheckFrame]);
+const CurrentAssignment = z.strictObject({ nonce: z.uuid(), authority: Authority, address: WorkerAddress, command: z.uuid() });
 const Envelope = z.discriminatedUnion("kind", [z.object({
     kind: z.literal("ok"), value: z.unknown()
   }), z.object({
@@ -129,7 +131,30 @@ export class LocalTribunusHost implements TribunusHost {
     await this.effect(`herdr agent start ${quote(`lg-${launch.id.replaceAll("-", "").slice(0, 24)}`)} --kind pi --pane ${quote(window.pane)} -- -e ${quote(packageRoot)}${args}`, launch.id);
   }
   private async hello(launch: string) { return Hello.parse(privateFile(join(this.root, launch, "hello.json"))); }
-  private async control(hello: z.infer<typeof Hello>, kind: z.infer<typeof Frame>["kind"], command: string, assignment: z.infer<typeof BoundedAssignment> | null) {
+  private async currentAssignment(hello: z.infer<typeof Hello>, command: string, signal: AbortSignal) {
+    const descriptor = Descriptor.parse(privateFile(this.descriptor(hello.address.launch)));
+    const request = ContextCheckFrame.parse({ capability: descriptor.capability, authority: this.authority, reservation: descriptor.launch.reservation, scope: descriptor.launch.scope, address: hello.address, command, kind: "context-current", assignment: null, nonce: randomUUID() });
+    const line = await new Promise<string>((resolve, reject) => {
+      const socket = connect({ path: hello.endpoint, signal });
+      let buffer = "";
+      socket.once("connect", () => socket.write(JSON.stringify(request) + "\n"));
+      socket.on("data", chunk => {
+        buffer += chunk;
+        const end = buffer.indexOf("\n");
+        if (end < 0) return;
+        resolve(buffer.slice(0, end));
+        socket.destroy();
+      });
+      socket.once("error", reject);
+      socket.once("close", () => reject(new Error("Current worker control closed without a complete response.")));
+    });
+    const reply = Envelope.parse(JSON.parse(line));
+    if (reply.kind !== "ok") throw new Error(reply.message);
+    const current = CurrentAssignment.parse(reply.value);
+    if (current.nonce !== request.nonce || !isDeepStrictEqual(current.authority, this.authority) || !isDeepStrictEqual(current.address, hello.address) || current.command !== command)
+      throw new Error("Live worker control does not authenticate the current incarnation/assignment.");
+  }
+  private async control(hello: z.infer<typeof Hello>, kind: z.infer<typeof ControlFrame>["kind"], command: string, assignment: z.infer<typeof BoundedAssignment> | null) {
     const descriptor = Descriptor.parse(privateFile(this.descriptor(hello.address.launch)));
     const frame = {
       authority: this.authority, reservation: descriptor.launch.reservation, scope: descriptor.launch.scope, address: hello.address, command, kind, assignment
@@ -196,6 +221,53 @@ export class LocalTribunusHost implements TribunusHost {
     watching = watch(root, enqueue);
     watching.unref();
     enqueue();
+  }
+  watchContext({ worker, command }: Parameters<NonNullable<TribunusHost["watchContext"]>>[0], onObservation: Parameters<NonNullable<TribunusHost["watchContext"]>>[1], onUnavailable: Parameters<NonNullable<TribunusHost["watchContext"]>>[2]) {
+    const root = join(this.root, worker.address.launch, worker.address.generation);
+    const descriptor = Descriptor.parse(privateFile(this.descriptor(worker.address.launch)));
+    let sequence = 0, sampledAt = 0, disposed = false;
+    const checks = new AbortController();
+    const seen = new Set<string>();
+    let collecting = Promise.resolve();
+    const enqueue = () => {
+      collecting = collecting.then(async () => {
+        if (disposed) return;
+        const files = readdirSync(root).filter(file => file.startsWith(`${command}.`) && file.endsWith(".context.json"));
+        const events: Array<z.infer<typeof TribunusContextEnvelope>> = [];
+        for (const file of files) {
+          if (seen.has(file)) continue;
+          seen.add(file);
+          try { events.push(TribunusContextEnvelope.parse(privateFile(join(root, file)))); }
+          catch { onUnavailable("Unresolved malformed context observation; preserve assignment."); }
+        }
+        events.sort((a, b) => a.observation.sequence - b.observation.sequence);
+        for (const { capability, observation } of events) {
+          if (disposed) return;
+          const received = Buffer.from(capability), expected = Buffer.from(descriptor.capability);
+          if (received.length !== expected.length || !timingSafeEqual(received, expected) || !isDeepStrictEqual(observation.authority, this.authority) || !isDeepStrictEqual(observation.address, worker.address) || observation.command !== command) {
+            onUnavailable("Unresolved context identity/authority mismatch; preserve assignment.", observation); continue;
+          }
+          if (observation.sequence <= sequence || observation.sample.sampledAt < sampledAt || observation.sample.sampledAt > Date.now()) continue;
+          try {
+            const hello = await this.hello(worker.address.launch);
+            if (!isDeepStrictEqual(hello.address, worker.address)) throw new Error("Retained worker locator addresses another incarnation.");
+            await this.currentAssignment(hello, command, checks.signal);
+          }
+          catch (error) {
+            if (!disposed) onUnavailable(`Current worker context is unresolved; preserve assignment. ${String(error)}`, observation);
+            continue;
+          }
+          if (disposed) return;
+          // Consume before callback: an uncertain notification is not permission to wake twice.
+          sequence = observation.sequence; sampledAt = observation.sample.sampledAt;
+          try { await onObservation(observation); }
+          catch (error) { if (!disposed) onUnavailable(`Context observation unavailable; preserve assignment. ${String(error)}`, observation); }
+        }
+      }).catch(error => { if (!disposed) onUnavailable(`Context observation unavailable; preserve assignment. ${String(error)}`); });
+    };
+    const watcher = watch(root, enqueue);
+    watcher.unref(); enqueue();
+    return () => { disposed = true; checks.abort(); watcher.close(); };
   }
   watchEffects({ worker, command }: Parameters<NonNullable<TribunusHost["watchEffects"]>>[0], onMessage: Parameters<NonNullable<TribunusHost["watchEffects"]>>[1], onUnavailable: (message: string) => void) {
     const root = join(this.root, worker.address.launch, worker.address.generation);
@@ -268,6 +340,13 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   let generationRoot = "";
   let journal = "";
   let assignmentCommand: string | null = null;
+  let contextSequence = 0;
+  function publishContext(ctx: ExtensionContext, invalidation?: "compaction" | "stale") {
+    if (!address || !assignmentCommand || !incarnation(ctx)) return;
+    const sample = sampleContext(ctx.getContextUsage?.(), invalidation);
+    const observation = TribunusContextObservation.parse({ authority: controller, address, command: assignmentCommand, sequence: ++contextSequence, model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null, sample });
+    publish(receipt(assignmentCommand + "." + observation.sequence, "context"), { capability: descriptor.capability, observation });
+  }
   let pendingSettlement: { report: z.infer<typeof WorkerReport>; authority: z.infer<typeof Authority>; ctx: ExtensionContext } | null = null;
   let settling = false, settlementDirty = false;
   let admissionHold: string | null = null;
@@ -425,6 +504,8 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
       launch: address.launch, generation: address.generation
     });
     server = createServer((socket) => {
+      // Revoked observation clients can disconnect while a control reply is being written.
+      socket.on("error", () => socket.destroy());
       let buffer = "";
       socket.on("data", async (chunk) => {
         let accepted: string | null = null;
@@ -438,6 +519,13 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           const received = Buffer.from(frame.capability), expected = Buffer.from(descriptor.capability);
           if (received.length !== expected.length || !timingSafeEqual(received, expected) || !address || JSON.stringify(frame.address) !== JSON.stringify(address) || frame.reservation !== descriptor.launch.reservation || frame.scope !== descriptor.launch.scope || frame.authority.owner !== descriptor.authority.owner || frame.authority.generation < controller.generation || (frame.authority.generation === controller.generation && (frame.authority.session !== controller.session || frame.authority.epoch !== controller.epoch)) || !context || !incarnation(context))
             throw new Error("Control does not address this authorized worker incarnation.");
+          if (frame.kind === "context-current") {
+            // Observation cannot adopt a controller or apply work; it must name the current assignment.
+            if (!isDeepStrictEqual(frame.authority, controller) || frame.command !== assignmentCommand)
+              throw new Error("No current authenticated incarnation/assignment for context observation.");
+            socket.end(JSON.stringify({ kind: "ok", value: CurrentAssignment.parse({ nonce: frame.nonce, authority: controller, address, command: assignmentCommand }) }) + "\n");
+            return;
+          }
           if (frame.authority.generation > controller.generation) {
             publish(join(generationRoot, `${frame.authority.generation}.controller.json`), frame.authority);
             controller = frame.authority;
@@ -484,6 +572,10 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
             throw new Error("Worker has no same-generation applied initialization or matching bounded assignment.");
           if (frame.kind === "assign" && frame.assignment?.modelPin && (frame.assignment.modelPin.model !== observed.principal.model || frame.assignment.modelPin.thinking !== observed.principal.thinking || frame.assignment.modelPin.profile !== choice.profile))
             throw new Error(`Actual Tribunus selection changed before assignment: pinned ${frame.assignment.modelPin.model}/${frame.assignment.modelPin.thinking}, observed ${observed.principal.model}/${observed.principal.thinking}. Preserve worker and pin; no fallback.`);
+          if (frame.kind === "assign") {
+            const sample = sampleContext(context.getContextUsage?.());
+            if (sample.kind !== "fresh") throw new Error("Current context observation is unresolved. Preserve prior assignment; no new work or cleanup authorized.");
+          }
           if (frame.kind === "assign") publish(receipt(frame.command, "assignment"), { assignment: frame.assignment });
           publish(receipt(frame.command, "intent"), {
             fingerprint, command: frame.command, address, authority: frame.authority
@@ -552,8 +644,9 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     pi.events.on("subagent:async-started", raw => observeChildActivity("started", raw)),
     pi.events.on("subagent:async-complete", raw => observeChildActivity("complete", raw)),
   ];
-  pi.on("input", (event) => {
+  pi.on("input", (event, ctx) => {
     if (event.source === "extension") return { action: "continue" };
+    publishContext(ctx, "stale");
     manual = true;
     return { action: "handled" };
   });
@@ -802,5 +895,14 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
       pending.resolve(application);
     }
   });
-  pi.on("session_shutdown", () => { manual = true; server?.close(); centuriones?.dispose(); for (const unsubscribe of childEventSubscriptions) unsubscribe(); });
+  pi.on("turn_end", (_event, ctx) => { publishContext(ctx); });
+  pi.on("session_before_compact", (_event, ctx) => { publishContext(ctx, "compaction"); });
+  pi.on("session_compact_failed", (_event, ctx) => { publishContext(ctx, "stale"); });
+  pi.on("session_compact", (_event, ctx) => { publishContext(ctx, "compaction"); });
+  pi.on("model_select", (_event, ctx) => { publishContext(ctx, "stale"); });
+  pi.on("agent_start", (_event, ctx) => { publishContext(ctx, "stale"); });
+  pi.on("session_before_switch", (_event, ctx) => { publishContext(ctx, "stale"); });
+  pi.on("session_before_fork", (_event, ctx) => { publishContext(ctx, "stale"); });
+  pi.on("session_tree", (_event, ctx) => { publishContext(ctx, "stale"); });
+  pi.on("session_shutdown", (_event, ctx) => { publishContext(ctx, "stale"); manual = true; server?.close(); centuriones?.dispose(); for (const unsubscribe of childEventSubscriptions) unsubscribe(); });
 }
