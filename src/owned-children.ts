@@ -15,8 +15,8 @@ export const CenturioView = z.strictObject({
   evidence: z.array(z.string()),
 });
 
+// Persisted legacy research evidence only. No current research authority or controller.
 export const ResearchOwner = z.strictObject({ role: z.literal("legatus"), owner: z.uuid(), session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative() });
-export const ResearchRequest = z.strictObject({ kind: z.literal("research"), requestKey: z.uuid(), task: z.string().trim().min(1), role: z.enum(["how explorer", "why investigators"]), modelIndex: z.int().nonnegative().default(0), owner: ResearchOwner });
 export const ResearchStage = z.strictObject({
   id: z.uuid(), owner: ResearchOwner, task: z.string().min(1),
   state: z.discriminatedUnion("kind", [
@@ -26,11 +26,4 @@ export const ResearchStage = z.strictObject({
     z.strictObject({ kind: z.literal("settled"), marker: z.string() }),
   ]),
 });
-const StageEventFields = { owner: ResearchOwner, id: z.uuid(), marker: z.string() };
-export const ResearchStageEvent = z.discriminatedUnion("kind", [
-  z.strictObject({ ...StageEventFields, kind: z.literal("research-dispatch") }),
-  z.strictObject({ ...StageEventFields, kind: z.literal("research-settled") }),
-]);
 export const ResearchRecord = z.strictObject({ id: z.uuid(), owner: ResearchOwner, task: z.string(), intent: z.strictObject({ path: z.string(), digest: z.string() }), child: CenturioView, sequence: z.int().nonnegative(), launch: z.json() });
-export const ResearchObservation = z.strictObject({ kind: z.literal("research-observation"), owner: ResearchOwner, command: z.uuid(), sequence: z.int().positive(), children: z.array(CenturioView) });
-export const ResearchCheck = z.strictObject({ kind: z.literal("research-owner-check"), owner: ResearchOwner, id: z.uuid(), digest: z.string(), stage: z.enum(["launch", "read"]) });

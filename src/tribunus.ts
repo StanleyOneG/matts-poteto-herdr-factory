@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ContractEvidence } from "./engineering-contract.js";
 import { createHash } from "node:crypto";
-import { TaskRef, LegatusId, EngineeringProposal, EngineeringResult, EngineeringRef, EngineeringRecord, EngineeringDeliveryReceipt, EffectMessage, EffectReply } from "./snapshot.js";
+import { TaskRef, EngineeringResult, EffectMessage, EffectReply } from "./snapshot.js";
 export const LaunchId = z.uuid().brand<"LaunchId">();
 export const WindowIdentity = z.object({
   endpoint: z.string(), server: z.string(), workspace: z.string(), tab: z.string(), pane: z.string(), terminal: z.string(),
@@ -30,9 +30,16 @@ export const Initialization = z.object({
 });
 export const BoundedAssignment = z.object({
   task: TaskRef, scope: z.string(), goal: z.string(), acceptance: z.array(z.string()),
-  workflow: z.literal("implement"), testContract: z.literal("Matt TDD at Legatus-approved public seams; request an explicit exception if impractical"),
+  workflow: z.literal("implement"),
   authority: z.literal("bounded-implementation-only"),
 });
+// Retain historical assignment bytes without making methodology effect authority.
+export const LegacyBoundedAssignment = z.object({
+  task: TaskRef, scope: z.string(), goal: z.string(), acceptance: z.array(z.string()), workflow: z.literal("implement"),
+  testContract: z.literal("Matt TDD at Legatus-approved public seams; request an explicit exception if impractical"),
+  authority: z.literal("bounded-implementation-only"),
+});
+const PersistedAssignment = z.union([LegacyBoundedAssignment, BoundedAssignment]);
 const Progress = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("prepared")
@@ -56,13 +63,13 @@ const Progress = z.discriminatedUnion("kind", [
     kind: z.literal("initialized"), worker: VerifiedWorker, initialization: Initialization
   }),
   z.object({
-    kind: z.literal("assigning"), worker: VerifiedWorker, initialization: Initialization, command: z.uuid(), assignment: BoundedAssignment
+    kind: z.literal("assigning"), worker: VerifiedWorker, initialization: Initialization, command: z.uuid(), assignment: PersistedAssignment
   }),
   z.object({
-    kind: z.literal("assigned"), worker: VerifiedWorker, initialization: Initialization, command: z.uuid(), assignment: BoundedAssignment, application: z.string()
+    kind: z.literal("assigned"), worker: VerifiedWorker, initialization: Initialization, command: z.uuid(), assignment: PersistedAssignment, application: z.string()
   }),
   z.object({
-    kind: z.literal("reported"), worker: VerifiedWorker, initialization: Initialization, command: z.uuid(), assignment: BoundedAssignment, application: z.string(), report: z.object({
+    kind: z.literal("reported"), worker: VerifiedWorker, initialization: Initialization, command: z.uuid(), assignment: PersistedAssignment, application: z.string(), report: z.object({
       engineering: EngineeringResult.optional(), contract: ContractEvidence.optional(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string(), evidence: z.array(z.string())
     })
   }),
@@ -132,32 +139,12 @@ export const ContractObservation = z.object({
 export const WorkerReport = z.object({
   address: WorkerAddress, command: z.uuid(), engineering: EngineeringResult.optional(), contract: ContractEvidence.optional(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string().max(4000), evidence: z.array(z.string())
 });
-export const EngineeringRequest = z.object({
-  kind: z.literal("engineering-request"), requestKey: z.uuid(), proposal: EngineeringProposal, previous: EngineeringRef.optional(),
-  evidence: z.object({
-    kind: z.literal("tribunus"), owner: LegatusId, session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative(),
-    address: WorkerAddress, assignment: z.uuid(), reservation: z.uuid(), task: TaskRef, scope: z.string(), journal: z.string().min(1),
-  }).strict(),
-}).strict();
-export const EngineeringObservation = z.strictObject({
-  kind: z.literal("engineering-observation"),
-  request: z.strictObject({ id: z.uuid(), digest: z.string() }),
-  delivery: EngineeringDeliveryReceipt,
-  evidence: EngineeringRequest.shape.evidence,
-});
-export const EngineeringPublication = z.discriminatedUnion("kind", [EngineeringRequest, EngineeringObservation]);
 export type TribunusHost = {
   watchEffects?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onMessage: (message: z.infer<typeof EffectMessage>) => Promise<z.infer<typeof EffectReply>>, onUnavailable: (message: string) => void): void;
-  deliverEngineering?(input: {
-    worker: z.infer<typeof VerifiedWorker>; record: z.infer<typeof EngineeringRecord>;
-  }): Promise<z.infer<typeof EngineeringDeliveryReceipt>>;
-  watchEngineering?(input: {
-    worker: z.infer<typeof VerifiedWorker>; command: string;
-  }, onRequest: (request: z.infer<typeof EngineeringPublication>) => Promise<void>, onUnavailable: (message: string) => Promise<void>): void;
   watchReports?(input: {
     worker: z.infer<typeof VerifiedWorker>;
     command: string;
-  }, onReport: (report: z.infer<typeof WorkerReport>) => Promise<void>, onUnavailable: (message: string) => Promise<void>, onContract?: (observation: z.infer<typeof ContractObservation>) => Promise<void>, onChildren?: (observation: z.infer<typeof CenturioObservation>) => Promise<void>): void;
+  }, onReport: (report: z.infer<typeof WorkerReport>) => Promise<void>, onUnavailable: (message: string) => Promise<void>, onChildren?: (observation: z.infer<typeof CenturioObservation>) => Promise<void>): void;
   createWindow(input: {
     launch: LaunchRecord;
     cwd: string;

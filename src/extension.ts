@@ -1,4 +1,3 @@
-import { installLegatusResearch } from "./legatus-research.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
@@ -27,7 +26,6 @@ import {
 } from "./snapshot.js";
 import { preflight } from "./preflight.js";
 import { LocalTribunusHost, managedBootstrap, installTribunus } from "./tribunus-host.js";
-import { installEngineeringController } from "./engineering-controller.js";
 import type { TribunusHost } from "./tribunus.js";
 const Presentation = z.object({
   legatus: LegatusId,
@@ -98,17 +96,6 @@ export default function (pi: ExtensionAPI) {
   let run: Run | null = null;
   let liveContext: ExtensionContext | null = null;
   const attempted = new Set<string>();
-  const engineering = installEngineeringController(pi, {
-    current: () => legion, context: () => liveContext, busy: () => !!run || !!workspaceRun || research.busy(),
-    report: message => { if (liveContext) report(liveContext, message, "error"); },
-    deliver: (host, action) => hosts.run(host, action),
-  });
-  const research = installLegatusResearch(pi, {
-    current: () => legion, context: () => liveContext,
-    busy: () => !!run || !!workspaceRun || engineering.busy(),
-    changed: async () => { if (liveContext) await refresh(liveContext); },
-    report: message => { if (liveContext) report(liveContext, message, "error"); },
-  });
   function report(
     ctx: ExtensionContext,
     text: string,
@@ -150,10 +137,6 @@ export default function (pi: ExtensionAPI) {
   }
   function notifyResult(ctx: ExtensionContext, result: OperationResult) {
     switch (result.kind) {
-      case "research-prepared":
-      case "research-current":
-      case "research-observed":
-        break;
       case "deferred":
       case "saved":
       case "applied":
@@ -178,7 +161,6 @@ export default function (pi: ExtensionAPI) {
       case "launched":
         report(ctx, result.message, result.launch.state.kind === "held" ? "warning" : "info");
         break;
-      case "research-stage":
       case "launch-stage":
       case "workspace-stage":
         report(ctx, result.message);
@@ -262,7 +244,6 @@ export default function (pi: ExtensionAPI) {
         liveContext?.sessionManager.getSessionId()
     )
       return;
-    research.retire(view);
     binding =
       view.mode === "active" && view.snapshot
         ? {
@@ -275,7 +256,7 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setStatus(
         "legion-intake",
         binding
-          ? `Legion active | ${view.tasks.length} tasks | ${view.tasks.filter((t) => t.launch.kind !== "not-launched").length} launches | ${view.snapshot?.research.filter(record => !["prepared", "process-terminal"].includes(record.child.state.kind)).length ?? 0} research children`
+          ? `Legion active | ${view.tasks.length} tasks | ${view.tasks.filter((t) => t.launch.kind !== "not-launched").length} launches | ${view.snapshot?.research.filter(record => !["prepared", "process-terminal"].includes(record.child.state.kind)).length ?? 0} legacy research children`
           : view.mode === "stopping"
             ? "Legion stopping | owned work retained"
             : "Legion inactive",
@@ -291,14 +272,12 @@ export default function (pi: ExtensionAPI) {
       !captured ||
       run ||
       workspaceRun ||
-      engineering.busy() ||
-      research.busy() ||
       !ctx.isIdle() ||
       ctx.hasPendingMessages()
     )
       return;
     const data = await current.state();
-    if (legion !== current || binding !== captured || run || workspaceRun || engineering.busy() || research.busy() || !ctx.isIdle() || ctx.hasPendingMessages())
+    if (legion !== current || binding !== captured || run || workspaceRun || !ctx.isIdle() || ctx.hasPendingMessages())
       return;
     const sources =
       data.snapshot?.submissions
@@ -364,11 +343,7 @@ export default function (pi: ExtensionAPI) {
       context: realpathSync(ctx.cwd),
       session: ctx.sessionManager.getSessionId(),
       preflight: () => preflight(pi),
-      research,
-      tribuni: { host: () => hosts.getStore() ?? null, onEngineering: message => {
-        if (message) { if (liveContext) report(liveContext, message, "error"); return; }
-        void engineering.schedule().catch(error => { if (liveContext) report(liveContext, String(error), "error"); });
-      } },
+      tribuni: { host: () => hosts.getStore() ?? null, onUnavailable: message => { if (liveContext) report(liveContext, message, "error"); } },
       assignments: {
         repository: () => repositories.getStore() ?? null,
       },
@@ -392,12 +367,11 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Enable durable intake and reservations. Arguments: on, task <text>, research <bounded task>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
+      "Enable durable intake and reservations. Arguments: on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
     getArgumentCompletions: (prefix) =>
       [
         "on",
         "task",
-        "research",
         "status",
         "doctor",
         "off",
@@ -418,8 +392,8 @@ export default function (pi: ExtensionAPI) {
       const caller = { ...evidence(ctx), origin: "host-command" };
       try {
         if (
-          /^\s*(?:workspace|launch|research)(?:\s|$)/.test(text) &&
-          (workspaceRun || run || engineering.busy() || research.busy() || !ctx.isIdle() || ctx.hasPendingMessages())
+          /^\s*(?:workspace|launch)(?:\s|$)/.test(text) &&
+          (workspaceRun || run || !ctx.isIdle() || ctx.hasPendingMessages())
         ) {
           report(
             ctx,
@@ -459,8 +433,6 @@ export default function (pi: ExtensionAPI) {
           )
             run = null;
           attempted.clear();
-          engineering.resume();
-          await engineering.schedule();
           if (run?.kind === "pre-start" && run.stage === "forwarded")
             report(
               ctx,
@@ -468,15 +440,10 @@ export default function (pi: ExtensionAPI) {
               "warning",
             );
         }
-        if (result.kind === "research-stage") {
-          await research.dispatch(result.requestId, ctx);
-          return;
-        }
         if (result.kind === "workspace-stage" || result.kind === "launch-stage") {
           if (
             workspaceRun ||
             run ||
-            engineering.busy() ||
             !ctx.isIdle() ||
             ctx.hasPendingMessages() ||
             legion !== current
@@ -495,7 +462,6 @@ export default function (pi: ExtensionAPI) {
             !binding ||
             workspaceRun ||
             run ||
-            engineering.busy() ||
             !ctx.isIdle() ||
             ctx.hasPendingMessages() ||
             legion !== current ||
@@ -560,7 +526,7 @@ export default function (pi: ExtensionAPI) {
           retireWorkspace(pending, ctx, "held", "Workspace authority changed before start.");
           return { action: "handled" };
         }
-        if (run || engineering.busy() || !ctx.isIdle() || ctx.hasPendingMessages() || event.streamingBehavior) {
+        if (run || !ctx.isIdle() || ctx.hasPendingMessages() || event.streamingBehavior) {
           retireWorkspace(pending, ctx, "deferred", "Workspace dispatch deferred before start.");
           return { action: "handled" };
         }
@@ -587,7 +553,7 @@ export default function (pi: ExtensionAPI) {
           retireWorkspace(pending, ctx, "held", "Workspace authority changed before start.");
           return { action: "handled" };
         }
-        if (run || engineering.busy() || !ctx.isIdle() || ctx.hasPendingMessages()) {
+        if (run || !ctx.isIdle() || ctx.hasPendingMessages()) {
           retireWorkspace(pending, ctx, "deferred", "Workspace dispatch deferred before start.");
           return { action: "handled" };
         }
@@ -906,7 +872,6 @@ export default function (pi: ExtensionAPI) {
         "warning",
       );
     await refresh(ctx);
-    await engineering.schedule();
     schedule(ctx);
   });
 }

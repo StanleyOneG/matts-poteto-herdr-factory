@@ -127,13 +127,14 @@ export const EngineeringDeliveryReceipt = z.strictObject({
     z.strictObject({ kind: z.literal("applied"), evidence: z.string().min(1) }),
   ]),
 });
+export const AssignmentPin = z.strictObject({
+  owner: LegatusId, session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative(),
+  task: TaskRef.strict(), scope: z.string(), reservation: z.uuid(), assignment: z.uuid(),
+  launch: z.uuid(), workerSession: z.string(), workerGeneration: z.uuid(), addressDigest: z.string(),
+});
 export const EngineeringRecord = z.strictObject({
   id: z.uuid(),
-  pin: z.strictObject({
-    owner: LegatusId, session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative(),
-    task: TaskRef.strict(), scope: z.string(), reservation: z.uuid(), assignment: z.uuid(),
-    launch: z.uuid(), workerSession: z.string(), workerGeneration: z.uuid(), addressDigest: z.string(),
-  }),
+  pin: AssignmentPin,
   proposal: EngineeringProposal,
   previous: EngineeringRef.optional(),
   digest: z.string(),
@@ -147,17 +148,23 @@ export const EngineeringRecord = z.strictObject({
     }),
   ]),
 });
-export const EffectIntent = z.strictObject({
-  id: z.uuid(), pin: EngineeringRecord.shape.pin,
-  decision: z.strictObject({ id: z.uuid(), digest: z.string(), command: z.uuid() }),
-  seam: EngineeringRef.optional(),
-  call: z.strictObject({ id: z.string().min(1), name: z.enum(["bash", "write", "edit"]), rawInput: z.json().optional(), input: z.json(), journal: z.string().min(1) }),
-  contract: ContractEvidence,
+const EffectCall = z.strictObject({ id: z.string().min(1), name: z.enum(["bash", "write", "edit", "subagent"]), rawInput: z.json().optional(), input: z.json(), journal: z.string().min(1) });
+const AssignmentEffectIntent = z.strictObject({
+  id: z.uuid(), pin: AssignmentPin,
+  call: EffectCall,
   origin: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("workspace-preparation"), child: z.uuid(), rootCall: z.string(), journal: z.string() }),
     z.strictObject({ kind: z.literal("centurio"), child: EngineeringRef, intent: z.string(), run: z.string(), session: z.string(), journal: z.string(), cwd: z.string(), branch: z.string(), base: z.string() }),
   ]).optional(),
 });
+// Historical proof remains readable and hash-stable, but is not effect authority.
+const LegacyEffectIntent = z.strictObject({
+  id: AssignmentEffectIntent.shape.id, pin: AssignmentPin,
+  decision: z.strictObject({ id: z.uuid(), digest: z.string(), command: z.uuid() }),
+  seam: EngineeringRef.optional(), call: EffectCall, contract: ContractEvidence,
+  origin: AssignmentEffectIntent.shape.origin,
+});
+export const EffectIntent = z.union([AssignmentEffectIntent, LegacyEffectIntent]);
 export const EffectOutcome = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("refused"), evidence: z.string().min(1), reason: z.string().min(1) }),
   z.strictObject({ kind: z.literal("completed"), evidence: z.string().min(1), isError: z.boolean(), exitCode: z.int().optional() }),
@@ -177,12 +184,15 @@ export const EngineeringEvidence = z.strictObject({
 });
 export const EngineeringResult = EngineeringEvidence.extend({ priorExceptions: z.array(EngineeringEvidence) });
 export const CenturioOwnerCheck = z.strictObject({
-  kind: z.literal("centurio-owner-check"), id: z.uuid(), pin: EngineeringRecord.shape.pin,
+  kind: z.literal("centurio-owner-check"), id: z.uuid(), pin: AssignmentPin,
   child: EngineeringRef, stage: z.enum(["launch", "read"]),
 });
 export const EffectMessage = z.discriminatedUnion("kind", [
   CenturioOwnerCheck,
-  z.strictObject({ kind: z.literal("effect-admission"), intent: EffectIntent.extend({ call: EffectIntent.shape.call.required({ rawInput: true }) }) }),
+  z.strictObject({ kind: z.literal("effect-admission"), intent: z.union([
+    AssignmentEffectIntent.extend({ call: EffectCall.required({ rawInput: true }) }),
+    LegacyEffectIntent.extend({ call: EffectCall.required({ rawInput: true }) }),
+  ]) }),
   z.strictObject({ kind: z.literal("effect-observation"), id: z.uuid(), digest: z.string(), state: EffectOutcome }),
 ]);
 export const EffectReply = z.discriminatedUnion("kind", [
@@ -205,6 +215,7 @@ export const SnapshotSchema = z.object({
   attachments: z.array(z.object({ session: z.string(), generation: z.int() })),
   workspaceRequests: z.array(WorkspaceRequest).default([]),
   launchRequests: z.array(LaunchRequest).default([]),
+  // Historical research records are retained without adoption or automatic settlement.
   researchRequests: z.array(ResearchStage).default([]),
   research: z.array(ResearchRecord).default([]),
   researchHold: z.string().nullable().default(null),

@@ -1,48 +1,18 @@
-import { appendFileSync } from "node:fs";
+import assert from "node:assert/strict";
 import { test } from "node:test";
-import { exerciseRace } from "./support/composed-transport.mjs";
+import { exerciseNativeAssignment } from "./support/composed-transport.mjs";
 
-async function exercise(effectCase: string) {
-  const result = await exerciseRace("admission", { effectCase });
-  if (process.env.T04_EFFECT_AUDIT) appendFileSync(process.env.T04_EFFECT_AUDIT, JSON.stringify({ effectCase, root: result.root }) + "\n");
-}
-
-test("managed current approval and complete native proof admit one exact root write", async () => {
-  await exercise("write");
+test("managed root write uses current assignment authority and unchanged native tools without skill or seam gates", async () => {
+  await exerciseNativeAssignment("write");
+});
+test("managed root native permission refusal retains exact refused effect without executing", async () => {
+  await exerciseNativeAssignment("deny");
+});
+test("managed root native executed error holds fresh effects without blind retry", async () => {
+  await exerciseNativeAssignment("unknown");
 });
 
-test("managed unknown native effect holds further effects without blind retry", async () => {
-  await exercise("unknown");
-});
-
-for (const effectCase of ["mutate", "deny", "mutate-deny", "throw", "mutate-throw", "resources", "disconnected", "off", "stale", "off-before", "incarnation", "selection", "decline", "settings", "ownership", "native-tools"]) {
-  test(`managed effect admission preserves ${effectCase} ordering and evidence`, async () => {
-    await exercise(effectCase);
-  });
-}
-
-test("managed lost admission response holds fresh effects without reissuing work", async () => {
-  await exercise("lost-response");
-});
-
-for (const resource of ["matt", "poteto"]) {
-  for (const change of ["content", "target"]) {
-    test(`managed controller-observed ${resource} ${change} invalidation survives restoration`, async () => {
-      await exercise(`controller-${resource}-${change}`);
-    });
-  }
-}
-
-test("managed admission accepts the installed native legacy edit preparation", async () => {
-  await exercise("native-legacy");
-});
-
-for (const effectCase of ["native-string", "native-object", "native-legacy-deny", "native-legacy-mutate", "native-legacy-early-mutate"]) {
-  test(`managed native preparation preserves ${effectCase} behavior`, async () => {
-    await exercise(effectCase);
-  });
-}
-
-test("managed admission refuses an old seam after an approved task revision and scope amendment", async () => {
-  await exercise("task-amendment");
+test("a later native input change retains an unknown actual effect rather than claiming a final-execute veto", async () => {
+  const result = await exerciseNativeAssignment("changed-input");
+  assert.equal(result.view.snapshot?.effects.at(-1)?.state.kind, "unknown");
 });
