@@ -129,12 +129,87 @@ test("unreadable storage cannot hide stopping or release an unsettled invocation
     assert.equal((await a.command(`resume ${a.owner}`)).kind, "rejected");
   } finally {
     await writeFile(file, original);
-    release();
-    await running;
+    try {
+      const restored = await a.legion.state();
+      assert.equal(restored.mode, "stopping", "Readable storage cannot settle the admitted invocation");
+      assert.equal(restored.snapshot?.shutdown, null, "Observation cannot publish the pending off when storage returns");
+      assert.ok(restored.unavailable, "Pending publication remains a visible blocker");
+      const replacement = new Legion(a.options);
+      const refused = await replacement.command({ text: `resume ${a.owner}`, requestKey: "restored-replacement", evidence: { origin: "host-command", transport: "source-unavailable", session: a.options.session, generation: null, presented: [] } });
+      assert.equal(refused.kind, "rejected", "Restored storage does not release the in-flight owner");
+    } finally {
+      release();
+      await running;
+    }
   }
-  assert.equal((await a.legion.state()).mode, "inactive");
+  const settled = await a.legion.state();
+  assert.equal(settled.mode, "inactive");
+  assert.ok(settled.snapshot?.shutdown, "Actual invocation completion publishes and finalizes the pending stop without another off");
+  assert.equal(settled.snapshot.shutdown.epoch, 0);
   const reopened = new Legion(a.options);
   assert.equal((await reopened.state()).snapshot?.id, a.owner);
+  assert.equal((await reopened.command({ text: `resume ${a.owner}`, requestKey: "settled-replacement", evidence: { origin: "host-command", transport: "source-unavailable", session: a.options.session, generation: null, presented: [] } })).kind, "applied", "Completion releases the exclusive locks");
+  await reopened.command({ text: "off", requestKey: "settled-off", evidence: { origin: "host-command", transport: "source-unavailable", session: a.options.session, generation: null, presented: [] } });
+});
+
+test("state, status and doctor leave failed shutdown publication pending until explicit off", async () => {
+  const { root, git } = await repository();
+  let unavailable = false;
+  const a = await legatus({ root, git, session: "session-stop-publication", fault: point => {
+    if (unavailable && point === "before-commit") throw new Error("Stop publication unavailable");
+  } });
+  const before = (await a.legion.state()).snapshot;
+  assert.ok(before);
+  unavailable = true;
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const stopped = await a.command("off");
+      if (stopped.kind !== "observed") assert.fail("Expected retained shutdown diagnostic");
+      assert.equal(stopped.view.mode, "stopping");
+      assert.match(stopped.view.unavailable ?? "", /Stop publication unavailable/);
+      assert.equal((await a.command(`resume ${a.owner}`)).kind, "rejected");
+    }
+  } finally {
+    unavailable = false;
+  }
+  const file = join(a.options.storagePath, `v1.${a.owner}.sqlite`);
+  const durable = await readFile(file);
+  const observations = await Promise.all([a.legion.state(), a.legion.state()]);
+  for (const text of ["status", `status ${a.owner}`, "doctor"]) {
+    const result = await a.command(text);
+    if (result.kind !== "observed") assert.fail("Expected read-only observation");
+    observations.push(result.view);
+  }
+  for (const view of observations) {
+    assert.equal(view.mode, "stopping");
+    assert.equal(view.snapshot?.shutdown, null, "Observation must not publish the pending stop");
+    assert.equal(view.snapshot?.revision, before.revision);
+  }
+  assert.deepEqual(await readFile(file), durable, "State/status/doctor must preserve durable bytes");
+  const stopped = await a.command("off");
+  if (stopped.kind !== "observed") assert.fail("Expected explicit shutdown reconciliation");
+  assert.equal(stopped.view.mode, "inactive");
+  assert.ok(stopped.view.snapshot?.shutdown);
+  assert.equal(stopped.view.snapshot.shutdown.generation, before.generation);
+  assert.equal(stopped.view.snapshot.shutdown.epoch, 0, "Retry cannot replace the authority captured by the first off");
+  assert.equal(stopped.view.snapshot.revision, before.revision + 1);
+  await a.command("off");
+  assert.deepEqual((await a.legion.state()).snapshot, stopped.view.snapshot);
+});
+
+test("off with no worker publishes only its required shutdown record", async () => {
+  const { root, git } = await repository();
+  const a = await legatus({ root, git, session: "session-empty-stop" });
+  const before = (await a.legion.state()).snapshot;
+  assert.ok(before);
+  const stopped = await a.command("off");
+  if (stopped.kind !== "observed") assert.fail("Expected shutdown observation");
+  assert.equal(stopped.view.mode, "inactive");
+  assert.ok(stopped.view.snapshot?.shutdown);
+  assert.deepEqual(stopped.view.snapshot.shutdown.workers, []);
+  assert.equal(stopped.view.snapshot.revision, before.revision + 1, "No empty worker-list publication after the required stop persistence");
+  await a.command("off");
+  assert.deepEqual((await a.legion.state()).snapshot, stopped.view.snapshot);
 });
 
 test("off at authorization await boundaries never starts discovery after revocation or releases an unsettled owner", async () => {
@@ -521,8 +596,9 @@ test("revocation at durable dispatch never starts the Git invocation", async () 
   const { root, git } = await repository();
   const a = await legatus({ root, git, session: "session-dispatch-race" });
   assert.ok(a.options.assignments);
+  let off: ReturnType<typeof a.command> | undefined;
   a.options.assignments.fault = (point) => {
-    if (point === "after-dispatch") void a.command("off");
+    if (point === "after-dispatch") off = a.command("off");
   };
   git.createBranch = async () => {
     throw new Error("Revoked Git must not start");
@@ -536,6 +612,8 @@ test("revocation at durable dispatch never starts the Git invocation", async () 
   if (result.kind !== "reserved" || result.workspace.kind !== "held")
     assert.fail("Expected retained hold");
   assert.equal(result.workspace.code, "approval");
+  assert.ok(off, "Durable dispatch requested revocation");
+  await off;
   assert.equal((await a.legion.state()).mode, "inactive");
 });
 

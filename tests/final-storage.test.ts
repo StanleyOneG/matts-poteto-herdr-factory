@@ -253,20 +253,49 @@ test("multiple scoped candidate identities remain unavailable until an explicit 
   assert.equal((await ambiguous.state()).snapshot?.submissions[0]?.text, "Original first");
   await command(ambiguous, "shared", "off", "off");
 });
+test("off after the first commit keeps its pending shutdown and never replays the committed input", async () => {
+  const root = await mkdtemp(join(tmpdir(), "legion-committed-stop-"));
+  let armed = true;
+  let off: ReturnType<typeof command> | undefined;
+  const subject = new Legion({
+    storagePath: root, context: "/committed/repo", session: "owner", preflight: async () => [],
+    storageFault: point => {
+      if (armed && point === "after-commit") {
+        armed = false;
+        off = command(subject, "owner", "off", "off-after-commit");
+      }
+    },
+  });
+  assert.equal((await command(subject, "owner", "Committed input", "original")).kind, "saved");
+  assert.ok(off);
+  const stopped = await off;
+  if (stopped.kind !== "observed") assert.fail("Expected completed shutdown");
+  assert.equal(stopped.view.mode, "inactive");
+  assert.ok(stopped.view.snapshot?.shutdown);
+  assert.equal(stopped.view.snapshot.shutdown.epoch, 0);
+  assert.equal(stopped.view.snapshot.submissions.length, 1);
+  assert.equal(stopped.view.snapshot.submissions[0]?.text, "Committed input");
+  await command(subject, "owner", "off", "off-again");
+  assert.deepEqual((await subject.state()).snapshot, stopped.view.snapshot);
+});
+
 for (const phase of ["route-opened", "before-route-publish", "before-initialized-publish"]) {
   test(`off during ${phase} prevents publication after the lifetime lease is revoked`, async () => {
     const root = await mkdtemp(join(tmpdir(), "legion-revoked-publication-"));
     let armed = true;
+    let off: ReturnType<typeof command> | undefined;
     const subject = new Legion({
       storagePath: root, context: "/revoked/repo", session: "owner", preflight: async () => [],
       storageFault: point => {
         if (armed && point === phase) {
           armed = false;
-          void command(subject, "owner", "off", "off-during-publication");
+          off = command(subject, "owner", "off", "off-during-publication");
         }
       },
     });
     assert.equal((await command(subject, "owner", "Unacknowledged input", "original")).kind, "uncertain");
+    assert.ok(off, "The publication fault requested revocation");
+    await off;
     const files = await readdir(root);
     assert.equal(files.filter(f => f.endsWith(phase !== "before-initialized-publish" ? ".initial.route" : ".initialized")).length, 0);
     const id = files.join(" ").match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/)?.[0];

@@ -6,7 +6,7 @@ type ProfileLaunchOptions = { profile: "matt" | "poteto-mode"; selection?: impor
 type ProfileLaunchResult = { root: string; view: import("../../src/intake.js").LegionView; prompts: string[]; entries: Array<{ customType?: string }> };
 export function exerciseNativeAssignment(scenario: "launch-profile", options: ProfileLaunchOptions): Promise<ProfileLaunchResult & { startupCommand: string; workerDescriptor: { workflowChoice: import("../../src/legion-settings.js").WorkflowChoice } }>;
 export function exerciseNativeAssignment(scenario: "launch-profile-held", options: ProfileLaunchOptions): Promise<ProfileLaunchResult>;
-export function exerciseNativeAssignment(scenario: string, options?: { childCase: string }): Promise<{ root: string; view: import("../../src/intake.js").LegionView }>;
+export function exerciseNativeAssignment(scenario: string, options?: { childCase?: string; drain?: boolean; ownerLoss?: boolean }): Promise<{ root: string; view: import("../../src/intake.js").LegionView }>;
 export function exerciseChildStartup(inherited: boolean): Promise<{ root: string; initializationError: string | null; command: unknown; inheritedBootstrap: string | null }>;
 export function exerciseOrdinaryLegatusResearch(legacyHold?: boolean): Promise<Array<{
   command: string; before: unknown; after: unknown; retired: string[];

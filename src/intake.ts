@@ -5,7 +5,7 @@ import { loadLegionSettings, selectTribunusModel, type LegionSettings, type Trib
 import { readFileSync, realpathSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
-import { mattInitializationPrompt, requiredWorkflowSkills, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
+import { mattInitializationPrompt, requiredWorkflowSkills, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, WorkerStop, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
 import {
   AssignmentLedger,
   AssignmentConflict,
@@ -264,6 +264,18 @@ function hasLegacyResearchHold(snapshot: LegatusSnapshot | null) {
   return !!snapshot && (!!snapshot.researchHold || snapshot.researchRequests.some(request => request.state.kind !== "settled") ||
     snapshot.research.some(record => !["prepared", "process-terminal"].includes(record.child.state.kind)));
 }
+function hasUnsettledWork(snapshot: LegatusSnapshot | null, launches: Map<string, LaunchView>) {
+  const shutdown = snapshot?.shutdown;
+  return hasLegacyResearchHold(snapshot) || !!snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown") ||
+    !!shutdown && (shutdown.workers.some(worker => worker.state.kind !== "parked") ||
+      [...launches.values()].some(launch => {
+        if (launch.kind === "not-launched" || launch.kind === "prepared") return false;
+        const progress = launch.kind === "held" ? launch.last : launch;
+        if (!("worker" in progress)) return true;
+        const addressDigest = createHash("sha256").update(JSON.stringify(progress.worker.address)).digest("hex");
+        return !shutdown.workers.some(worker => worker.addressDigest === addressDigest && worker.state.kind === "parked");
+      }));
+}
 export type LegionOptions = {
   storagePath: string;
   context: string;
@@ -347,6 +359,10 @@ export class Legion {
   private epoch = 0;
   private stopping = false;
   private stopRequested = false;
+  private pendingStop: Omit<NonNullable<LegatusSnapshot["shutdown"]>, "workers"> | null = null;
+  private stopPublication: Promise<void> | null = null;
+  private creating = false;
+  private workerHosts = new Map<string, TribunusHost>();
   private invocations = 0;
   private effectInvocations = new Set<string>();
   private uncertain: { id: string; requestKey: string } | null = null;
@@ -362,6 +378,10 @@ export class Legion {
     this.epoch++;
     this.contextAlerts.invalidate("Owner authority revoked; observation unresolved");
     for (const dispose of this.contextWatchers.splice(0)) dispose();
+    if (this.stopRequested && this.binding) {
+      this.stopping = true;
+      return;
+    }
     if (this.invocations) {
       this.stopping = true;
       return;
@@ -464,7 +484,7 @@ export class Legion {
   ) {
     if (
       !this.binding ||
-      this.stopping ||
+      this.stopping || this.stopRequested ||
       this.epoch !== epoch ||
       request.epoch !== epoch ||
       request.generation !== this.binding.generation ||
@@ -833,7 +853,8 @@ export class Legion {
       };
     } finally {
       this.invocations--;
-      if (this.stopping && !this.invocations) this.revoke();
+      if (this.stopRequested) await this.reconcileStop();
+      else if (this.stopping && !this.invocations) this.revoke();
     }
   }
   private async prepareWorkspace(input: {
@@ -1092,6 +1113,7 @@ export class Legion {
       if (claim?.kind !== "owned" || claim.workspace.kind !== "ready" || claim.reservation.approval.scope !== request.scope)
         return reject("launch-claim", "Confirmed owned current claim and ready workspace required. No worker started.");
       const reservation = claim.reservation;
+      this.workerHosts.set(reservation.id, host);
       const revalidate = async () => {
         await this.authorized(request, epoch);
         const current = await ledger.observations(reservation.owner);
@@ -1294,7 +1316,43 @@ export class Legion {
       return { kind: "uncertain", requestKey: id, message: `Launch authority or effect evidence unavailable. Preserve all resources and the saved attempt. No fallback or retry. ${String(error)}` };
     } finally {
       if (entered) this.invocations--;
-      if (this.stopping && !this.invocations) this.revoke();
+      if (this.stopRequested) await this.reconcileStop();
+      else if (this.stopping && !this.invocations) this.revoke();
+    }
+  }
+  private async publishPendingStop(snapshot: LegatusSnapshot | null) {
+    const pending = this.pendingStop, binding = this.binding;
+    if (!snapshot || snapshot.shutdown || !pending || !binding || this.creating) return snapshot;
+    if (this.stopPublication) {
+      await this.stopPublication;
+      return this.store.read(snapshot.id);
+    }
+    snapshot.shutdown = { ...pending, workers: [] };
+    const expected = snapshot.revision++;
+    this.stopPublication = this.store.save(snapshot, expected, () => binding === this.binding && this.stopRequested && pending === this.pendingStop);
+    try {
+      await this.stopPublication;
+      return snapshot;
+    } finally {
+      this.stopPublication = null;
+    }
+  }
+  private async finishStop() {
+    if (!this.stopRequested || this.invocations || this.creating) return;
+    const view = await this.state();
+    if (view.unavailable || !view.snapshot?.shutdown || hasUnsettledWork(view.snapshot, new Map(view.tasks.map(task => [task.id, task.launch])))) return;
+    this.stopRequested = false;
+    this.pendingStop = null;
+    this.revoke();
+  }
+  private async reconcileStop(): Promise<string | null> {
+    try {
+      if (this.selected) await this.publishPendingStop(await this.store.read(this.selected));
+      await this.requestWorkerStops();
+      await this.finishStop();
+      return null;
+    } catch (error) {
+      return String(error);
     }
   }
   async state(): Promise<LegionView> {
@@ -1305,10 +1363,9 @@ export class Legion {
       if (snapshot && this.uncertain?.id === snapshot.id) this.uncertain = null;
       const claims = await this.claims(snapshot);
       const launches = await this.launchViews({ snapshot, claims: claims.byTask, fallback: claims.fallback });
-      const unresolvedLaunch = [...launches.values()].some((launch) => launch.kind !== "not-launched" && launch.kind !== "prepared");
-      const unresolvedResearch = hasLegacyResearchHold(snapshot);
+      const unsettled = hasUnsettledWork(snapshot, launches);
       return {
-        mode: this.stopping || unresolvedResearch && (!this.binding || this.stopRequested) || (this.stopRequested && unresolvedLaunch || !this.binding && snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown")) ? "stopping" : this.binding ? "active" : "inactive",
+        mode: this.stopping || unsettled && (!this.binding || this.stopRequested || !!snapshot?.shutdown) ? "stopping" : this.binding ? "active" : "inactive",
         context: this.contextAlerts.view(),
         ownerObservations: claims.all,
         snapshot,
@@ -1332,7 +1389,7 @@ export class Legion {
           })) ?? [],
         ...this.settingsView(),
         diagnostics: this.activationDiagnostics,
-        unavailable: null,
+        unavailable: this.pendingStop && !snapshot?.shutdown ? "Shutdown publication is pending. Preserve ownership and repeat explicit off when storage is available." : null,
       };
     } catch (error) {
       return {
@@ -1512,8 +1569,16 @@ export class Legion {
       );
     if (intent.kind === "off") {
       this.stopRequested = true;
+      const generation = this.binding?.generation;
+      if (generation && !this.pendingStop)
+        this.pendingStop = { id: randomUUID(), generation, epoch: this.epoch };
       this.revoke();
-      return this.state().then((view) => ({ kind: "observed", view }));
+      if (!generation) return this.state().then(view => ({ kind: "observed", view }));
+      return this.serialize(async () => {
+        const unavailable = await this.reconcileStop();
+        const view = await this.state();
+        return { kind: "observed", view: unavailable ? { ...view, unavailable } : view };
+      });
     }
     const epoch = this.epoch;
     if (intent.kind === "launch")
@@ -1595,7 +1660,7 @@ export class Legion {
         return {
           kind: "observed",
           view: {
-            mode: hasLegacyResearchHold(snapshot) || snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown") ? "stopping" : "inactive",
+            mode: id === this.selected && this.stopping || hasUnsettledWork(snapshot, launches) ? "stopping" : "inactive",
             snapshot,
             context: id === this.selected ? this.contextAlerts.view() : {},
             ownerObservations: claims.all,
@@ -1768,6 +1833,12 @@ export class Legion {
             "context",
             "Legatus belongs to a different working context.",
           );
+        if (state?.shutdown) {
+          const claims = await this.claims(state);
+          const launches = await this.launchViews({ snapshot: state, claims: claims.byTask, fallback: claims.fallback });
+          if (hasUnsettledWork(state, launches))
+            return reject("stopping", "Owned work is not known settled. Preserve the shutdown and resources; activation cannot resume a retiring actor.");
+        }
         const expectedRevision = state?.revision ?? null;
         const snapshot =
           state ??
@@ -1819,6 +1890,7 @@ export class Legion {
           });
         }
         this.selected = snapshot.id;
+        snapshot.shutdown = null;
         if (intent.kind === "profile-on" || intent.kind === "profile-off")
           snapshot.workflowChoice.profile = intent.kind === "profile-on" ? "poteto-mode" : "matt";
         if (intent.kind === "workflow") snapshot.workflowChoice.requestedWorkflow = "implement-spec";
@@ -1862,6 +1934,7 @@ export class Legion {
             " Command text only. Attachments were not captured.";
         snapshot.receipts.push({ fingerprint, result });
         snapshot.revision++;
+        this.creating = expectedRevision === null;
         try {
           await this.store.save(
             snapshot,
@@ -1870,20 +1943,30 @@ export class Legion {
           );
         } catch (error) {
           this.uncertain = { id: snapshot.id, requestKey: input.requestKey };
+          // A first intake publication cannot have dispatched managed work. Preserve its
+          // incomplete artifacts for explicit creation recovery, not retiring-worker resume.
+          if (this.creating && this.stopRequested && !this.invocations) {
+            this.stopRequested = false;
+            this.pendingStop = null;
+          }
           this.revoke();
           return {
             kind: "uncertain",
             requestKey: input.requestKey,
             message: `Commit could not be established. Reconcile status ${snapshot.id} and retry the same request key. ${String(error)}`,
           };
+        } finally {
+          this.creating = false;
         }
         if (!ready) this.revoke();
-        else {
+        else if (this.epoch === epoch) {
           if (explicitActivation) this.settings = prospectiveSettings;
           this.stopRequested = false;
+          this.pendingStop = null;
         }
         return result;
       } finally {
+        if (this.stopRequested) await this.reconcileStop();
         try {
           if (recoveryLock) release(recoveryLock);
         } finally {
@@ -1893,6 +1976,50 @@ export class Legion {
       }
     });
   }
+  private async requestWorkerStops() {
+    const view = await this.state(), state = view.snapshot, binding = this.binding;
+    if (!state?.shutdown || !binding) return;
+    const shutdown = state.shutdown;
+    let changed = false;
+    const targets = view.tasks.flatMap(task => {
+      const progress = task.launch.kind === "held" ? task.launch.last : task.launch;
+      if (!("worker" in progress)) return [];
+      const addressDigest = createHash("sha256").update(JSON.stringify(progress.worker.address)).digest("hex");
+      const command = "assignment" in progress ? progress.command : null;
+      const host = task.claim.kind === "owned" ? this.workerHosts.get(task.claim.reservation.id) : null;
+      const saved = shutdown.workers.find(worker => worker.addressDigest === addressDigest);
+      if (saved?.state.kind === "parked") return [];
+      if (!saved) {
+        shutdown.workers.push({ launch: progress.worker.address.launch, addressDigest, command, state: host?.stop ? { kind: "draining" } : { kind: "held", message: "Addressed stop transport unavailable. Preserve the worker; delivery and settlement are unresolved." } });
+        changed = true;
+      }
+      return [{ worker: progress.worker, addressDigest, command, host }];
+    });
+    if (changed) {
+      const expected = state.revision++;
+      await this.store.save(state, expected, () => binding === this.binding);
+    }
+    for (const target of targets) {
+      const observe = async (observation: z.infer<typeof WorkerStop>) => {
+        if (observation.shutdown !== shutdown.id || observation.authority.owner !== state.id || observation.authority.session !== this.options.session || observation.authority.generation !== shutdown.generation || observation.authority.epoch !== shutdown.epoch || observation.command !== target.command || !isDeepStrictEqual(observation.address, target.worker.address)) return;
+        await this.serialize(async () => {
+          const current = await this.store.read(state.id);
+          const saved = current?.shutdown?.id === shutdown.id ? current.shutdown.workers.find(worker => worker.addressDigest === target.addressDigest) : null;
+          if (!current || !saved || saved.state.kind === "parked" || isDeepStrictEqual(saved.state, observation.state)) return;
+          saved.state = observation.state;
+          const revision = current.revision++;
+          await this.store.save(current, revision, () => binding === this.binding);
+          await this.finishStop();
+        });
+      };
+      if (!target.host?.stop) continue;
+      void target.host.stop({ worker: target.worker, shutdown: shutdown.id, command: target.command }, observe).catch(async error => {
+        try {
+          await observe({ shutdown: shutdown.id, authority: { owner: state.id, session: this.options.session, generation: shutdown.generation, epoch: shutdown.epoch }, address: target.worker.address, command: target.command, state: { kind: "held", message: `Stop delivery unresolved. Preserve resources. ${String(error)}` } });
+        } catch (publication) { this.options.tribuni?.onUnavailable?.(`Stop observation publication unresolved. Preserve shutdown ${shutdown.id} and worker resources. ${String(publication)}`); }
+      });
+    }
+  }
   private submitEffect(message: z.infer<typeof EffectMessage>): Promise<OperationResult> {
     const epoch = this.epoch;
     return this.serialize(async () => {
@@ -1900,12 +2027,13 @@ export class Legion {
       if (!state || !binding || this.uncertain) return reject("effect-controller", "Current effect controller is unavailable or uncertain. Preserve the same intent.");
       if (message.kind === "centurio-owner-check") {
         const pin = message.pin, task = view.tasks.find(task => task.id === pin.task.id), launch = task?.launch;
-        if (view.mode !== "active" || epoch !== this.epoch || this.stopping || pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || pin.epoch !== epoch)
+        const settlementRead = message.stage === "read" && !!state.shutdown && pin.generation === state.shutdown.generation && pin.epoch === state.shutdown.epoch;
+        if ((!settlementRead && (view.mode !== "active" || epoch !== this.epoch || this.stopping)) || pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || (!settlementRead && pin.epoch !== epoch))
           return reject("centurio-controller", "The child owner is no longer the current controller. No child work admitted.");
-        if (task?.eligibility !== "admitted" || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || (launch?.kind !== "assigned" && !(message.stage === "read" && launch?.kind === "reported")))
+        if ((!settlementRead && task?.eligibility !== "admitted") || !task || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || (launch?.kind !== "assigned" && !(message.stage === "read" && launch?.kind === "reported")))
           return reject("centurio-assignment", "The child no longer has the current owned assignment.");
         try {
-          if (this.approval(state, pin.task) !== pin.scope || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || launch.worker.address.launch !== pin.launch || launch.worker.address.session !== pin.workerSession || launch.worker.address.generation !== pin.workerGeneration || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
+          if ((!settlementRead && this.approval(state, pin.task) !== pin.scope) || !isDeepStrictEqual(launch.assignment.task, pin.task) || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || launch.worker.address.launch !== pin.launch || launch.worker.address.session !== pin.workerSession || launch.worker.address.generation !== pin.workerGeneration || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
             return reject("centurio-pin", "The child task, scope, assignment, or principal incarnation changed.");
         } catch (error) { return reject("centurio-pin", String(error)); }
         return { kind: "centurio-owner-current", id: message.id, child: message.child };
@@ -1923,7 +2051,8 @@ export class Legion {
         try {
           await this.store.save(state, expected, () => binding === this.binding);
           if (message.state.kind !== "unknown" && this.effectInvocations.delete(message.id)) this.invocations--;
-          if (this.stopping && !this.invocations) this.revoke();
+          if (this.stopRequested) await this.reconcileStop();
+          else if (this.stopping && !this.invocations) this.revoke();
           return { kind: "effect", effect: record };
         } catch (error) { return reject("effect-observation-unknown", `Retain the same effect observation for reconciliation. ${String(error)}`); }
       }

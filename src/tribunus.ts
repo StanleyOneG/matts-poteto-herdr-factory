@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AssignmentModelPinSchema, ThinkingSchema, WorkflowChoiceSchema, type StartupSelection, type WorkflowChoice } from "./legion-settings.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import { createHash } from "node:crypto";
-import { TaskRef, EngineeringResult, EffectMessage, EffectReply } from "./snapshot.js";
+import { TaskRef, EngineeringResult, EffectMessage, EffectReply, ParkState } from "./snapshot.js";
 export const LaunchId = z.uuid().brand<"LaunchId">();
 export const WindowIdentity = z.object({
   endpoint: z.string(), server: z.string(), workspace: z.string(), tab: z.string(), pane: z.string(), terminal: z.string(),
@@ -163,7 +163,9 @@ export const ContractObservation = z.object({
 export const WorkerReport = z.object({
   address: WorkerAddress, command: z.uuid(), engineering: EngineeringResult.optional(), contract: ContractEvidence.optional(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string().max(4000), evidence: z.array(z.string())
 });
+export const WorkerStop = z.strictObject({ shutdown: z.uuid(), authority: ContextAuthority, address: WorkerAddress, command: z.uuid().nullable(), state: ParkState });
 export type TribunusHost = {
+  stop?(input: { worker: z.infer<typeof VerifiedWorker>; shutdown: string; command: string | null }, onObservation: (observation: z.infer<typeof WorkerStop>) => Promise<void>): Promise<void>;
   watchContext?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onObservation: (observation: z.infer<typeof TribunusContextObservation>) => Promise<void>, onUnavailable: (message: string, observation?: z.infer<typeof TribunusContextObservation>) => void): () => void;
   watchEffects?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onMessage: (message: z.infer<typeof EffectMessage>) => Promise<z.infer<typeof EffectReply>>, onUnavailable: (message: string) => void): void;
   watchReports?(input: {

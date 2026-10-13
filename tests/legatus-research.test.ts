@@ -117,14 +117,28 @@ test("legacy research evidence survives read/write and retired protocol submissi
     assert.equal((await legion.submit(raw)).kind, "rejected");
     assert.deepEqual((await legion.state()).snapshot, before);
   }
-  for (const text of ["status", `status ${snapshot.id}`, "doctor", "off"]) {
+  for (const text of ["status", `status ${snapshot.id}`, "doctor"]) {
     const result = await command(text);
     assert.equal(result.kind, "observed");
     if (result.kind !== "observed") assert.fail("Expected observation");
     assert.deepEqual(result.view.snapshot, before);
     if (text !== "status" && text !== "doctor") assert.equal(result.view.mode, "stopping");
   }
-  assert.deepEqual((await new Legion(options).state()).snapshot, before);
+  const stopped = await command("off");
+  if (stopped.kind !== "observed") assert.fail("Expected shutdown observation");
+  assert.equal(stopped.view.mode, "stopping", "Off cannot settle legacy research");
+  const after = stopped.view.snapshot;
+  assert.ok(after?.shutdown);
+  const { revision: beforeRevision, shutdown: beforeShutdown, ...beforeDomain } = before;
+  const { revision: afterRevision, shutdown, ...afterDomain } = after;
+  assert.deepEqual(afterDomain, beforeDomain, "Off preserves every domain field, not only research history");
+  assert.equal(beforeShutdown, null);
+  assert.equal(afterRevision, beforeRevision + 1, "Only the required shutdown envelope is published");
+  assert.ok(shutdown.id);
+  assert.equal(shutdown.generation, before.generation);
+  assert.equal(shutdown.epoch, 0);
+  assert.deepEqual(shutdown.workers, []);
+  assert.deepEqual((await new Legion(options).state()).snapshot, after);
 });
 
 for (const kind of ["prepared", "active", "logical-terminal", "process-terminal", "unknown", "mismatch", "launch-unresolved", "corroboration-pending"] as const) {

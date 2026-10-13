@@ -64,6 +64,18 @@ test("activation preserves logical identity and exact task text across restart w
     "new-task",
   );
 });
+test("off retains one durable shutdown identity across repeated requests and inactive restart", async () => {
+  const { legion, command, options } = await fixture();
+  await command("task Preserve this pending work");
+  await command("off");
+  const stopped = await legion.state();
+  assert.ok(stopped.snapshot?.shutdown);
+  await command("off");
+  const reopened = await new Legion(options).state();
+  assert.deepEqual(reopened.snapshot?.shutdown, stopped.snapshot.shutdown);
+  assert.equal(reopened.mode, "inactive");
+  assert.equal(reopened.snapshot?.submissions[0]?.text, "Preserve this pending work");
+});
 test("direct interpretation admits a scoped task without tickets or external execution", async () => {
   const { legion, command, interpret } = await fixture();
   await command("Fix the label");

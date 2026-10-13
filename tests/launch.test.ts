@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { Legion } from "../src/intake.js";
 import type { WorkspaceRepository } from "../src/git-workspace.js";
 import { mattInitializationPrompt, LaunchId, LaunchRecord, type TribunusHost } from "../src/tribunus.js";
@@ -46,7 +48,7 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
       host: () => host ?? null
     },
   };
-  const legion = new Legion(options);
+  let legion = new Legion(options);
   let seq = 0;
   const evidence = {
     origin: "host-command", transport: "source-unavailable", session: "controller", generation: null, presented: []
@@ -86,7 +88,27 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
   };
   assert.ok(initial.snapshot);
   return {
-    legion, command, task, ready, git, options, root, setSettings: (next: typeof settings) => { settings = next; },
+    get legion() { return legion; }, command, task, ready, git, options, root,
+    // Controlled saved-input recovery is not permission to resume the actual retiring actor.
+    restartFromPreShutdownInput: async () => {
+      const savedInput = join(root, "pre-shutdown-input");
+      const before = (await legion.state()).snapshot;
+      assert.ok(before);
+      assert.equal(before.shutdown, null);
+      await cp(options.storagePath, savedInput, { recursive: true });
+      await command("off");
+      const stopped = (await legion.state()).snapshot;
+      assert.ok(stopped?.shutdown);
+      await command("off");
+      assert.deepEqual((await legion.state()).snapshot, stopped, "Repeated off does not rewrite unchanged addressed worker targets");
+      const refused = await command(`resume ${before.id}`, "retired-resume");
+      if (refused.kind !== "rejected") assert.fail("Actual off must refuse retiring-worker resume");
+      assert.equal(refused.code, "stopping");
+      assert.deepEqual((await legion.state()).snapshot, stopped, "Actual shutdown remains intact");
+      legion = new Legion({ ...options, storagePath: savedInput });
+      assert.deepEqual((await legion.state()).snapshot, before, "Explicit resume reads the truthful pre-shutdown input");
+    },
+    setSettings: (next: typeof settings) => { settings = next; },
     ledgerRoot: join(commonDir, "legion", "runs", initial.snapshot.id)
   };
 }
@@ -144,14 +166,88 @@ test("an applied startup with unavailable identity is held durably and a fresh r
     assert.equal((await f.legion.state()).tasks[0]?.launch.kind, "held");
     await f.command("off");
     assert.equal((await f.legion.state()).mode, "stopping");
+    const stopped = (await f.legion.state()).snapshot;
+    assert.ok(stopped?.shutdown);
+    await f.command("off");
+    assert.deepEqual((await f.legion.state()).snapshot, stopped, "An unchanged worker list is not republished");
+    const addressed = await f.command(`status ${stopped.id}`);
+    if (addressed.kind !== "observed") assert.fail("Expected addressed stopping observation");
+    assert.equal(addressed.view.mode, "stopping", "Addressed status must not hide an unresolved worker launch");
+    assert.deepEqual(addressed.view.snapshot, stopped);
     const restarted = new Legion(f.options);
-    assert.equal((await restarted.state()).mode, "inactive");
+    assert.equal((await restarted.state()).mode, "stopping");
     assert.equal((await restarted.state()).tasks[0]?.launch.kind, "held");
+    const refused = await restarted.command({ text: `resume ${stopped.id}`, requestKey: "retiring-reactivation", evidence: { origin: "host-command", transport: "source-unavailable", session: "controller", generation: null, presented: [] } });
+    if (refused.kind !== "rejected") assert.fail("Unresolved startup must refuse reactivation");
+    assert.equal(refused.code, "ownership");
+    assert.equal(liveWorkers.length, 1);
     assert.equal(reservation.plan.path.startsWith(f.root), true);
   }
   finally {
     await f.command("off");
   }
+});
+test("fresh-session resume preserves unresolved shutdown after the prior controller process exits", async () => {
+  const root = await mkdtemp(join(tmpdir(), "legion-restart-"));
+  const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `
+    import assert from "node:assert/strict";
+    import { mkdir } from "node:fs/promises";
+    import { join } from "node:path";
+    import { Legion } from "./src/intake.ts";
+    const root = process.argv[1], commonDir = join(root, "repo.git"), context = join(root, "checkout");
+    await mkdir(commonDir); await mkdir(context);
+    let branch = null, workspace = null;
+    const git = {
+      locate: async () => ({ commonDir, worktrees: [context] }),
+      parent: async () => "a".repeat(40),
+      inspect: async () => ({ branch, path: workspace ? "directory" : "absent", workspace, parent: "a".repeat(40) }),
+      createBranch: async plan => { branch = plan.commit; return { kind: "succeeded" }; },
+      createWorktree: async plan => { workspace = { commonDir, branch: plan.branch, commit: plan.commit, backlink: true }; return { kind: "succeeded" }; }
+    };
+    const host = {
+      createWindow: async () => ({ endpoint: "/test/local.sock", server: "local-instance", workspace: "w-test", tab: "t-test", pane: "p-test", terminal: "term-test" }),
+      startPi: async () => { throw new Error("Applied startup; identity unknown"); },
+      inspectWorker: async () => null,
+      initialize: async () => assert.fail("Unknown worker cannot initialize"),
+      assign: async () => assert.fail("Unknown worker cannot receive assignment")
+    };
+    const legion = new Legion({ storagePath: join(root, "state"), context, session: "prior-controller", preflight: async () => [], assignments: { workspaceRoot: join(root, "workspaces"), repository: () => git }, tribuni: { host: () => host } });
+    const evidence = { origin: "host-command", transport: "source-unavailable", session: "prior-controller", generation: null, presented: [] };
+    const command = (text, requestKey) => legion.command({ text, requestKey, evidence });
+    assert.equal((await legion.command({ text: "task Retained work", requestKey: "task", evidence, workflowInvocation: { kind: "native-skill", workflow: "implement" } })).kind, "saved");
+    const initial = await legion.state(), source = initial.snapshot.submissions[0];
+    assert.equal((await legion.submit({ kind: "interpretation", requestKey: "interpret", proposal: { kind: "new-task", source: { id: source.id, revision: 1 }, goal: "Retained work", acceptance: ["Preserve worker"], questions: [] }, evidence: { session: "prior-controller", generation: initial.snapshot.generation, legatus: initial.snapshot.id, run: "fixture", sources: [{ id: source.id, revision: 1 }] } })).kind, "applied");
+    const task = (await legion.state()).tasks[0];
+    assert.equal((await command("reserve " + task.id + "@1 --parent refs/heads/main", "reserve")).kind, "deferred");
+    assert.equal((await legion.command({ workspaceRequest: "reserve" })).kind, "reserved");
+    assert.equal((await command("launch " + task.id + "@1", "launch")).kind, "launch-stage");
+    assert.equal((await legion.command({ launchRequest: "launch" })).kind, "launched");
+    await command("off", "off");
+    const stopped = await legion.state();
+    assert.equal(stopped.mode, "stopping"); assert.ok(stopped.snapshot.shutdown);
+    process.stdout.write(stopped.snapshot.id);
+  `, root]);
+  // execFile resolves only after a clean process exit: the prior SQLite locks are genuinely gone.
+  const id = stdout.trim();
+  const options = { storagePath: join(root, "state"), context: join(root, "checkout"), session: "fresh-controller", preflight: async () => [] };
+  const restarted = new Legion(options);
+  assert.equal((await restarted.state()).snapshot, null, "The fresh session has no implicit attachment");
+  const evidence = { origin: "host-command", transport: "source-unavailable", session: options.session, generation: null, presented: [] };
+  const addressed = await restarted.command({ text: `status ${id}`, requestKey: "before", evidence });
+  if (addressed.kind !== "observed") assert.fail("Expected retained aggregate observation");
+  const before = addressed.view.snapshot;
+  assert.ok(before?.shutdown);
+  assert.equal(addressed.view.mode, "stopping", "Fresh-session addressed observation retains the unresolved worker blocker");
+  assert.equal(addressed.view.tasks[0]?.launch.kind, "held");
+  const file = join(options.storagePath, `v1.${id}.sqlite`), durable = await readFile(file);
+  const refused = await restarted.command({ text: `resume ${id}`, requestKey: "unsafe-resume", evidence });
+  if (refused.kind !== "rejected") assert.fail("Unresolved recovered shutdown must refuse activation");
+  assert.equal(refused.code, "stopping", "Refusal is settlement, not a prior-process ownership lock");
+  const after = await restarted.command({ text: `status ${id}`, requestKey: "after", evidence });
+  if (after.kind !== "observed") assert.fail("Expected retained aggregate observation");
+  assert.deepEqual(after.view.snapshot, before, "No shutdown clearing, generation, attachment, receipt or revision mutation");
+  assert.deepEqual(await readFile(file), durable);
+  assert.equal((await restarted.state()).snapshot, null, "Refusal does not adopt the recovered actor");
 });
 test("exact native initialization precedes one bounded assignment even when the start receipt is lost", async () => {
   const window = {
@@ -495,7 +591,7 @@ test("explicit resume resolves the same retained initialization command without 
     if (held?.kind !== "held" || held.last.kind !== "initializing")
       assert.fail("Expected retained initializing command");
     const initializationCommand = held.last.command;
-    await f.command("off");
+    await f.restartFromPreShutdownInput();
     const owner = (await f.legion.state()).snapshot?.id;
     assert.equal((await f.command(`resume ${owner}`, "resume")).kind, "applied");
     lost = false;
@@ -819,8 +915,8 @@ test("resumed settings change new intent but never an applied assignment model/t
     assert.deepEqual(before.assignment.modelPin, { model: "controlled/selected", thinking: "high", profile: "matt" });
     f.setSettings({ context: { warningTokens: 140000, escalationTokens: 160000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
     const id = (await f.legion.state()).snapshot?.id;
-    await f.command("off");
-    await f.command(`resume ${id}`);
+    await f.restartFromPreShutdownInput();
+    assert.equal((await f.command(`resume ${id}`)).kind, "applied");
     const view = await f.legion.state();
     assert.deepEqual(view.tribuniModel, { kind: "new-exact-override", selection: { model: "controlled/future", thinking: "off" } });
     assert.deepEqual(view.tasks[0]?.tribunusModel, { kind: "existing-pinned", pin: before.assignment.modelPin });
@@ -972,8 +1068,8 @@ test("saved startup selection survives resume and an ambiguous applied launch wi
     host.inspectWorker = async () => null;
     await f.legion.command({ launchRequest: "frozen-start" });
     f.setSettings({ context: { warningTokens: 135000, escalationTokens: 150000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
-    await f.command("off");
-    await f.command(`resume ${before.snapshot?.id}`);
+    await f.restartFromPreShutdownInput();
+    assert.equal((await f.command(`resume ${before.snapshot?.id}`)).kind, "applied");
     host.inspectWorker = inspect;
     await f.command(`launch ${f.task.id}@1`, "reconcile-frozen");
     await f.legion.command({ launchRequest: "reconcile-frozen" });

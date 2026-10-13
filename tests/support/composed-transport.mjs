@@ -12,11 +12,12 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { execFile, exec as shell } from "node:child_process";
 import { promisify } from "node:util";
-import { createServer } from "node:net";
+import { createServer, connect } from "node:net";
 import { syncBuiltinESMExports } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 import extension from "../../src/extension.ts";
 import { installTribunus, LocalTribunusHost } from "../../src/tribunus-host.ts";
+import { Legion } from "../../src/intake.ts";
 import { stripFrontmatter, createReadTool, createReadToolDefinition, createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition, loadSkills, DefaultResourceLoader, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { validateToolArguments } from "@earendil-works/pi-ai";
 
@@ -194,7 +195,9 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
   await new Promise(resolve => server.listen(socket, resolve));
   const pane = { workspace_id: "controlled-workspace", tab_id: "controlled-tab", pane_id: "controlled-pane", terminal_id: "controlled-terminal", foreground_cwd: repo, agent: "pi", agent_session: { kind: "id", value: census?.childCase === "unknown-caller" ? "foreign-controller" : "composed-controller" } };
   await writeFile(paneFile, JSON.stringify(pane));
-  await writeFile(join(bin, "herdr"), `#!/usr/bin/env node\nconst fs=require('node:fs');const a=process.argv.slice(2);const file=${JSON.stringify(paneFile)};let pane=JSON.parse(fs.readFileSync(file));if(a[0]==='--version')console.log('0.9.1');else if(a[0]==='status')console.log(JSON.stringify({status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(socket)}}));else if(a[0]==='workspace'||a[0]==='tab'){fs.writeFileSync(${JSON.stringify(join(root, "layout-command.json"))},JSON.stringify(a));delete pane.agent;delete pane.agent_session;pane.tab_id='controlled-worker-tab';pane.pane_id='controlled-worker-pane';pane.foreground_cwd=a[a.indexOf('--cwd')+1];fs.writeFileSync(file,JSON.stringify(pane));fs.writeFileSync(${JSON.stringify(createdFile)},JSON.stringify({bootstrap:a[a.indexOf('--env')+1].split('=').slice(1).join('=')}));console.log(JSON.stringify({result:{root_pane:pane}}));}else if(a[1]==='get')console.log(JSON.stringify({result:{pane}}));else console.log(JSON.stringify({result:{process_info:{foreground_processes:[{pid:${census?.childCase === "caller-process" ? process.pid + 1 : process.pid}}]}}}));\n`, { mode: 0o700 });
+  const callerFile = join(root, "caller.json");
+  await writeFile(callerFile, JSON.stringify(pane));
+  await writeFile(join(bin, "herdr"), `#!/usr/bin/env node\nconst fs=require('node:fs');const a=process.argv.slice(2);const file=${JSON.stringify(paneFile)};let pane=JSON.parse(fs.readFileSync(a[0]==='pane'&&a[1]==='get'&&a[2]==='controlled-pane'?${JSON.stringify(callerFile)}:file));if(a[0]==='--version')console.log('0.9.1');else if(a[0]==='status')console.log(JSON.stringify({status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(socket)}}));else if(a[0]==='workspace'||a[0]==='tab'){fs.writeFileSync(${JSON.stringify(join(root, "layout-command.json"))},JSON.stringify(a));delete pane.agent;delete pane.agent_session;pane.tab_id='controlled-worker-tab';pane.pane_id='controlled-worker-pane';pane.foreground_cwd=a[a.indexOf('--cwd')+1];fs.writeFileSync(file,JSON.stringify(pane));fs.writeFileSync(${JSON.stringify(createdFile)},JSON.stringify({bootstrap:a[a.indexOf('--env')+1].split('=').slice(1).join('=')}));console.log(JSON.stringify({result:{root_pane:pane}}));}else if(a[1]==='get')console.log(JSON.stringify({result:{pane}}));else console.log(JSON.stringify({result:{process_info:{foreground_processes:[{pid:${census?.childCase === "caller-process" ? process.pid + 1 : process.pid}}]}}}));\n`, { mode: 0o700 });
   let workerDescriptor = null;
   let worker = null, originalTimer = globalThis.setTimeout, scheduled = [], workerFailure = null;
   const controller = runtime(repo, "composed-controller", join(root, "controller.jsonl"));
@@ -216,7 +219,9 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       if (census?.initialMode !== undefined) worker.pi.appendEntry("pstack-mode", { enabled: census.initialMode });
       if (census?.missingWorkerSkill) worker.resources(commands.filter(command => command.name !== `skill:${census.missingWorkerSkill}`));
       installTribunus(worker.pi, bootstrap);
-      await worker.emit("session_start");
+      process.env.HERDR_PANE_ID = "controlled-worker-pane";
+      try { await worker.emit("session_start"); }
+      finally { process.env.HERDR_PANE_ID = "controlled-pane"; }
       if (scenario === "native-pre-assignment") {
         let invoked = 0;
         worker.external(async () => { invoked++; return { content: [], details: {} }; });
@@ -617,9 +622,141 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
     }
     if (scenario === "launch-profile-held") return { root, view: await state(), result: launched.details, prompts: [...worker.prompts], entries: worker.ctx.sessionManager.getBranch() };
     assert.equal(launched.details.kind, "launched", JSON.stringify(launched));
-    assert.equal((await state()).tasks[0].launch.kind, "assigned");
+    assert.equal((await state()).tasks[0].launch.kind, "assigned", JSON.stringify((await state()).tasks[0].launch));
     await controller.settle(); await drain();
     const assignment = (await state()).tasks[0].launch;
+    async function workerControl(frame) {
+      const hello = JSON.parse(fs.readFileSync(join(profile, "legion", "tribuni", assignment.worker.address.launch, "hello.json"), "utf8"));
+      return new Promise((resolve, reject) => {
+        const socket = connect(hello.endpoint); let buffer = "";
+        socket.once("connect", () => socket.write(JSON.stringify({ capability: workerDescriptor.capability, authority: workerDescriptor.authority, reservation: workerDescriptor.launch.reservation, scope: workerDescriptor.launch.scope, address: assignment.worker.address, ...frame }) + "\n"));
+        socket.on("data", chunk => { buffer += chunk; const end = buffer.indexOf("\n"); if (end < 0) return; resolve(JSON.parse(buffer.slice(0, end))); socket.destroy(); });
+        socket.once("error", reject); socket.once("close", () => reject(new Error("Fixture control closed without receipt")));
+      });
+    }
+    async function assertCannotRestoreAuthority() {
+      for (const authority of [workerDescriptor.authority, { ...workerDescriptor.authority, generation: workerDescriptor.authority.generation + 1 }]) {
+        const result = await workerControl({ authority, kind: "assign", command: assignment.command, assignment: assignment.assignment });
+        assert.equal(result.kind, "held", "Late/duplicate/newer-generation assignment cannot unpark a worker");
+      }
+      const observation = await workerControl({ kind: "context-current", command: assignment.command, assignment: null, nonce: randomUUID() });
+      assert.equal(observation.kind, "ok", "Exact read-only observation cannot adopt a newer controller");
+      assert.deepEqual(observation.value.authority, workerDescriptor.authority);
+    }
+    if (scenario.startsWith("owner-loss-")) {
+      const read = fs.readFileSync;
+      if (scenario === "owner-loss-session") await writeFile(callerFile, JSON.stringify({ ...pane, agent_session: { kind: "id", value: "replacement-owner-session" } }));
+      else if (scenario === "owner-loss-empty-session") await writeFile(callerFile, JSON.stringify({ ...pane, agent_session: { kind: "id", value: "" } }));
+      else if (scenario === "owner-loss-empty-agent") await writeFile(callerFile, JSON.stringify({ ...pane, agent: " " }));
+      else if (scenario === "owner-loss-malformed-session") await writeFile(callerFile, JSON.stringify({ ...pane, agent_session: { kind: "id", value: 42 } }));
+      else if (scenario === "owner-loss-unreadable-session") await writeFile(callerFile, JSON.stringify({ ...pane, agent_session: { kind: "path", value: join(root, "absent-owner.jsonl") } }));
+      else if (scenario === "owner-loss-empty-session-journal") {
+        const journal = join(root, "empty-owner.jsonl");
+        await writeFile(journal, JSON.stringify({ type: "session", id: "" }) + "\n");
+        await writeFile(callerFile, JSON.stringify({ ...pane, agent_session: { kind: "path", value: journal } }));
+      } else if (scenario === "owner-loss-non-pi") {
+        const observed = { ...pane, agent: "claude" }; delete observed.agent_session;
+        await writeFile(callerFile, JSON.stringify(observed));
+      }
+      else if (scenario === "owner-loss-missing-session" || scenario === "owner-loss-missing-agent") {
+        const missing = { ...pane }; delete missing[scenario === "owner-loss-missing-agent" ? "agent" : "agent_session"];
+        await writeFile(callerFile, JSON.stringify(missing));
+      } else {
+        fs.readFileSync = (path, ...args) => {
+          if (path === `/proc/${process.pid}/stat`) {
+            if (scenario === "owner-loss-unreadable") throw Object.assign(new Error("Controlled unreadable owner proc evidence"), { code: "EACCES", path });
+            const stat = read(path, ...args), end = stat.lastIndexOf(")") + 2;
+            const fields = stat.slice(end).split(" "); fields[19] = "0";
+            return stat.slice(0, end) + fields.join(" ");
+          }
+          return read(path, ...args);
+        };
+        syncBuiltinESMExports();
+      }
+      let refused;
+      try { refused = await worker.call("write", { path: "orphan-write.txt", content: "no" }); }
+      finally { fs.readFileSync = read; syncBuiltinESMExports(); }
+      assert.equal(refused.isError, true, "Missing exact owner authority cannot admit a new native effect");
+      await writeFile(callerFile, JSON.stringify(pane));
+      assert.equal((await worker.call("write", { path: "returned-write.txt", content: "no" })).isError, true, "Returning communication cannot restore authority");
+      await worker.settle();
+      const rootEvidence = join(profile, "legion", "tribuni", assignment.worker.address.launch);
+      const unresolved = ["owner-loss-unreadable", "owner-loss-missing-session", "owner-loss-missing-agent", "owner-loss-empty-session", "owner-loss-empty-agent", "owner-loss-malformed-session", "owner-loss-unreadable-session", "owner-loss-empty-session-journal"].includes(scenario);
+      const retirement = JSON.parse(fs.readFileSync(join(rootEvidence, "retirement.json"), "utf8"));
+      assert.equal(retirement.stop.command, assignment.command);
+      assert.equal(retirement.reason, unresolved ? "owner-unresolved" : "owner-lost");
+      await until(() => fs.readdirSync(join(rootEvidence, assignment.worker.address.generation)).some(file => file.endsWith(unresolved ? ".park-held.json" : ".park.json")), "owner-loss worker park or explicit evidence blocker");
+      if (unresolved) assert.equal(fs.readdirSync(join(rootEvidence, assignment.worker.address.generation)).some(file => file.endsWith(".park.json")), false);
+      await assertCannotRestoreAuthority();
+      assert.equal(fs.existsSync(join(worker.ctx.cwd, "orphan-write.txt")), false);
+      if (scenario === "owner-loss-session") {
+        const cwd = worker.ctx.cwd;
+        await worker.emit("session_shutdown");
+        worker = runtime(cwd, randomUUID(), join(root, "restarted-worker.jsonl"));
+        installTribunus(worker.pi, join(rootEvidence, "bootstrap.json"));
+        process.env.HERDR_PANE_ID = "controlled-worker-pane";
+        try { await worker.emit("session_start"); } finally { process.env.HERDR_PANE_ID = "controlled-pane"; }
+        const hello = JSON.parse(fs.readFileSync(join(rootEvidence, "hello.json"), "utf8"));
+        assert.deepEqual(hello.address, assignment.worker.address, "Restart preserves prior identity without adopting outstanding children");
+        assert.equal((await worker.call("write", { path: "restarted.txt", content: "no" })).isError, true, "Ordinary native worker restart cannot clear a retained retirement");
+        assert.deepEqual(worker.prompts, []);
+        assert.equal(worker.statuses.some(status => status.text?.includes("retirement retained")), true);
+      }
+      return { root, view: await state(), retirement };
+    }
+    if (scenario === "drain-effect" || scenario === "drain-effect-unknown") {
+      let began = false, release;
+      const gate = new Promise(resolve => { release = resolve; });
+      worker.external(async name => { if (name !== "write") return undefined; began = true; await gate; if (scenario === "drain-effect-unknown") throw new Error("Controlled executed effect without outcome"); return undefined; });
+      const writing = worker.call("write", { path: "in-flight.txt", content: "Preserved effect" });
+      try {
+        await until(() => began, "native admitted effect execution");
+        await controller.command("off");
+        assert.equal((await state()).mode, "stopping");
+        assert.equal((await state()).snapshot.effects.at(-1).state.kind, "outstanding");
+        release(); await writing;
+        const expected = scenario === "drain-effect-unknown" ? "unknown" : "completed";
+        await until(async () => (await state()).snapshot.effects.at(-1).state.kind === expected, "retained effect outcome observation after off");
+        await worker.settle();
+        if (expected === "completed") {
+          await until(async () => (await state()).mode === "inactive", "known effect drain");
+          assert.equal(fs.readFileSync(join(worker.ctx.cwd, "in-flight.txt"), "utf8"), "Preserved effect");
+        } else {
+          await until(async () => (await state()).snapshot.shutdown.workers[0].state.kind === "held", "unknown effect blocker");
+          assert.equal((await state()).mode, "stopping");
+          assert.equal((await state()).tasks[0].launch.report.outcome, "blocked");
+        }
+        await assertCannotRestoreAuthority();
+        return { root, view: await state() };
+      } finally { release(); await writing; }
+    }
+    if (scenario === "drain-root") {
+      await controller.command("off");
+      const stopped = await state();
+      assert.equal(stopped.mode, "stopping");
+      assert.ok(stopped.snapshot.shutdown, "Off must persist the same shutdown, not delivery-only state");
+      await controller.command("off");
+      assert.equal((await state()).snapshot.shutdown.id, stopped.snapshot.shutdown.id);
+      const restarted = new Legion({ storagePath: join(profile, "legion"), context: repo, session: "composed-controller", preflight: async () => [] });
+      assert.equal((await restarted.state()).mode, "stopping", "Restart must retain unresolved stop without dispatch");
+      await controller.command("on");
+      assert.equal((await state()).mode, "stopping", "Activation cannot erase unresolved stop");
+      assert.equal((await worker.call("write", { path: "after-off.txt", content: "no" })).isError, true);
+      assert.equal(fs.existsSync(join(worker.ctx.cwd, "after-off.txt")), false);
+      await worker.settle();
+      await until(async () => (await state()).mode === "inactive", "native settled parked worker");
+      const settled = await state();
+      assert.equal(settled.snapshot.shutdown.id, stopped.snapshot.shutdown.id);
+      assert.equal(settled.tasks[0].launch.kind, "reported");
+      assert.equal(settled.snapshot.shutdown.workers[0].state.kind, "parked");
+      await assertCannotRestoreAuthority();
+      const repeated = await workerControl({ kind: "stop", command: stopped.snapshot.shutdown.id, currentCommand: assignment.command, assignment: null });
+      assert.equal(repeated.kind, "ok");
+      assert.equal(repeated.value.state.kind, "parked");
+      const conflicting = await workerControl({ kind: "stop", command: stopped.snapshot.shutdown.id, currentCommand: randomUUID(), assignment: null });
+      assert.equal(conflicting.kind, "held", "A shutdown ID cannot acquire a different assignment");
+      return { root, view: settled };
+    }
     if (scenario === "context-worker-disposal") {
       await worker.emit("turn_end");
       await until(async () => Object.values((await state()).context).some(item => item.identity.includes("tribunus") && item.sample.tokens === 1000), "baseline actual worker sample");
@@ -640,9 +777,13 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
         await execute(process.execPath, ["--import", "tsx", "tests/context-event-worker.ts", source, join(destination, `${assignment.command}.pending.context.json`)], { cwd: process.cwd() });
         await until(() => stopped !== null, "owner revoked during actual live context check");
         await stopped;
+        const retirementPath = join(profile, "legion", "tribuni", assignment.worker.address.launch, "retirement.json");
+        await until(() => fs.existsSync(retirementPath), "addressed safe-stop authentication receipt");
+        const checksAfterStop = checks;
+        assert.equal(checksAfterStop, 2, "Only the original context check and addressed stop authenticate the native incarnation");
         await writeFile(source, JSON.stringify({ ...sample, observation: { ...sample.observation, sequence: 101 } }));
         await execute(process.execPath, ["--import", "tsx", "tests/context-event-worker.ts", source, join(destination, `${assignment.command}.after-disposal.context.json`)], { cwd: process.cwd() });
-        assert.equal(checks, 1, "Disposed observation cannot make another current-assignment request");
+        assert.equal(checks, checksAfterStop, "Disposed observation cannot make another current-assignment request after safe-stop authentication");
         assert.equal(worker.ctx.sessionManager.getBranch().length, entries, "Canceled context checks must not append principal transcript entries");
         assert.equal(worker.prompts.length, prompts, "Canceled context checks must not start principal turns");
         return { root, observations: [], sent: controller.sent, statuses: controller.statuses, view: await state() };
@@ -866,6 +1007,40 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       await worker.settle(false, "Principal reports finished; this is not child settlement.");
       assert.equal((await state()).tasks[0].launch.kind, "assigned");
       if (scenario === "child-active") return { root, view: await state() };
+      let originalShutdown = null;
+      if (scenario === "child-stop-owner-loss") {
+        await controller.command("off");
+        originalShutdown = (await state()).snapshot.shutdown.id;
+        const stopped = await workerControl({ kind: "stop", command: originalShutdown, currentCommand: assignment.command, assignment: null });
+        assert.equal(stopped.kind, "ok");
+        assert.equal(stopped.value.state.kind, "draining");
+        const read = fs.readFileSync;
+        fs.readFileSync = (path, ...args) => {
+          if (path === `/proc/${process.pid}/stat`) throw Object.assign(new Error("Controlled exact owner process disappeared"), { code: "ENOENT", path });
+          return read(path, ...args);
+        };
+        syncBuiltinESMExports();
+        try { assert.equal((await worker.call("write", { path: "after-owner-death.txt", content: "no" })).isError, true); }
+        finally { fs.readFileSync = read; syncBuiltinESMExports(); }
+        assert.equal((await worker.call("subagent", { action: "stop", id: run })).isError, true, "Owner return does not restore execution/control authority");
+      }
+      const missingOwner = scenario === "child-owner-missing-session" || scenario === "child-owner-missing-agent";
+      if (scenario === "child-owner-loss" || census?.ownerLoss || missingOwner) {
+        const observedOwner = { ...pane };
+        if (missingOwner) delete observedOwner[scenario === "child-owner-missing-agent" ? "agent" : "agent_session"];
+        else observedOwner.agent_session = { kind: "id", value: "replacement-owner" };
+        await writeFile(callerFile, JSON.stringify(observedOwner));
+        assert.equal((await worker.call("write", { path: "orphan-principal.txt", content: "no" })).isError, true);
+        await writeFile(callerFile, JSON.stringify(pane));
+        assert.equal((await worker.call("subagent", { action: "stop", id: run })).isError, true, "Read-only retirement observation cannot authorize controls of an active child");
+        await assertCannotRestoreAuthority();
+      }
+      if (scenario === "child-drain" || census?.drain) {
+        await controller.command("off");
+        assert.equal((await state()).mode, "stopping");
+        assert.equal((await worker.call("legion_centurio", { agent: "worker", task: "New unauthorized child", writable: true })).isError, true);
+        assert.equal((await state()).tasks[0].launch.kind, "assigned", "Control delivery cannot settle the active native child");
+      }
       status.state = scenario === "child-canceled" ? "stopped" : scenario === "child-failed" ? "failed" : "complete";
       if (scenario === "child-changed-session") fs.writeFileSync(childJournal, JSON.stringify({ type: "session", id: "replacement-child-session", cwd: input.cwd }) + "\n");
       if (!["child-missing-events", "child-canceled"].includes(scenario)) events.push(event("agent_settled"));
@@ -884,7 +1059,7 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       if (scenario !== "child-missing-proof") fs.writeFileSync(join(directory, "process-terminal.json"), JSON.stringify(proof));
       publishNative();
       worker.pi.events.emit("subagent:async-complete", { id: run, runId: run, sessionId: status.sessionId, cwd: input.cwd, asyncDir: directory, agent: "worker" });
-      const held = ["child-missing-events", "child-open-tool", "child-tool-unknown", "child-missing-proof", "child-unknown-proof", "child-wrong-runner", "child-changed-session", "child-canceled", "child-lost-owner"].includes(scenario);
+      const held = ["child-missing-events", "child-open-tool", "child-tool-unknown", "child-missing-proof", "child-unknown-proof", "child-wrong-runner", "child-changed-session", "child-canceled"].includes(scenario);
       const expectedHold = ["child-missing-events", "child-canceled", "child-open-tool"].includes(scenario) ? "corroboration-pending"
         : scenario === "child-missing-proof" ? "logical-terminal" : ["child-wrong-runner", "child-changed-session"].includes(scenario) ? "mismatch" : "unknown";
       await until(async () => {
@@ -892,8 +1067,56 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
         return held ? launch.worker.resources.children[0].state.kind === expectedHold : launch.kind === "reported";
       }, "native terminal observation");
       if (held) await delay(40);
+      if (scenario === "child-drain-native-turn") {
+        await worker.startCustom();
+        await controller.command("off");
+        const stopped = await state();
+        const receipt = await workerControl({ kind: "stop", command: stopped.snapshot.shutdown.id, currentCommand: assignment.command, assignment: null });
+        assert.equal(receipt.kind, "ok");
+        assert.equal(receipt.value.state.kind, "draining", "An active ordinary native completion turn is not settlement even after the child report");
+        assert.equal((await state()).mode, "stopping");
+        await worker.settle();
+      }
       const view = await state();
       assert.equal(view.tasks[0].launch.kind, held ? "assigned" : "reported");
+      if (scenario === "child-drain" || scenario === "child-drain-native-turn" || scenario === "child-stop-owner-loss" || scenario === "child-lost-owner") {
+        await until(async () => (await state()).mode === "inactive", "native child drain parked");
+        assert.equal((await state()).snapshot.shutdown.workers[0].state.kind, "parked");
+        if (originalShutdown) {
+          assert.equal((await state()).snapshot.shutdown.id, originalShutdown);
+          const loss = JSON.parse(fs.readFileSync(join(profile, "legion", "tribuni", assignment.worker.address.launch, assignment.worker.address.generation, `${originalShutdown}.owner-loss.json`), "utf8"));
+          assert.equal(loss.reason, "owner-lost");
+          assert.equal(loss.stop.shutdown, originalShutdown);
+          await assertCannotRestoreAuthority();
+        }
+      }
+      if (scenario === "child-owner-loss" || census?.ownerLoss || missingOwner) {
+        const workerRoot = join(profile, "legion", "tribuni", assignment.worker.address.launch), generation = join(workerRoot, assignment.worker.address.generation);
+        if (!held && !missingOwner) await until(() => fs.readdirSync(generation).some(file => file.endsWith(".park.json")), "exact native child retirement settlement");
+        else assert.equal(fs.readdirSync(generation).some(file => file.endsWith(".park.json")), false, "Missing owner/native proof cannot park even a retired worker");
+        const retirement = JSON.parse(fs.readFileSync(join(workerRoot, "retirement.json"), "utf8"));
+        assert.equal(retirement.reason, missingOwner ? "owner-unresolved" : "owner-lost");
+        assert.equal(retirement.stop.command, assignment.command);
+        if (missingOwner) {
+          const park = JSON.parse(fs.readFileSync(join(generation, `${retirement.stop.shutdown}.park-held.json`), "utf8"));
+          assert.equal(park.state.kind, "held");
+          const reads = fs.readdirSync(generation).filter(file => file.endsWith(".effect-request.json"))
+            .map(file => JSON.parse(fs.readFileSync(join(generation, file), "utf8")))
+            .filter(frame => frame.message.kind === "centurio-owner-check" && frame.message.stage === "read");
+          assert.ok(reads.length > 0, "Missing identity must still require the public authenticated parent settlement check");
+          for (const { message } of reads) {
+            const response = JSON.parse(fs.readFileSync(join(generation, `${assignment.command}.${message.id}.effect-response.json`), "utf8"));
+            assert.equal(response.kind, "centurio-owner-current");
+            assert.equal(response.id, message.id);
+            assert.deepEqual(response.child, message.child);
+          }
+          await assertCannotRestoreAuthority();
+        }
+      }
+      if (census?.drain && held) {
+        assert.equal(view.mode, "stopping");
+        assert.notEqual(view.snapshot.shutdown.workers[0].state.kind, "parked");
+      }
       if (scenario === "child-failed") assert.equal(view.tasks[0].launch.report.outcome, "failed");
       assert.equal(fs.readFileSync(join(worker.ctx.cwd, "dirty-parent.txt"), "utf8"), "Parent uncommitted sentinel");
       if (scenario === "child-unknown-proof") {

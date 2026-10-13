@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, lstatSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,13 +21,20 @@ const workflowChoice = { profile: "matt", requestedWorkflow: "implement-spec" };
 const launchRoot = join(profile, "legion", "tribuni", launch.id);
 mkdirSync(launchRoot, { recursive: true });
 const bootstrap = join(launchRoot, "bootstrap.json"), capability = "disposable-fixture-capability";
-writeFileSync(bootstrap, JSON.stringify({ launch, cwd, capability, authority, workflowChoice }), { mode: 0o600 });
 const manager = SessionManager.create(cwd, join(root, "s")), sessionId = manager.getSessionId(), journal = manager.getSessionFile();
 assert.ok(journal); assert.equal(existsSync(journal), false);
 const server = createServer(), localSocket = join(root, "herdr.sock");
 await new Promise(resolve => server.listen(localSocket, resolve));
+const ownerPane = { workspace_id: "w", tab_id: "owner-t", pane_id: "owner-p", terminal_id: "owner-term", foreground_cwd: cwd, agent: "pi", agent_session: { kind: "id", value: authority.session } };
 const pane = { workspace_id: "w", tab_id: "t", pane_id: "p", terminal_id: "term", foreground_cwd: cwd, agent: "pi", agent_session: { kind: "id", value: sessionId } };
-writeFileSync(join(bin, "herdr"), `#!/usr/bin/env node\nconst a=process.argv.slice(2);console.log(a[0]==='--version'?'0.9.1':JSON.stringify(a[0]==='status'?{status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(localSocket)}}:a[1]==='get'?{result:{pane:${JSON.stringify(pane)}}}:{result:{process_info:{foreground_processes:[{pid:${process.pid}}]}}}));\n`, { mode: 0o700 });
+// Controlled owner and worker panes share this fixture process, not a separate live Legatus.
+const ownerStat = readFileSync(`/proc/${process.pid}/stat`, "utf8"), socketStat = lstatSync(localSocket);
+const ownerProcess = {
+  pid: process.pid, boot: readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(), start: ownerStat.slice(ownerStat.lastIndexOf(")") + 2).split(" ")[19],
+  window: { endpoint: realpathSync(localSocket), server: `${socketStat.dev}:${socketStat.ino}:${socketStat.ctimeMs}`, workspace: ownerPane.workspace_id, tab: ownerPane.tab_id, pane: ownerPane.pane_id, terminal: ownerPane.terminal_id },
+};
+writeFileSync(bootstrap, JSON.stringify({ launch, cwd, capability, authority, workflowChoice, ownerProcess }), { mode: 0o600 });
+writeFileSync(join(bin, "herdr"), `#!/usr/bin/env node\nconst a=process.argv.slice(2);console.log(a[0]==='--version'?'0.9.1':JSON.stringify(a[0]==='status'?{status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(localSocket)}}:a[1]==='get'?{result:{pane:a[2]==='owner-p'?${JSON.stringify(ownerPane)}:${JSON.stringify(pane)}}}:{result:{process_info:{foreground_processes:[{pid:${process.pid}}]}}}));\n`, { mode: 0o700 });
 const prior = { PATH: process.env.PATH, PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR, HERDR_ENV: process.env.HERDR_ENV, HERDR_PANE_ID: process.env.HERDR_PANE_ID, PI_SUBAGENT_CHILD: process.env.PI_SUBAGENT_CHILD };
 Object.assign(process.env, { PATH: `${bin}:${prior.PATH}`, PI_CODING_AGENT_DIR: profile, HERDR_ENV: "1", HERDR_PANE_ID: "p" });
 delete process.env.PI_SUBAGENT_CHILD;

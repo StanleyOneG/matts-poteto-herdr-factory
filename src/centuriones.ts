@@ -80,7 +80,7 @@ export class Centuriones {
   private disposed = false;
   private sequence = 0;
   constructor(private pi: ExtensionAPI, private root: string, private owner: z.infer<typeof WorkerAddress>,
-    private checkOwner: (intent: z.infer<typeof OwnedNativeIntent>, stage: "launch" | "read", ctx: ExtensionContext) => Promise<void>,
+    private checkOwner: (intent: z.infer<typeof OwnedNativeIntent>, stage: "launch" | "control" | "read", ctx: ExtensionContext) => Promise<void>,
     private onObservation: (command: string) => void = () => {}) {}
   get held() { return [...this.views.values()].some(view => ["unknown", "mismatch", "launch-unresolved", "corroboration-pending"].includes(view.state.kind)); }
   get outstanding() { return [...this.views.values()].some(view => !["prepared", "process-terminal"].includes(view.state.kind)); }
@@ -122,7 +122,7 @@ export class Centuriones {
       const known = [...this.runtimes.entries()].find(([, runtime]) => runtime.run === run);
       const owned = known && [...this.launched.values()].find(item => item.record.intent.id === known[0]);
       if (!owned || this.disposed || ctx.sessionManager.getSessionId() !== this.owner.session || realpathSync(ctx.cwd) !== owned.record.intent.writable.parentCwd) throw new Error("Native control requires the current principal and its exact owned child; foreign children are preserved.");
-      await this.checkOwner(owned.record.intent, "read", ctx);
+      await this.checkOwner(owned.record.intent, "control", ctx);
       return;
     }
     if (event.parentToolCallId) throw new Error("Managed child execution requires a fresh assignment-owned prepared launch.");

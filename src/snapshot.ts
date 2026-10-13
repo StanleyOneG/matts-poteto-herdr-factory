@@ -206,7 +206,7 @@ export const EngineeringEvidence = z.strictObject({
 export const EngineeringResult = EngineeringEvidence.extend({ priorExceptions: z.array(EngineeringEvidence) });
 export const CenturioOwnerCheck = z.strictObject({
   kind: z.literal("centurio-owner-check"), id: z.uuid(), pin: AssignmentPin,
-  child: EngineeringRef, stage: z.enum(["launch", "read"]),
+  child: EngineeringRef, stage: z.enum(["launch", "control", "read"]),
 });
 export const EffectMessage = z.discriminatedUnion("kind", [
   CenturioOwnerCheck,
@@ -227,12 +227,18 @@ export const EffectReply = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("rejected"), code: z.string(), message: z.string() }),
   z.strictObject({ kind: z.literal("uncertain"), requestKey: z.string(), message: z.string() }),
 ]);
+export const ParkState = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("draining") }),
+  z.object({ kind: z.literal("parked"), evidence: z.array(z.string()).min(1) }),
+  z.object({ kind: z.literal("held"), message: z.string() }),
+]);
 export const SnapshotSchema = z.object({
   version: z.literal(1),
   id: LegatusId,
   context: z.string(),
   revision: z.int(),
   generation: z.int(),
+  shutdown: z.object({ id: z.uuid(), generation: z.int().positive(), epoch: z.int().nonnegative(), workers: z.array(z.object({ launch: z.uuid(), addressDigest: z.string(), command: z.uuid().nullable(), state: ParkState })).default([]) }).nullable().default(null),
   workflowChoice: WorkflowChoiceSchema.default({ profile: "matt", requestedWorkflow: "unknown" }),
   attachments: z.array(z.object({ session: z.string(), generation: z.int() })),
   workspaceRequests: z.array(WorkspaceRequest).default([]),

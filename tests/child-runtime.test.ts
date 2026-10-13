@@ -2,6 +2,27 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { exerciseChildStartup, exerciseNativeAssignment } from "./support/composed-transport.mjs";
 
+test("off retains active native children until exact native settlement then parks without acceptance", async () => {
+  await exerciseNativeAssignment("child-drain");
+});
+test("off with missing native proof preserves stopping and exposes a settlement blocker", async () => {
+  await exerciseNativeAssignment("child-missing-proof", { drain: true });
+});
+test("native child completion cannot park while its ordinary principal completion turn is active", async () => {
+  await exerciseNativeAssignment("child-drain-native-turn");
+});
+test("safe stop followed by exact owner process loss drains the registered child under the original shutdown", async () => {
+  await exerciseNativeAssignment("child-stop-owner-loss");
+});
+test("owner-loss retirement can observe an already-owned native child settlement but cannot regain controls", async () => {
+  await exerciseNativeAssignment("child-owner-loss");
+});
+for (const field of ["session", "agent"]) test(`missing owner ${field} metadata never grants parent-independent child settlement or parking`, async () => {
+  await exerciseNativeAssignment(`child-owner-missing-${field}`);
+});
+test("owner loss with missing child proof preserves native activity and the retirement blocker", async () => {
+  await exerciseNativeAssignment("child-missing-proof", { ownerLoss: true });
+});
 test("owned native writer prepares an isolated committed task branch without child model or policy routing", async () => {
   await exerciseNativeAssignment("child-prepared");
 });
@@ -27,7 +48,7 @@ for (const [scenario, behavior] of [
   ["child-changed-session", "a changed native child journal session cannot settle an owned run"],
   ["child-canceled", "native cancellation without settled effects does not release owned reporting"],
   ["child-failed", "conclusive native child failure is reported without acceptance"],
-  ["child-lost-owner", "lost current owner cannot settle an owned native writer"],
+  ["child-lost-owner", "off revokes new child work but retains exact read-only native settlement"],
   ["child-tool-unknown", "executed native tool failure without effect evidence remains held"],
 ] satisfies [string, string][]) test(behavior, async () => { await exerciseNativeAssignment(scenario); });
 

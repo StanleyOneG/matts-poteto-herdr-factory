@@ -14,14 +14,23 @@ import { Type } from "typebox";
 import { EffectIntent, EffectMessage, EffectReply, EffectRecord, EffectOutcome, CenturioOwnerCheck } from "./snapshot.js";
 import { StartupSelectionSchema, WorkflowChoiceSchema } from "./legion-settings.js";
 import { preflight } from "./preflight.js";
-import { mattInitializationPrompt, ContextAuthority, TribunusContextEnvelope, TribunusContextObservation, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, type TribunusHost } from "./tribunus.js";
+import { mattInitializationPrompt, ContextAuthority, TribunusContextEnvelope, TribunusContextObservation, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, WorkerStop, type TribunusHost } from "./tribunus.js";
 import type { GuardedCommand } from "./git-workspace.js";
 import { prepareCenturioWorkspace, CenturioAllocationHeld } from "./centurio-workspace.js";
 const exec = promisify(execFile);
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 const Authority = ContextAuthority;
+const OwnerProcess = z.strictObject({ pid: z.int().positive(), boot: z.string().min(1), start: z.string().regex(/^\d+$/), window: WindowIdentity });
+function processIdentity(pid: number) {
+  if (process.platform !== "linux") throw new Error("Exact local owner process identity requires supported Linux /proc evidence.");
+  const boot = readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+  const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+  const start = z.string().regex(/^\d+$/).parse(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19]);
+  return { pid, boot, start };
+}
+const Retirement = z.strictObject({ stop: WorkerStop, reason: z.enum(["safe-stop", "owner-lost", "owner-unresolved"]), message: z.string() });
 const Descriptor = z.object({
-  launch: LaunchRecord, cwd: z.string(), capability: z.string(), authority: Authority,
+  launch: LaunchRecord, cwd: z.string(), capability: z.string(), authority: Authority, ownerProcess: OwnerProcess.optional(),
   workflowChoice: WorkflowChoiceSchema.optional(), startupSelection: StartupSelectionSchema.optional()
 });
 const Hello = z.object({
@@ -31,7 +40,8 @@ const ControlFrame = z.object({
   capability: z.string(), authority: Authority, reservation: z.uuid(), scope: z.string(), address: WorkerAddress, command: z.uuid(), kind: z.enum(["inspect", "initialize", "assign"]), assignment: BoundedAssignment.nullable()
 }).strict();
 const ContextCheckFrame = ControlFrame.extend({ kind: z.literal("context-current"), nonce: z.uuid(), assignment: z.null() });
-const Frame = z.union([ControlFrame, ContextCheckFrame]);
+const StopFrame = ControlFrame.extend({ kind: z.literal("stop"), command: z.uuid(), assignment: z.null(), currentCommand: z.uuid().nullable() });
+const Frame = z.union([ControlFrame, ContextCheckFrame, StopFrame]);
 const CurrentAssignment = z.strictObject({ nonce: z.uuid(), authority: Authority, address: WorkerAddress, command: z.uuid() });
 const Envelope = z.discriminatedUnion("kind", [z.object({
     kind: z.literal("ok"), value: z.unknown()
@@ -103,7 +113,8 @@ export class LocalTribunusHost implements TribunusHost {
     });
     const path = this.descriptor(launch.id);
     publish(path, Descriptor.parse({
-      launch, cwd, workflowChoice, startupSelection, capability: randomBytes(32).toString("hex"), authority: this.authority
+      launch, cwd, workflowChoice, startupSelection, capability: randomBytes(32).toString("hex"), authority: this.authority,
+      ownerProcess: { ...processIdentity(process.pid), window: { ...local, workspace: caller.workspace_id, tab: caller.tab_id, pane: caller.pane_id, terminal: caller.terminal_id } }
     }));
     const created = z.object({
       result: z.object({
@@ -166,6 +177,38 @@ export class LocalTribunusHost implements TribunusHost {
     if (response.kind === "held")
       throw new Error(response.message);
     return response.value;
+  }
+  private stopWatchers = new Map<string, ReturnType<typeof watch>>();
+  async stop({ worker, shutdown, command }: Parameters<NonNullable<TribunusHost["stop"]>>[0], onObservation: Parameters<NonNullable<TribunusHost["stop"]>>[1]) {
+    const hello = await this.hello(worker.address.launch);
+    if (!isDeepStrictEqual(hello.address, worker.address)) throw new Error("Stop addresses another worker incarnation. Preserve the worker.");
+    const descriptor = Descriptor.parse(privateFile(this.descriptor(hello.address.launch)));
+    const root = join(this.root, worker.address.launch, worker.address.generation);
+    const path = join(root, `${shutdown}.park.json`);
+    const collect = async () => {
+      const observedPath = existsSync(path) ? path : existsSync(join(root, `${shutdown}.park-held.json`)) ? join(root, `${shutdown}.park-held.json`) : join(root, `${shutdown}.park-intent.json`);
+      if (!existsSync(observedPath)) return;
+      const observation = WorkerStop.parse(privateFile(observedPath));
+      if (observation.shutdown !== shutdown || observation.command !== command || !isDeepStrictEqual(observation.address, worker.address) || !isDeepStrictEqual(observation.authority, this.authority)) throw new Error("Stop evidence does not address the exact retained shutdown.");
+      await onObservation(observation);
+      if (observation.state.kind === "parked") { this.stopWatchers.get(path)?.close(); this.stopWatchers.delete(path); }
+    };
+    if (!this.stopWatchers.has(path)) {
+      let collecting = Promise.resolve();
+      const watcher = watch(root, () => { collecting = collecting.then(collect).catch(error => this.notify(`Park observation unresolved. Preserve worker. ${String(error)}`)); });
+      watcher.unref(); this.stopWatchers.set(path, watcher);
+    }
+    const frame = StopFrame.parse({ capability: descriptor.capability, authority: this.authority, reservation: descriptor.launch.reservation, scope: descriptor.launch.scope, address: worker.address, command: shutdown, kind: "stop", assignment: null, currentCommand: command });
+    const reply = await new Promise<string>((resolve, reject) => {
+      const socket = connect(hello.endpoint); let buffer = "";
+      socket.once("connect", () => socket.write(JSON.stringify(frame) + "\n"));
+      socket.on("data", chunk => { buffer += chunk; const end = buffer.indexOf("\n"); if (end < 0) return; resolve(buffer.slice(0, end)); socket.destroy(); });
+      socket.once("error", reject);
+      socket.once("close", () => reject(new Error("Stop control closed without a complete receipt.")));
+    });
+    const response = Envelope.parse(JSON.parse(reply));
+    if (response.kind === "held") throw new Error(response.message);
+    await collect();
   }
   async inspectWorker({ launch, window, cwd }: Parameters<TribunusHost["inspectWorker"]>[0]) {
     if (!existsSync(join(this.root, launch.id, "hello.json")))
@@ -340,6 +383,54 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   let generationRoot = "";
   let journal = "";
   let assignmentCommand: string | null = null;
+  let principalActivity: "not-started" | "active" | "settled" = "not-started";
+  let retirement: z.infer<typeof WorkerStop> | null = null;
+  let retirementReason: z.infer<typeof Retirement>["reason"] | null = null;
+  const retirementPath = join(dirname(path), "retirement.json");
+  function retire(reason: z.infer<typeof Retirement>["reason"], message: string, shutdown: string = randomUUID(), command = assignmentCommand ?? (active?.frame.kind === "assign" ? active.frame.command : null)) {
+    if (!address) return;
+    if (retirement) {
+      if (retirementReason !== "safe-stop" || reason === "safe-stop") return;
+      const retained = Retirement.parse(privateFile(retirementPath));
+      publish(receipt(retirement.shutdown, reason === "owner-lost" ? "owner-loss" : "owner-unresolved"), { ...retained, reason, message });
+      retirementReason = reason;
+      return;
+    }
+    retirementReason = reason;
+    retirement = WorkerStop.parse({ shutdown, authority: controller, address, command, state: { kind: "draining" } });
+    publish(retirementPath, { stop: retirement, reason, message });
+    publish(receipt(shutdown, "park-intent"), retirement);
+    context?.ui.setStatus("legion-intake", `Tribunus stopping. ${message} Progress preserved; no new work or resume.`);
+  }
+  async function observeOwner(ctx: ExtensionContext) {
+    if (retirement && retirementReason !== "safe-stop") return;
+    const owner = descriptor.ownerProcess;
+    if (!owner) { retire("owner-unresolved", "Exact owner process evidence is unavailable; preserve resources."); return; }
+    try {
+      const current = processIdentity(owner.pid);
+      if (current.boot !== owner.boot || current.start !== owner.start) { retire("owner-lost", "Exact owner process incarnation changed."); return; }
+      const local = await localIdentity(), pane = await paneAt(owner.window.pane);
+      if (!pane.agent?.trim()) { retire("owner-unresolved", "Exact owning Legatus agent evidence is unavailable; preserve resources."); return; }
+      if (pane.agent !== "pi") { retire("owner-lost", "Exact owning Legatus pane has a non-Pi agent."); return; }
+      if (!pane.agent_session?.value.trim()) { retire("owner-unresolved", "Exact owning Legatus session evidence is unavailable; preserve resources."); return; }
+      const session = pane.agent_session.kind === "id" ? pane.agent_session.value : z.object({ id: z.string().regex(/\S/) }).parse(JSON.parse(readFileSync(pane.agent_session.value, "utf8").split("\n")[0] ?? "")).id;
+      const processes = z.object({ result: z.object({ process_info: z.object({ foreground_processes: z.array(z.object({ pid: z.int() })) }) }) }).parse(JSON.parse((await exec("herdr", ["pane", "process-info", "--pane", owner.window.pane])).stdout));
+      if (local.endpoint !== owner.window.endpoint || local.server !== owner.window.server || pane.workspace_id !== owner.window.workspace || pane.tab_id !== owner.window.tab || pane.pane_id !== owner.window.pane || pane.terminal_id !== owner.window.terminal || session !== controller.session || !processes.result.process_info.foreground_processes.some(p => p.pid === owner.pid)) retire("owner-lost", "Exact owning Legatus session/process binding is no longer current.");
+    } catch (error) {
+      const absent = error instanceof Error && "code" in error && error.code === "ENOENT" && "path" in error && error.path === `/proc/${owner.pid}/stat`;
+      retire(absent ? "owner-lost" : "owner-unresolved", `Owner evidence ${absent ? "is absent" : "is unresolved"}. This is not settlement. ${String(error)}`);
+    }
+    if (!incarnation(ctx)) retire("owner-unresolved", "Worker incarnation is unresolved; preserve resources.");
+  }
+  function parkIfSettled(ctx: ExtensionContext) {
+    if (!retirement || retirement.state.kind === "parked" || active || pendingSettlement || principalActivity === "active" || !incarnation(ctx) || !isDeepStrictEqual(retirement.address, address)) return;
+    if (retirementReason === "owner-unresolved" || admissionHold || centuriones?.outstanding || centuriones?.held || [...effects.values()].some(effect => effect.execution !== "observed" || effect.record.state.kind === "unknown") || ctx.hasPendingMessages()) {
+      retirement.state = { kind: "held", message: "Native owner/child/effect activity is not known settled. Preserve worker and continuation." };
+    } else if (assignmentCommand && !existsSync(receipt(assignmentCommand, "report"))) return;
+    else retirement.state = { kind: "parked", evidence: [assignmentCommand ? receipt(assignmentCommand, "report") : initialized?.settledEntry ?? receipt(retirement.shutdown, "park-intent")] };
+    publish(receipt(retirement.shutdown, retirement.state.kind === "parked" ? "park" : "park-held"), retirement);
+    ctx.ui.setStatus("legion-intake", retirement.state.kind === "parked" ? "Tribunus parked. Progress preserved. No resume authorized." : "Tribunus stopping. Native settlement unresolved; preserve resources.");
+  }
   let contextSequence = 0;
   function publishContext(ctx: ExtensionContext, invalidation?: "compaction" | "stale") {
     if (!address || !assignmentCommand || !incarnation(ctx)) return;
@@ -386,9 +477,14 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     publish(path, value);
     return path;
   }
-  async function checkChildOwner(intent: NativeCenturioIntent, stage: "launch" | "read", ctx: ExtensionContext) {
-    if (stage === "launch" && (!initialized || pendingSettlement || admissionHold || centuriones?.held)) throw new Error("Owned child launch requires a current unheld applied assignment.");
-    if (!address || !incarnation(ctx) || intent.assignment.command !== assignmentCommand || !isDeepStrictEqual(intent.authority, controller)) throw new Error("Child principal authority changed.");
+  async function checkChildOwner(intent: NativeCenturioIntent, stage: "launch" | "control" | "read", ctx: ExtensionContext) {
+    await observeOwner(ctx);
+    if (stage === "control" && retirement) throw new Error("Retirement observation cannot authorize native child control.");
+    if (stage === "launch" && (retirement || !initialized || pendingSettlement || admissionHold || centuriones?.held)) throw new Error("Owned child launch requires a current unheld applied assignment.");
+    if (!address || !incarnation(ctx) || !isDeepStrictEqual(intent.owner, address) || intent.assignment.command !== assignmentCommand || !isDeepStrictEqual(intent.authority, controller)) throw new Error("Child principal authority changed.");
+    // This exception is observation only for the exact already-registered native child.
+    // Centuriones still requires status, journal/tool settlement and runner process-terminal evidence.
+    if (stage === "read" && retirementReason === "owner-lost" && retirement?.command === intent.assignment.command && isDeepStrictEqual(retirement.address, address)) return;
     const command = intent.assignment.command;
     const message = CenturioOwnerCheck.parse({ kind: "centurio-owner-check", id: randomUUID(), child: { id: intent.id, digest: createHash("sha256").update(JSON.stringify(intent)).digest("hex") }, stage,
       pin: { ...intent.authority, task: intent.assignment.value.task, scope: intent.assignment.value.scope, reservation: descriptor.launch.reservation, assignment: command,
@@ -401,10 +497,10 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     const reply = EffectReply.parse(privateFile(responsePath));
-    if (stage === "launch" && (!initialized || pendingSettlement || admissionHold || centuriones?.held) || !incarnation(ctx) || intent.assignment.command !== assignmentCommand || !isDeepStrictEqual(intent.authority, controller) || reply.kind !== "centurio-owner-current" || reply.id !== message.id || !isDeepStrictEqual(reply.child, message.child)) throw new Error(`Current child-owner check refused. ${JSON.stringify(reply)}`);
+    if (stage === "control" && retirement || stage === "launch" && (retirement || !initialized || pendingSettlement || admissionHold || centuriones?.held) || !incarnation(ctx) || intent.assignment.command !== assignmentCommand || !isDeepStrictEqual(intent.authority, controller) || reply.kind !== "centurio-owner-current" || reply.id !== message.id || !isDeepStrictEqual(reply.child, message.child)) throw new Error(`Current child-owner check refused. ${JSON.stringify(reply)}`);
   }
   function settlementCurrent(pending: NonNullable<typeof pendingSettlement>) {
-    return pendingSettlement === pending && assignmentCommand === pending.report.command && incarnation(pending.ctx) && isDeepStrictEqual(pending.authority, controller) && isDeepStrictEqual(address, pending.report.address) && !pending.ctx.hasPendingMessages() && !existsSync(receipt(pending.report.command, "report"));
+    return principalActivity !== "active" && pendingSettlement === pending && assignmentCommand === pending.report.command && incarnation(pending.ctx) && isDeepStrictEqual(pending.authority, controller) && isDeepStrictEqual(address, pending.report.address) && !pending.ctx.hasPendingMessages() && !existsSync(receipt(pending.report.command, "report"));
   }
   function resumeSettlement(command: string) {
     if (pendingSettlement?.report.command !== command) return;
@@ -428,7 +524,8 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           publish(receipt(command, "report"), WorkerReport.parse({ ...pending.report, outcome, assistantText,
             evidence: [...new Set([...pending.report.evidence, receipt(command, "settlement-pending"), ...unknownChildEvidence, ...centuriones.evidence, ...children.flatMap(child => [...child.evidence, ...(child.result ? [child.result.evidence, child.result.source] : [])]), ...assignmentEffects.flatMap(effect => effect.record.state.kind === "outstanding" ? [] : [effect.record.state.evidence])])] }));
           pendingSettlement = null;
-          pending.ctx.ui.setStatus("legion-intake", `Tribunus ${outcome}. Waiting. Not accepted.`);
+          parkIfSettled(pending.ctx);
+          if (!retirement) pending.ctx.ui.setStatus("legion-intake", `Tribunus ${outcome}. Waiting. Not accepted.`);
         }
       } catch (error) { pendingSettlement?.ctx.ui.setStatus("legion-intake", `Assignment settlement held. Preserve current child/effect evidence. ${String(error)}`); }
       finally { settling = false; }
@@ -464,6 +561,13 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     server = null;
     if (address) {
       manual = true;
+      return;
+    }
+    if (existsSync(retirementPath)) {
+      const retained = Retirement.parse(privateFile(retirementPath));
+      retirement = retained.stop; retirementReason = retained.reason;
+      manual = true;
+      ctx.ui.setStatus("legion-intake", "Tribunus retirement retained. Prior incarnation settlement unresolved; no adoption or resume authorized.");
       return;
     }
     if (ctx.mode !== "tui" || realpathSync(ctx.cwd) !== descriptor.cwd || !ctx.isProjectTrusted())
@@ -526,7 +630,19 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
             socket.end(JSON.stringify({ kind: "ok", value: CurrentAssignment.parse({ nonce: frame.nonce, authority: controller, address, command: assignmentCommand }) }) + "\n");
             return;
           }
-          if (frame.authority.generation > controller.generation) {
+          if (frame.kind === "stop") {
+            if (!isDeepStrictEqual(frame.authority, controller) || frame.currentCommand !== assignmentCommand && !(active?.frame.kind === "assign" && active.frame.command === frame.currentCommand)) throw new Error("Stop does not address the current authorized stage.");
+            if (retirement && (retirement.shutdown !== frame.command || retirement.command !== frame.currentCommand)) throw new Error("Worker already has a retained retirement. No competing shutdown.");
+            if (!retirement) {
+              retire("safe-stop", "Legatus requested safe stopping before any continuation.", frame.command, frame.currentCommand);
+            }
+            parkIfSettled(context);
+            socket.end(JSON.stringify({ kind: "ok", value: retirement }) + "\n");
+            return;
+          }
+          await observeOwner(context);
+          if (retirement && frame.kind !== "inspect") throw new Error("Retiring worker cannot restore assignment authority. Preserve its parked/draining state.");
+          if (!retirement && frame.authority.generation > controller.generation) {
             publish(join(generationRoot, `${frame.authority.generation}.controller.json`), frame.authority);
             controller = frame.authority;
           }
@@ -562,7 +678,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           };
           accepted = frame.command;
           const observed = await resources(context);
-          if (observed.diagnostics.some((d) => d.status !== "ready") || !incarnation(context) || frame.authority.generation !== controller.generation || frame.authority.session !== controller.session || frame.authority.epoch !== controller.epoch)
+          if (retirement || observed.diagnostics.some((d) => d.status !== "ready") || !incarnation(context) || frame.authority.generation !== controller.generation || frame.authority.session !== controller.session || frame.authority.epoch !== controller.epoch)
             throw new Error(`Actual target resources or incarnation are unavailable. Assignment withheld. ${observed.diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" ")}`);
           const choice = descriptor.workflowChoice;
           if (!choice || choice.profile === "matt" && choice.requestedWorkflow === "unknown" || choice.profile === "poteto-mode" && choice.requestedWorkflow !== "unknown")
@@ -697,8 +813,9 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     description: "Prepare one owned native child launch with an ordinary configured agent. Does not launch or select a model/tools. Every child gets an isolated branch/worktree based on the explicit clean committed parent baseRef/baseCommit. Assignment authority grants no integration, publication or cleanup.",
     parameters: Type.Unsafe<z.infer<typeof CenturioRequest>>(z.toJSONSchema(CenturioRequest, { io: "input" })),
     execute: async (rootCall, raw, _signal, _update, ctx) => {
+      await observeOwner(ctx);
       const initial = active?.kind === "running" && active.frame.kind === "assign" && active.frame.assignment && assignmentApplied(ctx) ? active.frame : null;
-      if (!centuriones || !incarnation(ctx) || pendingSettlement || admissionHold || centuriones.held) throw new Error("No current unheld assignment for Centurio preparation.");
+      if (retirement || !centuriones || !incarnation(ctx) || pendingSettlement || admissionHold || centuriones.held) throw new Error("No current unheld assignment for Centurio preparation.");
       const command = initial?.command ?? assignmentCommand;
       const value = initial?.assignment ?? (command ? z.object({ assignment: BoundedAssignment }).safeParse(privateFile(receipt(command, "assignment"))).data?.assignment : null);
       if (!command || !value) throw new Error("No applied bounded assignment for Centurio preparation.");
@@ -714,9 +831,9 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
         workspacePreparation = { child: id, rootCall, journal: `${journal}#${origin.id}`, command: null };
         try {
           const workspace = await prepareCenturioWorkspace({ id, cwd: ctx.cwd, owner: controller.owner, scope: `${value.scope}; bounded child of ${command}`, baseRef: request.baseRef, baseCommit: request.baseCommit,
-            current: () => incarnation(ctx) && !admissionHold && assignmentCommand === command,
+            current: () => incarnation(ctx) && !retirement && !admissionHold && assignmentCommand === command,
             run: async shellCommand => {
-              if (!workspacePreparation || admissionHold || assignmentCommand !== command) throw new Error("Workspace preparation authority unavailable.");
+              if (!workspacePreparation || retirement || admissionHold || assignmentCommand !== command) throw new Error("Workspace preparation authority unavailable.");
               workspacePreparation.command = shellCommand;
               const result = await ctx.executeTool("bash", { command: shellCommand });
               workspacePreparation.command = null;
@@ -741,6 +858,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     }
   });
   pi.on("tool_call", async (event, ctx) => {
+    await observeOwner(ctx);
     if (active?.kind === "running" && active.frame.kind === "initialize") return { block: true, reason: "Initialization authorizes only a bounded bootstrap reply, not tools or delegation." };
     if (active?.kind === "running" && active.frame.kind === "assign" && !assignmentCommand) assignmentApplied(ctx);
     if (["subagent", "subagents_enable"].includes(event.toolName) && incarnation(ctx)) {
@@ -749,6 +867,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
         if (await centuriones.admit(event, ctx) !== "effect") return;
       } catch (error) { return { block: true, reason: String(error) }; }
     }
+    if (retirement && ["bash", "write", "edit", "legion_centurio"].includes(event.toolName)) return { block: true, reason: "Worker is retiring. Only already-admitted effects may settle; no new work." };
     if (assignmentCommand && incarnation(ctx) && ["bash", "write", "edit", "subagent"].includes(event.toolName)) {
       if (admissionHold || centuriones?.held) return { block: true, reason: admissionHold ?? "Owned child state is unresolved. No new principal effects are authorized." };
       const allocation = event.toolName === "bash" && workspacePreparation && event.parentToolCallId === workspacePreparation.rootCall && isDeepStrictEqual(event.input, { command: workspacePreparation.command }) ? { ...workspacePreparation } : null;
@@ -825,10 +944,14 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     effectResults.delete(event.toolCallId);
   });
   pi.on("agent_settled", async (_event, ctx) => {
+    principalActivity = "settled";
+    await observeOwner(ctx);
     if (pendingSettlement) { resumeSettlement(pendingSettlement.report.command); return; }
     const pending = active;
-    if (pending?.kind !== "running" || !address)
+    if (pending?.kind !== "running" || !address) {
+      parkIfSettled(ctx);
       return;
+    }
     const branch = ctx.sessionManager.getBranch();
     const user = branch.find((e) => e.type === "message" && e.message.role === "user" && Array.isArray(e.message.content) && e.message.content.some((c) => c.type === "text" && c.text === pending.expanded));
     const assistant = branch.filter((e) => e.type === "message" && e.message.role === "assistant").at(-1);
@@ -882,6 +1005,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
       initialized = proof;
       ctx.ui.setStatus("legion-intake", "Tribunus initialized. Awaiting bounded assignment.");
       active = null;
+      parkIfSettled(ctx);
       pending.resolve(proof);
     }
     else {
@@ -892,6 +1016,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
         address, command: pending.frame.command, outcome: "reported-result", assistantText: text, evidence: [`${journal}#${assistant.id}`, ...unknownChildEvidence, ...(centuriones?.evidence ?? [])]
       }), ctx);
       active = null;
+      parkIfSettled(ctx);
       pending.resolve(application);
     }
   });
@@ -900,7 +1025,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   pi.on("session_compact_failed", (_event, ctx) => { publishContext(ctx, "stale"); });
   pi.on("session_compact", (_event, ctx) => { publishContext(ctx, "compaction"); });
   pi.on("model_select", (_event, ctx) => { publishContext(ctx, "stale"); });
-  pi.on("agent_start", (_event, ctx) => { publishContext(ctx, "stale"); });
+  pi.on("agent_start", (_event, ctx) => { principalActivity = "active"; publishContext(ctx, "stale"); });
   pi.on("session_before_switch", (_event, ctx) => { publishContext(ctx, "stale"); });
   pi.on("session_before_fork", (_event, ctx) => { publishContext(ctx, "stale"); });
   pi.on("session_tree", (_event, ctx) => { publishContext(ctx, "stale"); });
