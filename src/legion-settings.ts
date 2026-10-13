@@ -17,6 +17,11 @@ const ModelSelectionSchema = z.object({
   thinking: ThinkingSchema,
 });
 export type PrincipalSelection = z.infer<typeof ModelSelectionSchema>;
+export const StartupSelectionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("native-defaults") }),
+  z.object({ kind: z.literal("exact"), selection: ModelSelectionSchema }),
+]);
+export type StartupSelection = z.infer<typeof StartupSelectionSchema>;
 
 const tokenError = "Use a positive safe integer token count.";
 const TokenCountSchema = z.number({ error: tokenError })
@@ -29,6 +34,13 @@ const LegionSettingsSchema = z.object({
   message: "Set context.warningTokens below context.escalationTokens.",
 });
 export type LegionSettings = z.infer<typeof LegionSettingsSchema>;
+
+export const RequestedWorkflowSchema = z.enum(["unknown", "implement", "implement-spec"]);
+export const WorkflowChoiceSchema = z.object({
+  profile: z.enum(["matt", "poteto-mode"]),
+  requestedWorkflow: RequestedWorkflowSchema,
+});
+export type WorkflowChoice = z.infer<typeof WorkflowChoiceSchema>;
 
 // Historical pins retain model strings without applying configuration identifier validation.
 export const AssignmentModelPinSchema = z.object({ model: z.string(), thinking: ThinkingSchema, profile: z.string() });

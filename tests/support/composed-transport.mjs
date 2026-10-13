@@ -24,12 +24,13 @@ const execute = promisify(execFile), executeShell = promisify(shell);
 const pstack = "/home/vscode/.pi/agent/git/github.com/StanleyOneG/stanley-pi-pstack";
 const subagentsEntry = fileURLToPath(import.meta.resolve("pi-subagents"));
 const skill = join(pstack, "skills/poteto-mode/SKILL.md");
-const commands = [{ name: "pstack", source: "extension", sourceInfo: { path: join(pstack, "extensions/pstack/index.ts") } }, ...["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map(name => ({ name: `skill:${name}`, source: "skill", sourceInfo: { path: name === "poteto-mode" ? skill : `/controlled/${name}/SKILL.md` } }))];
+const commands = [{ name: "pstack", source: "extension", sourceInfo: { path: join(pstack, "extensions/pstack/index.ts") } }, ...["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map(name => ({ name: `skill:${name}`, source: "skill", sourceInfo: { path: name === "poteto-mode" ? skill : ["implement", "implement-spec"].includes(name) ? fileURLToPath(new URL(`../../.agents/skills/${name}/SKILL.md`, import.meta.url)) : `/controlled/${name}/SKILL.md` } }))];
 async function until(predicate, label) {
   for (let i = 0; i < 1000; i++) { if (await predicate()) return; await delay(5); }
   throw new Error(`Fixture timeout. ${label}`);
 }
 function runtime(cwd, session, journal) {
+  fs.writeFileSync(journal, JSON.stringify({ type: "session", id: session, cwd }) + "\n");
   const handlers = new Map(), tools = new Map(), registeredCommands = new Map(), entries = [], prompts = [], notices = [];
   const nativeTools = new Map([createReadToolDefinition(cwd), createGrepToolDefinition(cwd), createFindToolDefinition(cwd), createLsToolDefinition(cwd), createBashToolDefinition(cwd), createEditToolDefinition(cwd), createWriteToolDefinition(cwd)].map(tool => [tool.name, tool]));
   let discovered = commands, onBranch = null;
@@ -52,7 +53,7 @@ function runtime(cwd, session, journal) {
     events: { emit: (name, value) => events.emit(name, value), on: (name, handler) => { events.on(name, handler); return () => events.off(name, handler); } },
     on: (name, handler) => handlers.set(name, [...(handlers.get(name) ?? []), handler]),
     registerTool: tool => tools.set(tool.name, tool), registerCommand: (name, command) => registeredCommands.set(name, command),
-    getCommands: () => discovered,
+    getCommands: () => [...discovered, ...[...registeredCommands.keys()].map(name => ({ name, source: "extension" }))],
     getSettings: () => ({}), getThinkingLevel: () => ctx.thinkingLevel,
     getAllTools: () => [...["read", "grep", "find", "ls", "bash", "write", "edit"].map(name => ({ name, sourceInfo: { path: tools.has(name) ? "controlled-legion-extension" : `builtin:${name}` } })), ...["subagent", "subagents_enable"].map(name => ({ name, exposure: "model-only", sourceInfo: { path: subagentsEntry } }))],
     sendMessage: message => append({ type: "custom_message", ...message }),
@@ -90,7 +91,7 @@ function runtime(cwd, session, journal) {
         if (guard?.block) result = { isError: true, content: [{ type: "text", text: guard.reason }], details: guard };
         else {
           executed = true;
-          result = tools.has(name) ? await tools.get(name).execute(id, input, undefined, undefined, ctx) : external ? await external(name, input) : await nativeTools.get(name).execute(id, input, undefined, undefined, ctx);
+          result = tools.has(name) ? await tools.get(name).execute(id, input, undefined, undefined, ctx) : external ? (await external(name, input)) ?? await nativeTools.get(name).execute(id, input, undefined, undefined, ctx) : await nativeTools.get(name).execute(id, input, undefined, undefined, ctx);
           if (result.result) result = result.result;
         }
       } catch (error) { result = { content: [{ type: "text", text: String(error) }], isError: true }; }
@@ -106,22 +107,35 @@ function runtime(cwd, session, journal) {
       return result;
     } finally { rootCall = previous; }
   }
-  async function start(prompt, native = false) {
-    if (prompt !== "Subagent updates above.") assert.equal(consumed.has(prompt), false, "The external Pi fixture cannot replay a consumed marker");
+  async function start(prompt, native = false, source = "extension") {
+    if (prompt.startsWith("Legion ")) assert.equal(consumed.has(prompt), false, "The external Pi fixture cannot replay a consumed host marker");
     consumed.add(prompt);
-    const input = await emit("input", { source: "extension", text: prompt });
+    const input = await emit("input", { source, text: prompt });
     if (input?.action === "handled") return false;
     if (!authenticated) throw new Error("Controlled native Pi authentication refusal before agent_start");
-    const skill = discovered.find(command => command.name === "skill:poteto-mode" && command.source === "skill")?.sourceInfo.path;
-    const expanded = native ? `<skill name="poteto-mode" location="${skill}">\nReferences are relative to ${dirname(skill)}.\n\n${stripFrontmatter(fs.readFileSync(skill, "utf8")).trim()}\n</skill>\n\n${prompt.slice("/skill:poteto-mode ".length)}` : prompt;
-    const prepared = await emit("before_agent_start", { prompt: expanded, systemPrompt: "Controlled external model" });
+    const skillInput = /^\/skill:([^ ]+)(?: ([\s\S]*))?$/.exec(prompt);
+    const skillName = skillInput?.[1];
+    const skill = discovered.find(command => command.name === `skill:${skillName}` && command.source === "skill")?.sourceInfo.path;
+    const expanded = input?.action === "transform" ? input.text : skill ? `<skill name="${skillName}" location="${skill}">\nReferences are relative to ${dirname(skill)}.\n\n${stripFrontmatter(fs.readFileSync(skill, "utf8")).trim()}\n</skill>${skillInput[2]?.trim() ? `\n\n${skillInput[2].trim()}` : ""}` : prompt;
+    idle = false; // Pi 1.2 marks the run busy before the user before_agent_start hook.
+    const prepared = await emit("before_agent_start", { messageType: "user", prompt: expanded, systemPrompt: "Controlled external model" });
     if (prepared?.message) append({ type: "custom_message", ...prepared.message });
-    idle = false;
-    const user = append({ type: "message", message: { role: "user", content: [{ type: "text", text: expanded }] } });
-    await emit("message_end", { message: user.message });
     await emit("agent_start");
+    const user = { role: "user", content: [{ type: "text", text: expanded }] };
+    await emit("message_end", { message: user });
+    append({ type: "message", message: user });
+    await emit("context", { messages: [user] });
     await new Promise(resolve => setImmediate(resolve));
     return true;
+  }
+  async function startCustom() {
+    idle = false;
+    const message = { role: "custom", customType: "subagent-update", content: "Ordinary native child result.", display: true };
+    const prepared = await emit("before_agent_start", { messageType: "custom", message, systemPrompt: "Controlled native completion" });
+    await emit("agent_start");
+    append({ type: "custom_message", ...message });
+    await emit("context", { messages: [message] });
+    return prepared;
   }
   async function settle(native = false, text = "Waiting.", stopReason = "stop") {
     assert.equal(idle, false, "Only an admitted model turn can emit agent_settled");
@@ -130,7 +144,7 @@ function runtime(cwd, session, journal) {
     idle = true;
     await emit("agent_settled");
   }
-  return { pi, ctx, prompts, notices, emit, call, start, settle, onBranch: hook => { onBranch = hook; }, resources: value => { discovered = value; }, setAuth: value => { authenticated = value; }, failSend: () => { sendFailure = true; }, setPending: value => { pending = value; }, setIdle: value => { idle = value; }, onIdle: hook => { onIdle = hook; }, onAuth: hook => { onAuth = hook; }, external: handler => { external = handler; }, command: text => registeredCommands.has("legion") ? registeredCommands.get("legion").handler(text, ctx) : "Command /legion is unavailable in this session." };
+  return { pi, ctx, prompts, notices, emit, call, start, startCustom, settle, invoke: (name, text) => registeredCommands.get(name)?.handler(text, ctx), onBranch: hook => { onBranch = hook; }, resources: value => { discovered = value; }, setAuth: value => { authenticated = value; }, failSend: () => { sendFailure = true; }, setPending: value => { pending = value; }, setIdle: value => { idle = value; }, onIdle: hook => { onIdle = hook; }, onAuth: hook => { onAuth = hook; }, external: handler => { external = handler; }, command: text => registeredCommands.has("legion") ? registeredCommands.get("legion").handler(text, ctx) : "Command /legion is unavailable in this session." };
 }
 
 export async function exerciseChildStartup(inherited) {
@@ -160,7 +174,9 @@ export async function exerciseChildStartup(inherited) {
 
 export async function exerciseNativeAssignment(scenario = "write", census) {
   const kind = scenario === "readiness" ? "readiness" : "native";
-  const root = await mkdtemp(join(tmpdir(), "legion-composed-")), profile = join(root, "agent"), repo = join(root, "repo"), bin = join(root, "bin");
+  // Keep the actual generation-specific Unix endpoint below the platform path limit on disk-backed TMPDIR.
+  const root = await mkdtemp(join(tmpdir(), "lc-")), profile = join(root, "a"), repo = join(root, "repo"), bin = join(root, "bin");
+  assert.ok(Buffer.byteLength(join(profile, "legion", "tribuni", `s-${"a".repeat(32)}.sock`)) < 108, "Controlled fixture TMPDIR is too long for the exact native host endpoint");
   await mkdir(profile); await mkdir(repo); await mkdir(bin);
   if (census?.childCase === "project-container") {
     await mkdir(join(root, "worktrees-repo_legion"));
@@ -182,17 +198,20 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
   globalThis.setTimeout = (callback, milliseconds, ...args) => milliseconds === 0 ? (scheduled.push(() => callback(...args)), { unref() {} }) : originalTimer(callback, milliseconds, ...args);
   const drain = async () => { const batch = scheduled; scheduled = []; for (const callback of batch) callback(); await delay(20); };
   controller.external(async (name, { command }) => {
-    assert.equal(name, "bash");
+    if (name !== "bash") return undefined;
     let output, exitCode = 0;
     if (command.startsWith("herdr agent start ")) {
+      await writeFile(join(root, "startup-command.json"), JSON.stringify(command));
       const { bootstrap } = JSON.parse(await readFile(createdFile, "utf8"));
       const descriptor = JSON.parse(await readFile(bootstrap, "utf8"));
       workerDescriptor = descriptor;
       worker = runtime(descriptor.cwd, randomUUID(), join(root, "worker.jsonl"));
       worker.pi.sendUserMessage = prompt => {
         worker.prompts.push(prompt);
-        void (async () => { const init = prompt.startsWith("/skill:"); await worker.start(prompt, init); if (init) await worker.settle(true); })().catch(error => { workerFailure = error; });
+        void (async () => { const poteto = prompt.startsWith("/skill:"); const init = poteto || prompt.startsWith("Legion native initialization "); await worker.start(prompt, poteto); if (init) { if (census?.disableBeforeSettle) worker.onBranch(() => worker.pi.appendEntry("pstack-mode", { enabled: false })); await worker.settle(poteto); } })().catch(error => { workerFailure = error; });
       };
+      if (census?.initialMode !== undefined) worker.pi.appendEntry("pstack-mode", { enabled: census.initialMode });
+      if (census?.missingWorkerSkill) worker.resources(commands.filter(command => command.name !== `skill:${census.missingWorkerSkill}`));
       installTribunus(worker.pi, bootstrap);
       await worker.emit("session_start");
       if (scenario === "native-pre-assignment") {
@@ -249,17 +268,33 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       await writeFile(join(repo, ".pi", "legion.json"), "{bad-json");
     }
     if (scenario === "missing-pi-contract") controller.pi.sendUserMessage = undefined;
-    if (["unknown-subagents", "unsupported-subagents", "missing-subagents", "hidden-subagents"].includes(scenario)) {
+    if (["unknown-subagents", "unsupported-subagents", "missing-subagents", "hidden-subagents", "pre-1.2-subagents"].includes(scenario)) {
       const discoveredTools = controller.pi.getAllTools();
       const unsupported = join(root, "unsupported-subagents");
-      if (scenario === "unsupported-subagents") {
+      if (["unsupported-subagents", "pre-1.2-subagents"].includes(scenario)) {
         await mkdir(unsupported);
-        await writeFile(join(unsupported, "package.json"), JSON.stringify({ name: "pi-subagents", version: "9.9.9" }));
+        await writeFile(join(unsupported, "package.json"), JSON.stringify({ name: "pi-subagents", version: scenario === "pre-1.2-subagents" ? "0.77.0" : "9.9.9" }));
       }
       controller.pi.getAllTools = () => discoveredTools.flatMap(tool => tool.name !== "subagent" ? [tool]
         : scenario === "missing-subagents" ? []
-        : [{ ...tool, exposure: scenario === "hidden-subagents" ? "hidden" : tool.exposure, sourceInfo: { path: scenario === "unsupported-subagents" ? join(unsupported, "index.js") : scenario === "unknown-subagents" ? join(root, "unknown/index.js") : tool.sourceInfo.path } }]);
+        : [{ ...tool, exposure: scenario === "hidden-subagents" ? "hidden" : tool.exposure, sourceInfo: { path: ["unsupported-subagents", "pre-1.2-subagents"].includes(scenario) ? join(unsupported, "index.js") : scenario === "unknown-subagents" ? join(root, "unknown/index.js") : tool.sourceInfo.path } }]);
     }
+    if (["same-version-npm", "foreign-fork-origin", "foreign-poteto-skill"].includes(scenario)) {
+      const foreign = join(root, "foreign-pstack");
+      await mkdir(foreign);
+      await writeFile(join(foreign, "package.json"), JSON.stringify({ name: "@zenspc/pi-pstack", version: "0.6.0", repository: { type: "git", url: scenario === "same-version-npm" ? "https://github.com/zenspc/pi-pstack.git" : "git+https://github.com/StanleyOneG/stanley-pi-pstack.git" } }));
+      await mkdir(join(foreign, "extensions/pstack"), { recursive: true });
+      await mkdir(join(foreign, "skills/poteto-mode"), { recursive: true });
+      await writeFile(join(foreign, "extensions/pstack/index.ts"), "fixture");
+      await writeFile(join(foreign, "skills/poteto-mode/SKILL.md"), "fixture");
+      await execute("git", ["init", "-q", foreign]);
+      await execute("git", ["-C", foreign, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "add", "."]);
+      await execute("git", ["-C", foreign, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "-qm", "fixture"]);
+      await execute("git", ["-C", foreign, "remote", "add", "origin", "https://github.com/foreign/pstack.git"]);
+      controller.resources(commands.map(command => command.name === (scenario === "foreign-poteto-skill" ? "skill:poteto-mode" : "pstack") ? { ...command, sourceInfo: { path: join(foreign, scenario === "foreign-poteto-skill" ? "skills/poteto-mode/SKILL.md" : "extensions/pstack/index.ts") } } : command));
+    }
+    if (scenario === "wrong-fork-skill") controller.resources(commands.map(command => command.name === "skill:poteto-mode" ? { ...command, sourceInfo: { path: join(pstack, "skills/why/SKILL.md") } } : command));
+    if (["missing-handoff", "missing-implement-spec"].includes(scenario)) controller.resources(commands.filter(command => command.name !== `skill:${scenario.slice("missing-".length)}`));
     if (["missing-pstack", "unsupported-pstack"].includes(scenario)) {
       const unsupported = join(root, "unsupported-pstack");
       if (scenario === "unsupported-pstack") {
@@ -270,11 +305,13 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
         : scenario === "missing-pstack" ? [] : [{ ...command, sourceInfo: { path: join(unsupported, "index.ts") } }]));
     }
   }
+  if (scenario === "workflow-collision") controller.pi.registerCommand("implement", { handler: () => "Existing resource preserved" });
   extension(controller.pi);
   async function state() {
     const before = controller.notices.length;
     await controller.command("status");
     const text = controller.notices.slice(before).find(value => value.includes("\nState\n"));
+    if (!text && controller.notices.slice(before).some(notice => notice === "Legion is inactive.")) return { mode: "inactive", snapshot: null, tasks: [] };
     assert.ok(text, "Fixture setup must expose public status");
     return JSON.parse(text.split("\nState\n")[1].split("\n")[0]);
   }
@@ -307,8 +344,148 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       assert.deepEqual(await state(), admitted, "Doctor must not activate, repair or mutate saved state");
       return { root, doctor, view: admitted, prompts: [...controller.prompts] };
     }
+    if (scenario.startsWith("workflow-")) {
+      const observations = {};
+      if (scenario === "workflow-collision") {
+        observations.existingCommand = await controller.invoke("implement", "Do not replace this resource");
+        return { root, prompt: "", nativeWrite: {}, observations, notices: controller.notices, view: await state() };
+      }
+      if (scenario === "workflow-inactive-alias") {
+        await controller.invoke("implement", "Ordinary inactive native work");
+        const queued = controller.prompts.shift();
+        assert.ok(queued); await controller.start(queued);
+        const user = controller.ctx.sessionManager.getBranch().findLast(entry => entry.message?.role === "user");
+        const view = await state(); await controller.settle();
+        return { root, prompt: user.message.content[0].text, nativeWrite: {}, observations, view };
+      }
+      if (scenario === "workflow-prose" || scenario === "workflow-extension-source") {
+        await controller.command("on");
+        await controller.emit("input", { source: scenario === "workflow-prose" ? "interactive" : "extension", text: scenario === "workflow-prose" ? "Please mention /implement and /skill:implement-spec in documentation" : "/skill:implement-spec Extension cannot select Matt" });
+        const view = await state();
+        return { root, prompt: "", nativeWrite: {}, observations, view };
+      }
+      if (scenario === "workflow-conflict") await controller.command("poteto-mode=on Future Tribunus profile only");
+      if (scenario === "workflow-sticky") controller.pi.appendEntry("pstack-mode", { enabled: true });
+      if (scenario === "workflow-uncertain") controller.failSend();
+      if (scenario === "workflow-alias" || scenario === "workflow-native-input") {
+        await controller.command("on");
+        if (scenario === "workflow-alias") await controller.invoke("implement", "Native alias instructions");
+        else await controller.emit("input", { source: "interactive", text: "/skill:implement-spec  Follow approved spec\nexactly  " });
+      } else await controller.command("implement-spec=on  Follow approved spec\nexactly  ");
+      if (scenario === "workflow-missing") controller.resources(commands.filter(command => command.name !== "skill:implement-spec"));
+      if (scenario === "workflow-duplicate") controller.resources([...commands, commands.find(command => command.name === "skill:implement-spec")]);
+      await drain();
+      await until(async () => controller.prompts.length || (await state()).snapshot.submissions.at(-1).workflowDispatch.kind === "held-native", "native entry readiness");
+      if (["workflow-missing", "workflow-duplicate", "workflow-conflict", "workflow-sticky"].includes(scenario)) return { root, prompt: "", nativeWrite: {}, observations, notices: controller.notices, view: await state() };
+      if (scenario === "workflow-uncertain") {
+        await until(async () => (await state()).snapshot.submissions[0].workflowDispatch.kind === "uncertain-native", "durable native uncertainty");
+        const late = controller.prompts.shift();
+        const before = await state();
+        await controller.command(`resume ${before.snapshot.id}`); await drain();
+        observations.lateStarted = await controller.start(late);
+        await controller.emit("session_shutdown"); await controller.emit("session_start");
+        await controller.command(`resume ${before.snapshot.id}`); await drain();
+        observations.replayedPrompts = controller.prompts.length;
+        return { root, prompt: "", nativeWrite: {}, observations, notices: controller.notices, view: await state() };
+      }
+      const queued = controller.prompts.shift();
+      assert.ok(queued, `An explicit workflow must schedule a native skill turn, not remain intake-only: ${controller.notices.join("\n")}`);
+      if (scenario === "workflow-resource-race") {
+        controller.resources(commands.filter(command => command.name !== "skill:implement-spec"));
+        observations.started = await controller.start(queued);
+        return { root, prompt: "", nativeWrite: {}, observations, notices: controller.notices, view: await state() };
+      }
+      if (scenario === "workflow-witness") controller.pi.on("message_end", event => { if (event.message.role === "user") event.message.content[0].text += "\nForeign transformation"; });
+      assert.equal(await controller.start(queued), true);
+      const user = controller.ctx.sessionManager.getBranch().findLast(entry => entry.message?.role === "user");
+      if (scenario === "workflow-permission") controller.pi.on("tool_call", event => event.toolName === "write" ? { block: true, reason: "Ordinary native skill permission denial" } : undefined);
+      const nativeWrite = await controller.call("write", { path: join(repo, "native.txt"), content: "Native skill tools remain native." });
+      observations.nativeCanary = fs.existsSync(join(repo, "native.txt"));
+      if (scenario === "workflow-witness") observations.managedRefused = (await controller.call("legion_request", { command: "workspace fabricated" })).isError === true;
+      if (scenario === "workflow-launch") {
+        const source = (await state()).snapshot.submissions[0];
+        for (const goal of ["Fix first approved ticket", "Fix second approved ticket"]) {
+          const admitted = await controller.call("legion_intake", { kind: "new-task", source: { id: source.id, revision: source.revision }, goal, acceptance: ["Approved behavior works"], questions: [] });
+          assert.equal(admitted.details?.kind, "applied", JSON.stringify(admitted));
+        }
+        const task = (await state()).tasks[0];
+        const request = await controller.call("legion_request", { command: `reserve ${task.id}@1 --parent refs/heads/main` });
+        assert.equal(request.details?.kind, "deferred", JSON.stringify(request));
+        const workspaceId = request.details.receipt.requestKey;
+        const stage = await controller.call("legion_request", { command: `workspace ${workspaceId}` });
+        assert.equal(stage.details?.kind, "workspace-stage", JSON.stringify(stage));
+        assert.equal((await controller.call("legion_workspace", { requestId: "foreign-request" })).isError, true, "A skill cannot retarget the exact saved stage");
+        assert.equal((await controller.call("write", { path: join(repo, "during-stage.txt"), content: "Native tools stay native while a bounded stage is prepared." })).isError ?? false, false);
+        assert.equal((await controller.call("legion_workspace", { requestId: workspaceId })).details?.kind, "reserved");
+        const launch = await controller.call("legion_request", { command: `launch ${task.id}@1` });
+        assert.equal(launch.details?.kind, "launch-stage", JSON.stringify(launch));
+        const assigned = await controller.call("legion_launch", { requestId: launch.details.requestId });
+        assert.equal(assigned.details?.kind, "launched", JSON.stringify(assigned));
+        assert.equal((await controller.call("write", { path: join(repo, "after-stage.txt"), content: "Ordinary tools remain available after managed stages." })).isError ?? false, false);
+      }
+      if (scenario === "workflow-authority") {
+        const source = (await state()).snapshot.submissions[0];
+        await controller.call("legion_intake", { kind: "new-task", source: { id: source.id, revision: 1 }, goal: "Approved bounded work", acceptance: [], questions: [] });
+        observations.refusals = [];
+        for (const command of ["poteto-mode=on Unapproved profile", "implement-spec=on Model cannot select", "task Model cannot manufacture Emperor tasks", "off", "push", "close 32", "launch fabricated@1", "workspace fabricated"]) observations.refusals.push((await controller.call("legion_request", { command })).isError === true);
+        observations.forgedEvidenceRefused = (await controller.call("legion_request", { command: "workspace fabricated", evidence: { origin: "emperor" } })).isError === true;
+        await controller.command("off");
+        observations.afterOffRefused = (await controller.call("legion_request", { command: `reserve ${(await state()).tasks[0].id}@1 --parent refs/heads/main` })).isError === true;
+      }
+      if (scenario === "workflow-clarification") {
+        const source = (await state()).snapshot.submissions[0];
+        const result = await controller.call("legion_intake", { kind: "new-task", source: { id: source.id, revision: 1 }, goal: "Approved work needing a product answer", acceptance: [], questions: [{ question: "Should the label read Ready?", recommendation: "Use Ready." }] });
+        assert.equal(result.details.kind, "applied");
+        await controller.settle();
+        const exactAnswer = " Yes, label Ready.  ";
+        await controller.emit("input", { source: "interactive", text: exactAnswer }); await drain();
+        await until(() => controller.prompts.length, "native clarification continuation");
+        await controller.start(controller.prompts.shift());
+        const view = await state(), answer = view.snapshot.submissions.at(-1), decision = view.snapshot.decisions[0];
+        const resolved = await controller.call("legion_intake", { kind: "answer", source: { id: answer.id, revision: answer.revision }, decision: { id: decision.id, revision: 1 }, effect: { kind: "record-clarification", target: { id: view.tasks[0].id, revision: 1 }, answer: exactAnswer } });
+        assert.equal(resolved.details?.kind, "applied", JSON.stringify(resolved));
+        observations.answerText = answer.text;
+        observations.answerInvocation = answer.workflowInvocation ?? null;
+      }
+      if (scenario === "workflow-routing") {
+        const rootSource = (await state()).snapshot.submissions[0];
+        await controller.call("legion_intake", { kind: "new-task", source: { id: rootSource.id, revision: 1 }, goal: "Approved bounded task", acceptance: [], questions: [] });
+        await controller.settle();
+        await controller.emit("input", { source: "interactive", text: "Change the existing task or create another?" }); await drain();
+        await until(() => controller.prompts.length, "native ambiguous correction"); await controller.start(controller.prompts.shift());
+        let view = await state(); const original = view.snapshot.submissions.at(-1), target = { id: view.tasks[0].id, revision: 1 };
+        const question = await controller.call("legion_intake", { kind: "clarify", purpose: "routing", source: { id: original.id, revision: 1 }, affected: [target], question: "Correct this task or create independent work?", recommendation: "Correct the current task." });
+        assert.equal(question.details.kind, "applied");
+        await controller.settle();
+        await controller.emit("input", { source: "interactive", text: "Correct the existing task." }); await drain();
+        await until(() => controller.prompts.length, "native routing answer"); await controller.start(controller.prompts.shift());
+        view = await state(); const answer = view.snapshot.submissions.at(-1), decision = view.snapshot.decisions[0];
+        const resolved = await controller.call("legion_intake", { kind: "answer", source: { id: answer.id, revision: 1 }, decision: { id: decision.id, revision: 1 }, effect: { kind: "resolve-routing", original: { id: original.id, revision: 1 }, routing: { kind: "correction", target } } });
+        assert.equal(resolved.details.kind, "applied");
+        assert.equal((await state()).snapshot.submissions.find(source => source.id === original.id).workflowDispatch.kind, "pending-native", "Resolved correction must retain native pending delivery, not strand an already applied source");
+        await controller.settle(); await drain();
+        await until(() => controller.prompts.length, "resolved correction must continue natively rather than strand its source"); await controller.start(controller.prompts.shift());
+        observations.newTaskRefused = (await controller.call("legion_intake", { kind: "new-task", source: { id: original.id, revision: 2 }, goal: "Illicit new task from correction", acceptance: [], questions: [] })).isError === true;
+        const scoped = await controller.call("legion_intake", { kind: "technical-choice", source: { id: original.id, revision: 2 }, target, choice: "Implement the in-scope correction." });
+        observations.correctionApplied = scoped.details?.kind;
+      }
+      await controller.settle();
+      if (scenario === "workflow-custom") {
+        observations.customPromptChange = await controller.startCustom() ?? null;
+        const source = (await state()).snapshot.submissions[0];
+        const admitted = await controller.call("legion_intake", { kind: "new-task", source: { id: source.id, revision: 1 }, goal: "Scoped after native child result", acceptance: [], questions: [] });
+        observations.customAdmission = admitted.details?.kind;
+        observations.customNativeWrite = (await controller.call("write", { path: join(repo, "completion.txt"), content: "Native completion stays live." })).isError ?? false;
+        await controller.settle();
+      }
+      return { root, prompt: user.message.content[0].text, nativeWrite, observations, notices: controller.notices, view: await state() };
+    }
     if (scenario === "intake-uncertain") controller.failSend();
-    await controller.command("task Fix the Ready label");
+    if (census?.selection) {
+      await mkdir(join(repo, ".pi"));
+      await writeFile(join(repo, ".pi", "legion.json"), JSON.stringify({ tribuni_model: census.selection }));
+    }
+    await controller.command(scenario.startsWith("intake-") ? "task Fix the Ready label" : census?.profile === "matt" ? "implement-spec=on Fix the Ready label" : "poteto-mode=on Fix the Ready label");
     await drain(); await until(() => controller.prompts.length === 1, "initial intake prompt");
     if (scenario === "intake-uncertain") {
       const before = await state(); controller.prompts.shift();
@@ -357,10 +534,12 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       assert.equal(fs.existsSync(createdFile), false, "Unknown owning Legatus must not create a Herdr tab or workspace");
       return { root, view: await state() };
     }
+    if (scenario === "launch-profile-held") return { root, view: await state(), result: launched.details, prompts: [...worker.prompts], entries: worker.ctx.sessionManager.getBranch() };
     assert.equal(launched.details.kind, "launched", JSON.stringify(launched));
     assert.equal((await state()).tasks[0].launch.kind, "assigned");
     await controller.settle(); await drain();
     const assignment = (await state()).tasks[0].launch;
+    if (scenario === "launch-profile") return { root, view: await state(), startupCommand: JSON.parse(await readFile(join(root, "startup-command.json"), "utf8")), prompts: [...worker.prompts], entries: worker.ctx.sessionManager.getBranch(), workerDescriptor };
     assert.equal("testContract" in assignment.assignment, false);
     assert.equal((await state()).snapshot.engineering.length, 0);
     const originalTools = worker.pi.getAllTools();
@@ -677,3 +856,5 @@ export async function exerciseOrdinaryLegatusResearch(legacyHold = false) {
     for (const [key, value] of Object.entries(prior)) value === undefined ? delete process.env[key] : process.env[key] = value;
   }
 }
+
+export const exerciseNativeWorkflow = scenario => exerciseNativeAssignment(`workflow-${scenario}`);

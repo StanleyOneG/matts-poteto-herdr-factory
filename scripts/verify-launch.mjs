@@ -30,9 +30,9 @@ const git = new GitWorkspace(cwd, async (command) => {
   }
 });
 const legion = new Legion({ storagePath: storageRoot ?? join(homedir(), ".pi/agent/legion"), context: cwd, session, preflight: async () => [], assignments: { workspaceRoot: join(root, "workspaces"), repository: () => git } });
-const command = (text, requestKey) => legion.command({ text, requestKey, evidence: { origin: "host-command", transport: "source-unavailable", session, generation: null, presented: [] } });
+const command = (text, requestKey, workflowInvocation) => legion.command({ text, requestKey, ...(workflowInvocation ? { workflowInvocation } : {}), evidence: { origin: "host-command", transport: "source-unavailable", session, generation: null, presented: [] } });
 try {
-  await command("task Report the trial label without editing files", "trial-task");
+  await command("task Report the trial label without editing files", "trial-task", { kind: "native-skill", workflow: "implement" });
   let view = await legion.state();
   const pending = view.snapshot.submissions[0];
   assert.ok(pending);

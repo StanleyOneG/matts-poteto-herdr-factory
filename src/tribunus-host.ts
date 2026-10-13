@@ -11,8 +11,9 @@ import { z } from "zod";
 import { getAgentDir, stripFrontmatter, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { EffectIntent, EffectMessage, EffectReply, EffectRecord, EffectOutcome, CenturioOwnerCheck } from "./snapshot.js";
+import { StartupSelectionSchema, WorkflowChoiceSchema } from "./legion-settings.js";
 import { preflight } from "./preflight.js";
-import { CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, type TribunusHost } from "./tribunus.js";
+import { mattInitializationPrompt, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, type TribunusHost } from "./tribunus.js";
 import type { GuardedCommand } from "./git-workspace.js";
 import { prepareCenturioWorkspace, CenturioAllocationHeld } from "./centurio-workspace.js";
 const exec = promisify(execFile);
@@ -21,7 +22,8 @@ const Authority = z.object({
   owner: z.uuid(), session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative()
 });
 const Descriptor = z.object({
-  launch: LaunchRecord, cwd: z.string(), capability: z.string(), authority: Authority
+  launch: LaunchRecord, cwd: z.string(), capability: z.string(), authority: Authority,
+  workflowChoice: WorkflowChoiceSchema.optional(), startupSelection: StartupSelectionSchema.optional()
 });
 const Hello = z.object({
   address: WorkerAddress, endpoint: z.string(), journal: z.string(), pid: z.int().positive()
@@ -83,7 +85,7 @@ export class LocalTribunusHost implements TribunusHost {
       throw new Error(`Guarded local effect has no successful completion. Preserve effect evidence ${evidence} for launch ${launch}. No fallback.`);
     return JSON.parse(result.output);
   }
-  async createWindow({ launch, cwd }: Parameters<TribunusHost["createWindow"]>[0]) {
+  async createWindow({ launch, cwd, workflowChoice, startupSelection }: Parameters<TribunusHost["createWindow"]>[0]) {
     const local = await localIdentity();
     const callerId = process.env.HERDR_PANE_ID;
     if (!callerId) throw new Error("The owning Legatus has no Herdr caller identity. No tab created.");
@@ -99,7 +101,7 @@ export class LocalTribunusHost implements TribunusHost {
     });
     const path = this.descriptor(launch.id);
     publish(path, Descriptor.parse({
-      launch, cwd, capability: randomBytes(32).toString("hex"), authority: this.authority
+      launch, cwd, workflowChoice, startupSelection, capability: randomBytes(32).toString("hex"), authority: this.authority
     }));
     const created = z.object({
       result: z.object({
@@ -112,15 +114,19 @@ export class LocalTribunusHost implements TribunusHost {
       ...local, workspace: created.workspace_id, tab: created.tab_id, pane: created.pane_id, terminal: created.terminal_id
     });
   }
-  async startPi({ launch, window }: Parameters<TribunusHost["startPi"]>[0]) {
+  async startPi({ launch, window, startupSelection }: Parameters<TribunusHost["startPi"]>[0]) {
     const local = await localIdentity();
     if (local.endpoint !== window.endpoint || local.server !== window.server)
       throw new Error("Local Herdr endpoint/server changed. No start.");
     const pane = await paneAt(window.pane);
     if (pane.terminal_id !== window.terminal || pane.agent)
       throw new Error("Owned terminal is not an available shell. No alternate launch path.");
+    const descriptor = Descriptor.parse(privateFile(this.descriptor(launch.id)));
+    if (!isDeepStrictEqual(descriptor.startupSelection, startupSelection)) throw new Error("Startup selection differs from the captured owned launch.");
+    const args = startupSelection.kind === "exact"
+      ? ` --model ${quote(startupSelection.selection.model)} --thinking ${quote(startupSelection.selection.thinking)}` : "";
     const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-    await this.effect(`herdr agent start ${quote(`lg-${launch.id.replaceAll("-", "").slice(0, 24)}`)} --kind pi --pane ${quote(window.pane)} -- -e ${quote(packageRoot)}`, launch.id);
+    await this.effect(`herdr agent start ${quote(`lg-${launch.id.replaceAll("-", "").slice(0, 24)}`)} --kind pi --pane ${quote(window.pane)} -- -e ${quote(packageRoot)}${args}`, launch.id);
   }
   private async hello(launch: string) { return Hello.parse(privateFile(join(this.root, launch, "hello.json"))); }
   private async control(hello: z.infer<typeof Hello>, kind: z.infer<typeof Frame>["kind"], command: string, assignment: z.infer<typeof BoundedAssignment> | null) {
@@ -146,10 +152,12 @@ export class LocalTribunusHost implements TribunusHost {
       throw new Error("Herdr does not identify the addressed Pi session. No journal guessing.");
     return VerifiedWorker.parse(await this.control(hello, "inspect", randomUUID(), null));
   }
-  async initialize({ worker, command }: Parameters<TribunusHost["initialize"]>[0]) {
+  async initialize({ worker, command, workflowChoice }: Parameters<TribunusHost["initialize"]>[0]) {
     const hello = await this.hello(worker.address.launch);
     if (JSON.stringify(hello.address) !== JSON.stringify(worker.address))
       throw new Error("Worker generation changed.");
+    const descriptor = Descriptor.parse(privateFile(this.descriptor(worker.address.launch)));
+    if (!isDeepStrictEqual(descriptor.workflowChoice, workflowChoice)) throw new Error("Initialization controller differs from the captured owned launch.");
     const value = await this.control(hello, "initialize", command, null);
     return value === null ? null : Initialization.parse(value);
   }
@@ -362,8 +370,14 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
         name: c.name.replace(/^skill:/, ""), path: c.sourceInfo.path
       })),
       principal: { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null, thinking: thinking ?? null, contextWindow: ctx.model && Number.isFinite(ctx.model.contextWindow) ? ctx.model.contextWindow : null },
-      diagnostics: await preflight(pi, { principal: "Tribunus", context: ctx, thinking })
+      diagnostics: await preflight(pi, { principal: "Tribunus", context: ctx, thinking }, descriptor.workflowChoice)
     };
+  }
+  function modeObservation(ctx: ExtensionContext) {
+    const entry = ctx.sessionManager.getBranch().filter(e => e.type === "custom" && e.customType === "pstack-mode").at(-1);
+    if (!entry) return { enabled: false, source: "supported-fork-session-default" };
+    if (entry.type !== "custom") throw new Error("Native mode evidence unavailable.");
+    return { enabled: z.object({ enabled: z.boolean() }).parse(entry.data).enabled, source: `${journal}#${entry.id}` };
   }
   const incarnation = (ctx: ExtensionContext) => !!address && ctx.mode === "tui" && ctx.sessionManager.getSessionId() === address.session && !manual;
   pi.on("session_start", async (_event, ctx) => {
@@ -430,7 +444,9 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           }
           if (frame.kind === "inspect") {
             const value = {
-              address, resources: await resources(context), identityEvidence: journal
+              // Fresh Pi sessions have an exact journal locator, but no file until a real user turn.
+              // The authenticated hello plus live Herdr checks prove identity; initialization proves persistence.
+              address, resources: await resources(context), identityEvidence: join(dirname(path), "hello.json")
             };
             socket.end(JSON.stringify({
               kind: "ok", value
@@ -460,20 +476,24 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           const observed = await resources(context);
           if (observed.diagnostics.some((d) => d.status !== "ready") || !incarnation(context) || frame.authority.generation !== controller.generation || frame.authority.session !== controller.session || frame.authority.epoch !== controller.epoch)
             throw new Error(`Actual target resources or incarnation are unavailable. Assignment withheld. ${observed.diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" ")}`);
-          const currentMode = context.sessionManager.getBranch().filter((e) => e.type === "custom" && e.customType === "pstack-mode").at(-1);
-          const modeEnabled = currentMode?.type === "custom" && z.object({
-            enabled: z.literal(true)
-          }).safeParse(currentMode.data).success;
-          if (frame.kind === "assign" && (!initialized || !modeEnabled || !existsSync(receipt(initialized.command, "applied")) || !frame.assignment || frame.assignment.scope !== descriptor.launch.scope))
+          const choice = descriptor.workflowChoice;
+          if (!choice || choice.profile === "matt" && choice.requestedWorkflow === "unknown" || choice.profile === "poteto-mode" && choice.requestedWorkflow !== "unknown")
+            throw new Error("Captured explicit nonconflicting controller unavailable. No initialization or assignment.");
+          const mode = modeObservation(context);
+          if (frame.kind === "assign" && (!initialized || initialized.profile !== choice.profile || mode.enabled !== (choice.profile === "poteto-mode") || !existsSync(receipt(initialized.command, "applied")) || !frame.assignment || !isDeepStrictEqual(frame.assignment.workflowChoice, choice) || frame.assignment.workflow !== (choice.profile === "poteto-mode" ? "poteto-mode" : choice.requestedWorkflow) || frame.assignment.scope !== descriptor.launch.scope))
             throw new Error("Worker has no same-generation applied initialization or matching bounded assignment.");
-          if (frame.kind === "assign" && frame.assignment?.modelPin && (frame.assignment.modelPin.model !== observed.principal.model || frame.assignment.modelPin.thinking !== observed.principal.thinking))
+          if (frame.kind === "assign" && frame.assignment?.modelPin && (frame.assignment.modelPin.model !== observed.principal.model || frame.assignment.modelPin.thinking !== observed.principal.thinking || frame.assignment.modelPin.profile !== choice.profile))
             throw new Error(`Actual Tribunus selection changed before assignment: pinned ${frame.assignment.modelPin.model}/${frame.assignment.modelPin.thinking}, observed ${observed.principal.model}/${observed.principal.thinking}. Preserve worker and pin; no fallback.`);
           if (frame.kind === "assign") publish(receipt(frame.command, "assignment"), { assignment: frame.assignment });
           publish(receipt(frame.command, "intent"), {
             fingerprint, command: frame.command, address, authority: frame.authority
           });
+          if (frame.kind === "initialize" && choice.profile === "matt" && (mode.enabled || !incarnation(context) || !context.isIdle() || context.hasPendingMessages()))
+            throw new Error("Matt initialization requires observed native poteto off and settled idle worker. No toggle or skill injection.");
+          // A real bounded turn is required: Pi 1.2 keeps custom-only fresh sessions in memory.
           const prompt = frame.kind === "initialize"
-            ? `/skill:poteto-mode Legion native initialization ${frame.command}. No implementation assignment is authorized yet. Do not use tools, delegate, edit files, or run commands. Reply in one sentence that you are waiting for the bounded assignment.`
+            ? choice.profile === "matt" ? mattInitializationPrompt(frame.command)
+              : `/skill:poteto-mode Legion native initialization ${frame.command}. No implementation assignment is authorized yet. Do not use tools, delegate, edit files, or run commands. Reply in one sentence that you are waiting for the bounded assignment.`
             : `Legion bounded assignment ${frame.command}\n${JSON.stringify(frame.assignment)}\nYou own only this bounded assignment. Use the requested skills, meaningful tests and independent review for methodology. Ordinary native child tools, model resolution and permissions remain unchanged. Each concurrent writer needs its own branch/worktree: legion_centurio prepares one owned native launch using an ordinary configured agent. Do not schedule the spec, integrate, accept, clean up, publish, or close issues. A result is not acceptance.`;
           const done = new Promise<unknown>((resolve) => { active = {
             kind: "running", frame, prompt, expanded: null, priorMode: new Set(context?.sessionManager.getBranch().filter((e) => e.type === "custom" && e.customType === "pstack-mode").map((e) => e.id)), resolve
@@ -481,7 +501,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           if (!incarnation(context))
             throw new Error("Worker incarnation changed before injection.");
           pi.sendUserMessage(prompt, {
-            expandPromptTemplates: frame.kind === "initialize"
+            expandPromptTemplates: frame.kind === "initialize" && choice.profile === "poteto-mode"
           });
           const value = await done;
           socket.end(JSON.stringify({
@@ -538,10 +558,11 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     return { action: "handled" };
   });
   pi.on("before_agent_start", (event) => {
+    if (event.messageType === "custom") return;
     if (active?.kind !== "running" || !context || !incarnation(context))
       return;
     const skill = pi.getCommands().find((c) => c.name === "skill:poteto-mode" && c.source === "skill");
-    if (active.frame.kind === "initialize") {
+    if (active.frame.kind === "initialize" && descriptor.workflowChoice?.profile === "poteto-mode") {
       if (!skill)
         return;
       const bytes = readFileSync(skill.sourceInfo.path, "utf8");
@@ -627,6 +648,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     }
   });
   pi.on("tool_call", async (event, ctx) => {
+    if (active?.kind === "running" && active.frame.kind === "initialize") return { block: true, reason: "Initialization authorizes only a bounded bootstrap reply, not tools or delegation." };
     if (active?.kind === "running" && active.frame.kind === "assign" && !assignmentCommand) assignmentApplied(ctx);
     if (["subagent", "subagents_enable"].includes(event.toolName) && incarnation(ctx)) {
       try {
@@ -735,19 +757,34 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
       return;
     }
     if (pending.frame.kind === "initialize") {
-      const skill = pi.getCommands().find((c) => c.name === "skill:poteto-mode" && c.source === "skill");
-      const mode = branch.find((e) => e.type === "custom" && e.customType === "pstack-mode" && !pending.priorMode.has(e.id) && z.object({
-        enabled: z.literal(true)
-      }).safeParse(e.data).success);
-      if (!skill || !mode || (await resources(ctx)).diagnostics.some((d) => d.status !== "ready")) {
+      const choice = descriptor.workflowChoice;
+      if (!choice || (await resources(ctx)).diagnostics.some((d) => d.status !== "ready") || !incarnation(ctx) || ctx.hasPendingMessages() || !ctx.isIdle() || !isDeepStrictEqual(pending.frame.authority, controller)) {
         pending.resolve(null);
         return;
       }
-      pi.appendEntry("legion-tribunus-settled", { command: pending.frame.command, generation: address.generation, outcome: "initialized" });
+      let modeEntry: string | null, skillPath = "";
+      if (choice.profile === "poteto-mode") {
+        const skill = pi.getCommands().find((c) => c.name === "skill:poteto-mode" && c.source === "skill");
+        const mode = branch.filter((e) => e.type === "custom" && e.customType === "pstack-mode").at(-1);
+        if (!skill || !mode || mode.type !== "custom" || pending.priorMode.has(mode.id) || !z.object({ enabled: z.literal(true) }).safeParse(mode.data).success) { pending.resolve(null); return; }
+        modeEntry = mode.id;
+        skillPath = skill.sourceInfo.path;
+      } else {
+        const mode = modeObservation(ctx);
+        if (mode.enabled) { pending.resolve(null); return; }
+        pi.appendEntry("legion-tribunus-mode-observed", { command: pending.frame.command, generation: address.generation, profile: "matt", enabled: false, source: mode.source });
+        modeEntry = ctx.sessionManager.getLeafId();
+      }
+      pi.appendEntry("legion-tribunus-settled", { command: pending.frame.command, generation: address.generation, outcome: "initialized", profile: choice.profile });
       const settlement = ctx.sessionManager.getLeafId();
+      if (!modeEntry || !settlement) { pending.resolve(null); return; }
+      const persisted = readFileSync(journal, "utf8").trimEnd().split("\n").map(line => z.object({ id: z.string() }).passthrough().parse(JSON.parse(line)));
+      if (![user, assistant, ...ctx.sessionManager.getBranch().filter(entry => entry.id === modeEntry || entry.id === settlement)].every(entry => persisted.some(stored => isDeepStrictEqual(stored, entry))) || branch.indexOf(assistant) <= branch.indexOf(user)) { pending.resolve(null); return; }
       const proof = Initialization.parse({
-        command: pending.frame.command, address, nativePrompt: pending.expanded, skillPath: skill.sourceInfo.path, modeEntry: `${journal}#${mode.id}`, settledEntry: `${journal}#${settlement}`
+        profile: choice.profile, command: pending.frame.command, address, nativePrompt: pending.expanded, skillPath, modeEntry: `${journal}#${modeEntry}`, settledEntry: `${journal}#${settlement}`
       });
+      const fd = openSync(journal, "r");
+      try { fsyncSync(fd); } finally { closeSync(fd); }
       publish(receipt(pending.frame.command, "applied"), proof);
       initialized = proof;
       ctx.ui.setStatus("legion-intake", "Tribunus initialized. Awaiting bounded assignment.");

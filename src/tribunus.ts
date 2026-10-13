@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AssignmentModelPinSchema, ThinkingSchema } from "./legion-settings.js";
+import { AssignmentModelPinSchema, ThinkingSchema, WorkflowChoiceSchema, type StartupSelection, type WorkflowChoice } from "./legion-settings.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import { createHash } from "node:crypto";
 import { TaskRef, EngineeringResult, EffectMessage, EffectReply } from "./snapshot.js";
@@ -29,18 +29,29 @@ export const ResourceEvidence = z.object({
 export const VerifiedWorker = z.object({
   address: WorkerAddress, resources: ResourceEvidence, identityEvidence: z.string()
 });
+export function requiredWorkflowSkills(choice?: WorkflowChoice): string[] {
+  const common = ["herdr", "handoff", "matt-tdd", "matt-teach", "code-review"];
+  if (!choice) return [...common, "poteto-mode", "implement", "implement-spec"];
+  return [...common, choice.profile === "poteto-mode" ? "poteto-mode" : choice.requestedWorkflow];
+}
+export function mattInitializationPrompt(command: string): string {
+  return `Legion native initialization ${command}. No implementation assignment is authorized yet. Do not use tools, delegate, edit files, or run commands. Keep poteto off; do not change workflow controllers. Reply in one sentence that you are waiting for the bounded assignment.`;
+}
 export const Initialization = z.object({
+  profile: z.enum(["matt", "poteto-mode"]).optional(),
   command: z.uuid(), address: WorkerAddress, nativePrompt: z.string(), skillPath: z.string(),
   modeEntry: z.string(), settledEntry: z.string(),
 });
 export const BoundedAssignment = z.object({
+  workflowChoice: WorkflowChoiceSchema.optional(),
   modelPin: AssignmentModelPinSchema.optional(),
   task: TaskRef, scope: z.string(), goal: z.string(), acceptance: z.array(z.string()),
-  workflow: z.literal("implement"),
+  workflow: z.enum(["implement", "implement-spec", "poteto-mode"]),
   authority: z.literal("bounded-implementation-only"),
 });
 // Retain historical assignment bytes without making methodology effect authority.
 export const LegacyBoundedAssignment = z.object({
+  workflowChoice: WorkflowChoiceSchema.optional(),
   modelPin: AssignmentModelPinSchema.optional(),
   task: TaskRef, scope: z.string(), goal: z.string(), acceptance: z.array(z.string()), workflow: z.literal("implement"),
   testContract: z.literal("Matt TDD at Legatus-approved public seams; request an explicit exception if impractical"),
@@ -109,7 +120,7 @@ type Projected<T> = T extends {
 function projectProgress(state: ProgressState): Projected<ProgressState> {
   const worker = "worker" in state ? {
     ...state.worker, resources: {
-      ...state.worker.resources, skills: state.worker.resources.skills.filter((s) => ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "tdd", "teach", "implement", "code-review"].includes(s.name))
+      ...state.worker.resources, skills: state.worker.resources.skills.filter((s) => ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "tdd", "teach", "implement", "implement-spec", "handoff", "code-review"].includes(s.name))
     }
   } : null;
   if ("initialization" in state) {
@@ -155,10 +166,13 @@ export type TribunusHost = {
   createWindow(input: {
     launch: LaunchRecord;
     cwd: string;
+    workflowChoice: WorkflowChoice;
+    startupSelection: StartupSelection;
   }): Promise<z.infer<typeof WindowIdentity>>;
   startPi(input: {
     launch: LaunchRecord;
     window: z.infer<typeof WindowIdentity>;
+    startupSelection: StartupSelection;
   }): Promise<void>;
   inspectWorker(input: {
     launch: LaunchRecord;
@@ -168,6 +182,7 @@ export type TribunusHost = {
   initialize(input: {
     worker: z.infer<typeof VerifiedWorker>;
     command: string;
+    workflowChoice: WorkflowChoice;
   }): Promise<z.infer<typeof Initialization> | null>;
   assign(input: {
     worker: z.infer<typeof VerifiedWorker>;

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { Legion } from "../src/intake.js";
 import type { WorkspaceRepository } from "../src/git-workspace.js";
-import type { TribunusHost } from "../src/tribunus.js";
+import { mattInitializationPrompt, type TribunusHost } from "../src/tribunus.js";
 
 async function assignmentFixture() {
   const root = await mkdtemp(join(tmpdir(), "legion-effect-authorization-"));
@@ -30,11 +30,11 @@ async function assignmentFixture() {
     createWindow: async () => window,
     startPi: async ({ launch }) => { address = { launch: launch.id, window, session: "worker", generation: randomUUID() }; },
     inspectWorker: async ({ cwd }) => ({ address, identityEvidence: "worker-session", resources: {
-      cwd, principal: { model: "fixture/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map(name => ({ name, path: `/fixture/${name}/SKILL.md` })),
+      cwd, principal: { model: "fixture/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "handoff", "code-review"].map(name => ({ name, path: `/fixture/${name}/SKILL.md` })),
       diagnostics: [{ name: "Tribunus model", status: "ready", message: "Fixture native principal metadata" }],
     } }),
-    initialize: async ({ worker, command }) => ({ command, address: worker.address,
-      nativePrompt: '<skill name="poteto-mode" location="/fixture/poteto-mode/SKILL.md">fixture initialization</skill>', skillPath: "/fixture/poteto-mode/SKILL.md", modeEntry: "mode", settledEntry: "settled" }),
+    initialize: async ({ worker, command }) => ({ profile: "matt", command, address: worker.address,
+      nativePrompt: mattInitializationPrompt(command), skillPath: "", modeEntry: "observed-off", settledEntry: "settled" }),
     assign: async () => ({ application: "assignment-applied" }),
   };
   const options = {
@@ -45,6 +45,7 @@ async function assignmentFixture() {
   const legion = new Legion(options);
   let sequence = 0;
   const command = (text: string, requestKey = `command-${++sequence}`) => legion.command({ text, requestKey,
+    ...(text === "task Fix the Ready label" ? { workflowInvocation: { kind: "native-skill", workflow: "implement" } } : {}),
     evidence: { origin: "host-command", transport: "source-unavailable", session: "controller", generation: null, presented: [] } });
   assert.equal((await command("task Fix the Ready label")).kind, "saved");
   const initial = (await legion.state()).snapshot;

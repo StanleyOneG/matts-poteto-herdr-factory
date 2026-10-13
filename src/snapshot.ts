@@ -1,4 +1,5 @@
 import { checkoutIdentity } from "./checkout-identity.js";
+import { StartupSelectionSchema, WorkflowChoiceSchema } from "./legion-settings.js";
 import { ResearchRecord, ResearchStage } from "./owned-children.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import {
@@ -52,6 +53,23 @@ export const InputEvidence = z.discriminatedUnion("origin", [
     transport: z.literal("source-unavailable"),
   }),
 ]);
+export const NativeWorkflowInvocation = z.object({ kind: z.literal("native-skill"), workflow: z.enum(["implement", "implement-spec"]) });
+export const WorkflowInvocation = z.discriminatedUnion("kind", [
+  NativeWorkflowInvocation,
+  z.object({ kind: z.literal("legion-command"), command: z.enum(["poteto-mode=on", "implement-spec=on"]) }),
+]);
+const NativeDelivery = z.object({
+  id: z.uuid(), session: z.string(), generation: z.int().positive(),
+  root: SubmissionRef, workflow: z.enum(["implement", "implement-spec"]),
+  skillPath: z.string().min(1), input: z.string().min(1), prompt: z.string().min(1),
+});
+export const WorkflowDispatch = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("pending-native") }),
+  z.object({ kind: z.literal("held-native"), message: z.string() }),
+  NativeDelivery.extend({ kind: z.literal("dispatching-native") }),
+  NativeDelivery.extend({ kind: z.literal("applied-native"), journal: z.string().min(1), entry: z.string().min(1) }),
+  NativeDelivery.extend({ kind: z.literal("uncertain-native"), message: z.string() }),
+]);
 export const AmendmentId = z.uuid().brand<"AmendmentId">();
 export const DecisionEffectSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -95,6 +113,7 @@ export const WorkspaceRequest = z.object({
   ]),
   evidence: InputEvidence,
   generation: z.int().positive(),
+  nativeDispatch: z.uuid().optional(),
   epoch: z.int().nonnegative(),
   scope: z.string(),
   repository: z.string().nullable(),
@@ -102,8 +121,10 @@ export const WorkspaceRequest = z.object({
 });
 export const LaunchRequest = z.object({
   id: z.string().min(1), task: TaskRef, scope: z.string(), evidence: InputEvidence,
-  generation: z.int().positive(), epoch: z.int().nonnegative(),
+  generation: z.int().positive(), epoch: z.int().nonnegative(), nativeDispatch: z.uuid().optional(),
   repository: z.string(), repositoryId: z.uuid(), attempt: z.uuid().nullable().default(null),
+  workflowChoice: WorkflowChoiceSchema.optional(),
+  startupSelection: StartupSelectionSchema.optional(),
 });
 export const EngineeringRef = z.strictObject({ id: z.uuid(), digest: z.string() });
 export const EngineeringProposal = z.discriminatedUnion("kind", [z.strictObject({
@@ -212,6 +233,7 @@ export const SnapshotSchema = z.object({
   context: z.string(),
   revision: z.int(),
   generation: z.int(),
+  workflowChoice: WorkflowChoiceSchema.default({ profile: "matt", requestedWorkflow: "unknown" }),
   attachments: z.array(z.object({ session: z.string(), generation: z.int() })),
   workspaceRequests: z.array(WorkspaceRequest).default([]),
   launchRequests: z.array(LaunchRequest).default([]),
@@ -230,6 +252,9 @@ export const SnapshotSchema = z.object({
       timestamp: z.string(),
       evidence: InputEvidence,
       originIntent: z.object({ kind: z.enum(["new-task", "unclassified"]) }),
+      workflowChoice: WorkflowChoiceSchema.optional(),
+      workflowInvocation: WorkflowInvocation.optional(),
+      workflowDispatch: WorkflowDispatch.optional(),
       state: z.discriminatedUnion("kind", [
         z.object({
           kind: z.literal("pending"),

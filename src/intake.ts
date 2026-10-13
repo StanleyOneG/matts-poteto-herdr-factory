@@ -1,10 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 import { checkoutIdentity } from "./checkout-identity.js";
-import { loadLegionSettings, selectTribunusModel, type LegionSettings, type TribunusModelIntent } from "./legion-settings.js";
+import { loadLegionSettings, selectTribunusModel, type LegionSettings, type TribunusModelIntent, type WorkflowChoice } from "./legion-settings.js";
 import { readFileSync, realpathSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
-import { LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
+import { mattInitializationPrompt, requiredWorkflowSkills, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
 import {
   AssignmentLedger,
   AssignmentConflict,
@@ -42,7 +42,7 @@ import {
   type CommittedResult,
   WorkspaceRequest,
   LaunchRequest,
-  EffectMessage, EffectRecord, EffectReply,
+  EffectMessage, EffectRecord, EffectReply, WorkflowInvocation, NativeWorkflowInvocation, WorkflowDispatch,
 } from "./snapshot.js";
 
 export type Diagnostic = {
@@ -54,6 +54,8 @@ const Command = z.object({
   text: z.string(),
   requestKey: z.string().min(1),
   evidence: InputEvidence,
+  workflowInvocation: NativeWorkflowInvocation.optional(),
+  nativeDispatch: z.uuid().optional(),
 });
 const Question = z.object({
   question: z.string().min(1),
@@ -119,6 +121,7 @@ const Interpretation = z.object({
     legatus: LegatusId,
     run: z.string().min(1),
     sources: z.array(SubmissionRef),
+    nativeDispatch: z.uuid().optional(),
   }),
 });
 const Message = z.object({
@@ -136,6 +139,8 @@ export type LegionView = {
       claim: ClaimView;
       launch: LaunchView;
       tribunusModel: TribunusModelIntent | null;
+      workflowChoice: WorkflowChoice | null;
+      workflowHold: string | null;
     }
   >;
   settings: LegionSettings | null;
@@ -162,12 +167,16 @@ export type OperationResult =
   | { kind: "ownership-blocked"; reservation: Reservation; message: string }
   | { kind: "workspace-stage"; requestId: string; message: string }
   | { kind: "launch-stage"; requestId: string; message: string }
-  | { kind: "launched"; launch: LaunchResult; message: string };
+  | { kind: "launched"; launch: LaunchResult; message: string }
+  | { kind: "native-stage"; source: z.infer<typeof SubmissionRef>; dispatch: z.infer<typeof WorkflowDispatch> };
 type CommandIntent =
   | { kind: "status"; id: string }
   | { kind: "doctor" | "on" | "off" }
   | { kind: "resume"; id: string }
   | { kind: "task"; text: string }
+  | { kind: "profile-on"; text: string }
+  | { kind: "profile-off" }
+  | { kind: "workflow"; text: string }
   | { kind: "workspace"; id: string }
   | { kind: "launch"; task: z.infer<typeof TaskRef> }
   | { kind: "retired-research" }
@@ -189,6 +198,12 @@ function commandIntent(text: string): CommandIntent {
   const token = match[1];
   const payload = match[2] ?? "";
   switch (token) {
+    case "implement-spec=on":
+      return payload.trim() ? { kind: "workflow", text: payload } : { kind: "invalid" };
+    case "poteto-mode=on":
+      return payload.trim() ? { kind: "profile-on", text: payload } : { kind: "invalid" };
+    case "poteto-mode=off":
+      return payload.trim() ? { kind: "invalid" } : { kind: "profile-off" };
     case "status":
       return { kind: "status", id: payload.trim() };
     case "doctor":
@@ -239,7 +254,7 @@ function commandIntent(text: string): CommandIntent {
         ? { kind: "task", text: payload }
         : { kind: "invalid" };
     default:
-      return { kind: "task", text };
+      return token?.startsWith("poteto-mode=") || token?.startsWith("implement-spec=") ? { kind: "invalid" } : { kind: "task", text };
   }
 }
 // Retired controller records are evidence only; absence of a controller cannot settle them.
@@ -266,6 +281,13 @@ const reject = (code: string, message: string): OperationResult => ({
   code,
   message,
 });
+function workflowFailure(choice: WorkflowChoice | null): Extract<OperationResult, { kind: "rejected" }> | null {
+  if (choice?.profile === "poteto-mode" && choice.requestedWorkflow !== "unknown")
+    return { kind: "rejected", code: "workflow-conflict", message: `Poteto profile conflicts with explicitly requested ${choice.requestedWorkflow}. Dispatch withheld. The Emperor must request /legion poteto-mode=off or clarify a different workflow; Legion never silently toggles.` };
+  if (!choice || choice.profile === "matt" && choice.requestedWorkflow === "unknown")
+    return { kind: "rejected", code: "workflow-unknown", message: "Select an explicit Emperor workflow before dispatch; the requested workflow is unknown. No classifier inference or worker launch." };
+  return null;
+}
 type Binding = {
   generation: number;
   lock: DatabaseSync;
@@ -291,6 +313,16 @@ export class Legion {
       return selectTribunusModel({ kind: "existing", ...(progress.assignment.modelPin ? { pin: progress.assignment.modelPin } : {}) });
     if (progress?.kind === "unavailable") return { kind: "existing-unknown" };
     return this.settingsView().tribuniModel;
+  }
+  private taskWorkflow(snapshot: LegatusSnapshot, task: string, launch: LaunchView | undefined) {
+    if (launch?.kind === "unavailable")
+      return { workflowChoice: null, workflowHold: "Existing assignment workflow pin is unavailable. Preserve launch history; do not reconstruct from future defaults." };
+    const progress = launch?.kind === "held" ? launch.last : launch;
+    if (progress && "assignment" in progress)
+      return { workflowChoice: progress.assignment.workflowChoice ?? null, workflowHold: null };
+    const pending = snapshot.launchRequests.find(request => request.task.id === task);
+    const choice = pending ? pending.workflowChoice ?? null : snapshot.workflowChoice;
+    return { workflowChoice: choice, workflowHold: workflowFailure(choice)?.message ?? null };
   }
   private selected: string | null = null;
   private binding: Binding | null = null;
@@ -431,6 +463,7 @@ export class Legion {
     const state = this.selected ? await this.store.read(this.selected) : null;
     this.workspaceAuthority(request, epoch);
     if (!state) throw new Error("Intake authority is unavailable.");
+    if (request.nativeDispatch) this.nativeAuthority(state, request.nativeDispatch, request.evidence.session, request.generation);
     const task = !("intent" in request) ? request.task :
       request.intent.kind === "reserve"
         ? request.intent.task
@@ -477,6 +510,7 @@ export class Legion {
       try {
         const state = await this.store.read(this.selected);
         if (!state) return reject("unavailable", "Intake records unavailable.");
+        if (input.nativeDispatch) this.nativeAuthority(state, input.nativeDispatch, input.evidence.session, input.evidence.generation ?? 0);
         const fingerprint = createHash("sha256")
           .update(JSON.stringify(intent))
           .digest("hex");
@@ -535,6 +569,7 @@ export class Legion {
             fingerprint,
             intent,
             evidence: input.evidence,
+            ...(input.nativeDispatch ? { nativeDispatch: input.nativeDispatch } : {}),
             generation: this.binding.generation,
             epoch,
             scope,
@@ -1060,6 +1095,12 @@ export class Legion {
         if (launch.state.kind !== "held") await save({ kind: "held", last: launch.state, code, message });
         return result();
       };
+      const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
+      if (!("assignment" in progress)) {
+        const failure = workflowFailure(request.workflowChoice ?? null);
+        if (failure) return hold(failure.code, failure.message);
+        if (!request.startupSelection) return hold("startup-selection-unknown", "Historical launch has no captured startup selection. Preserve the attempt; do not infer changed defaults or restart.");
+      }
       if (launch.state.kind === "held") {
         if (!["startup-outcome-unknown", "initialization-outcome-unknown", "assignment-outcome-unknown"].includes(launch.state.code)) return result();
         await save(launch.state.last);
@@ -1069,7 +1110,8 @@ export class Legion {
         await save({ kind: "window-dispatched", operation: randomUUID() });
         if (!owned()) throw new Error("Authority revoked before window invocation.");
         try {
-          const window = await host.createWindow({ launch, cwd: reservation.plan.path });
+          if (!request.workflowChoice || !request.startupSelection) throw new Error("Captured startup choice unavailable.");
+          const window = await host.createWindow({ launch, cwd: reservation.plan.path, workflowChoice: request.workflowChoice, startupSelection: request.startupSelection });
           await this.authorized(request, epoch);
           await save({ kind: "window-owned", window });
         } catch (error) { return hold("window-outcome-unknown", `Window creation outcome unknown. Preserve the dispatched attempt. No retry. ${String(error)}`); }
@@ -1083,7 +1125,8 @@ export class Legion {
         if (!owned()) throw new Error("Authority revoked before Pi invocation.");
         let startEvidence: LaunchRecord["startEvidence"];
         try {
-          await host.startPi({ launch, window });
+          if (!request.startupSelection) throw new Error("Captured startup selection unavailable.");
+          await host.startPi({ launch, window, startupSelection: request.startupSelection });
           startEvidence = { kind: "completed" };
         } catch (error) {
           startEvidence = { kind: "uncertain", message: String(error) };
@@ -1099,9 +1142,9 @@ export class Legion {
           return `Actual Tribunus ${principal.model} window ${principal.contextWindow}; at least 272000 tokens are required. Preserve the selected principal; no replacement.`;
         const diagnostic = resources.diagnostics.find(d => d.name === "Tribunus model");
         if (diagnostic?.status !== "ready") return diagnostic?.message ?? "Actual Tribunus native model/support/auth/thinking compatibility evidence is missing. Assignment withheld.";
-        const intent = this.settings ? selectTribunusModel({ kind: "new", settings: this.settings }) : null;
-        if (intent?.kind === "new-exact-override" && (principal.model !== intent.selection.model || principal.thinking !== intent.selection.thinking))
-          return `Tribunus expected ${intent.selection.model}/${intent.selection.thinking}, observed ${principal.model}/${principal.thinking}. Startup override wiring belongs to #32; no substitution, relaunch or assignment.`;
+        const intent = request.startupSelection;
+        if (intent?.kind === "exact" && (principal.model !== intent.selection.model || principal.thinking !== intent.selection.thinking))
+          return `Tribunus expected ${intent.selection.model}/${intent.selection.thinking}, observed ${principal.model}/${principal.thinking}. No substitution, relaunch or assignment.`;
         return null;
       };
       if (launch.state.kind === "pi-dispatched") {
@@ -1114,7 +1157,7 @@ export class Legion {
         await save({ kind: "verified", worker: verified });
         const incompatibility = principalFailure(verified.resources);
         if (incompatibility) return hold("worker-principal", incompatibility);
-        if (verified.resources.cwd !== reservation.plan.path || verified.resources.diagnostics.some((d) => d.status !== "ready") || ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].some((name) => !verified.resources.skills.some((s) => s.name === name)))
+        if (verified.resources.cwd !== reservation.plan.path || verified.resources.diagnostics.some((d) => d.status !== "ready") || requiredWorkflowSkills(request.workflowChoice).some((name) => !verified.resources.skills.some((s) => s.name === name)))
           return hold("worker-resources", `Actual target worktree resources are missing or incompatible. No substitution or assignment. ${verified.resources.diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" ")}`);
       }
       if (launch.state.kind === "verified") {
@@ -1126,12 +1169,19 @@ export class Legion {
       if (launch.state.kind === "initializing") {
         const phase = launch.state;
         this.workspaceAuthority(request, epoch);
-        const observed = await host.initialize({ worker: phase.worker, command: phase.command });
+        if (!request.workflowChoice) throw new Error("Captured workflow choice unavailable.");
+        let observed: Awaited<ReturnType<TribunusHost["initialize"]>>;
+        try { observed = await host.initialize({ worker: phase.worker, command: phase.command, workflowChoice: request.workflowChoice }); }
+        catch (error) { return hold("initialization-outcome-unknown", `Native initialization is unresolved or refused. Preserve the same command and worker; no alternate skill or toggle. ${String(error)}`); }
         await this.authorized(request, epoch);
         if (!observed) return hold("initialization-outcome-unknown", "Native initialization has no conclusive applied and settled evidence. Assignment withheld. Preserve the same command and worker.");
         const initialization = Initialization.parse(observed);
         const skill = phase.worker.resources.skills.find((s) => s.name === "poteto-mode");
-        if (initialization.command !== phase.command || JSON.stringify(initialization.address) !== JSON.stringify(phase.worker.address) || initialization.skillPath !== skill?.path || !initialization.nativePrompt.includes(`<skill name="poteto-mode" location="${skill.path}">`) || !initialization.modeEntry || !initialization.settledEntry)
+        const profileMatches = initialization.profile === request.workflowChoice.profile;
+        const controllerEvidence = request.workflowChoice.profile === "poteto-mode"
+          ? initialization.skillPath === skill?.path && !!skill && initialization.nativePrompt.includes(`<skill name="poteto-mode" location="${skill.path}">`)
+          : initialization.nativePrompt === mattInitializationPrompt(phase.command) && initialization.skillPath === "";
+        if (!profileMatches || !controllerEvidence || initialization.command !== phase.command || JSON.stringify(initialization.address) !== JSON.stringify(phase.worker.address) || !initialization.modeEntry || !initialization.settledEntry)
           return hold("initialization-evidence", "Native prompt, newly applied pstack mode, settlement, command, or worker identity do not agree. Assignment withheld.");
         await save({ kind: "initialized", worker: phase.worker, initialization });
       }
@@ -1153,8 +1203,10 @@ export class Legion {
         if (!principal?.model || principal.thinking === null) throw new Error("Actual principal selection unavailable.");
         const task = current.state.tasks.find((t) => t.id === request.task.id)?.history.at(-1);
         if (!task) throw new Error("Current task unavailable.");
-        const workflow = "implement";
-        const assignment = BoundedAssignment.parse({ task: request.task, scope: request.scope, goal: task.goal, acceptance: task.acceptance, workflow, authority: "bounded-implementation-only", modelPin: { model: principal.model, thinking: principal.thinking, profile: workflow } });
+        const workflowChoice = request.workflowChoice;
+        if (!workflowChoice || workflowFailure(workflowChoice)) throw new Error("Captured explicit workflow choice unavailable. Assignment withheld.");
+        const workflow = workflowChoice.profile === "poteto-mode" ? "poteto-mode" : workflowChoice.requestedWorkflow;
+        const assignment = BoundedAssignment.parse({ task: request.task, scope: request.scope, goal: task.goal, acceptance: task.acceptance, workflow, workflowChoice, authority: "bounded-implementation-only", modelPin: { model: principal.model, thinking: principal.thinking, profile: workflowChoice.profile } });
         await save({ kind: "assigning", worker: { ...phase.worker, resources: observed.resources }, initialization: phase.initialization, command: randomUUID(), assignment });
       }
       if (launch.state.kind === "assigning") {
@@ -1210,6 +1262,7 @@ export class Legion {
             claim: claims.byTask.get(t.id) ?? claims.fallback,
             launch: launches.get(t.id) ?? { kind: "not-launched" },
             tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
+            ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
             eligibility:
               !this.binding || this.stopping
                 ? "inactive"
@@ -1236,6 +1289,95 @@ export class Legion {
       };
     }
   }
+  private nativeAuthority(state: LegatusSnapshot, id: string, session: string, generation: number) {
+    const source = state.submissions.find(source => source.workflowDispatch && "id" in source.workflowDispatch && source.workflowDispatch.id === id);
+    const dispatch = source?.workflowDispatch;
+    if (!this.binding || this.stopping || !dispatch || dispatch.kind !== "applied-native" ||
+        session !== this.options.session || dispatch.session !== session || generation !== this.binding.generation ||
+        dispatch.generation !== generation || dispatch.workflow !== state.workflowChoice.requestedWorkflow || workflowFailure(state.workflowChoice))
+      throw new Error("No applied current native workflow authority. Off, conflict, resume or uncertain delivery withholds managed dispatch.");
+    return { source, dispatch };
+  }
+  async nativeWorkflow(raw: unknown): Promise<OperationResult> {
+    const input = z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("prepare"), source: SubmissionRef, id: z.uuid(), skillPath: z.string().min(1), input: z.string().min(1), prompt: z.string().min(1), session: z.string(), generation: z.int().positive() }),
+      z.object({ kind: z.literal("hold"), source: SubmissionRef, message: z.string(), session: z.string(), generation: z.int().positive() }),
+      z.object({ kind: z.literal("applied"), id: z.uuid(), prompt: z.string(), journal: z.string().min(1), entry: z.string().min(1), session: z.string(), generation: z.int().positive() }),
+      z.object({ kind: z.literal("uncertain"), id: z.uuid(), message: z.string(), session: z.string(), generation: z.int().positive() }),
+    ]).safeParse(raw);
+    if (!input.success) return reject("invalid", "Invalid native dispatch observation.");
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const data = input.data, binding = this.binding;
+      if (!binding || this.stopping || data.session !== this.options.session || data.generation !== binding.generation || epoch !== this.epoch)
+        return reject("provenance", "Current host native dispatch association required.");
+      const state = this.selected ? await this.store.read(this.selected) : null;
+      if (!state) return reject("unavailable", "Native dispatch state unavailable.");
+      const source = state.submissions.find(source => "source" in data
+        ? source.id === data.source.id && source.revision === data.source.revision
+        : source.workflowDispatch && "id" in source.workflowDispatch && source.workflowDispatch.id === data.id);
+      if (!source?.workflowDispatch) return reject("native-source", "No pending native source.");
+      const previous = source.workflowDispatch;
+      if (data.kind === "prepare" || data.kind === "hold") {
+        if (previous.kind !== "pending-native" && previous.kind !== "held-native")
+          return reject("native-replay", "Native dispatch already attempted. Reconcile its journal; never replay an uncertain delivery.");
+        const failure = workflowFailure(state.workflowChoice);
+        if (data.kind === "hold") source.workflowDispatch = { kind: "held-native", message: data.message };
+        else {
+          if (failure) return failure;
+          const invocation = source.workflowInvocation;
+          const prior = [...state.submissions].reverse().find(source => source.workflowDispatch?.kind === "applied-native");
+          const root = invocation ? { id: source.id, revision: source.revision } : prior?.workflowDispatch && "root" in prior.workflowDispatch ? prior.workflowDispatch.root : null;
+          const workflow = state.workflowChoice.requestedWorkflow;
+          if (!root || workflow === "unknown") return reject("native-source", "Explicit Emperor workflow source required.");
+          source.workflowDispatch = { kind: "dispatching-native", id: data.id, session: data.session, generation: data.generation, skillPath: data.skillPath, input: data.input, prompt: data.prompt, root, workflow };
+        }
+      } else {
+        if (previous.kind !== "dispatching-native" || previous.id !== data.id || previous.session !== data.session || previous.generation !== data.generation)
+          return reject("native-replay", "Native dispatch is not awaiting an applied witness.");
+        if (data.kind === "applied") {
+          if (data.prompt !== previous.prompt) return reject("native-prompt", "Native prompt witness differs from dispatch intent.");
+          try {
+            const entries: unknown[] = readFileSync(data.journal, "utf8").trim().split("\n").map(line => JSON.parse(line));
+            const session = z.object({ type: z.literal("session"), id: z.literal(data.session) }).safeParse(entries[0]);
+            const witness = entries.map(entry => z.object({ type: z.literal("message"), id: z.literal(data.entry), message: z.object({ role: z.literal("user"), content: z.union([z.string(), z.array(z.object({ type: z.literal("text"), text: z.string() }))]) }) }).safeParse(entry)).find(entry => entry.success);
+            if (!session.success || !witness?.success) throw new Error("Exact session/user entry is absent.");
+            const content = typeof witness.data.message.content === "string" ? witness.data.message.content : witness.data.message.content.map(part => part.text).join("\n");
+            if (content !== previous.prompt) throw new Error("Persisted skill prompt differs.");
+          } catch (error) { return reject("native-witness", `Applied journal witness unavailable. No managed dispatch. ${String(error)}`); }
+          source.workflowDispatch = { ...previous, kind: "applied-native", journal: data.journal, entry: data.entry };
+        } else source.workflowDispatch = { ...previous, kind: "uncertain-native", message: data.message };
+      }
+      const expected = state.revision++;
+      try {
+        await this.store.save(state, expected, () => this.binding === binding && epoch === this.epoch && !this.stopping);
+        return { kind: "native-stage", source: { id: source.id, revision: source.revision }, dispatch: source.workflowDispatch };
+      } catch (error) {
+        this.revoke();
+        return { kind: "uncertain", requestKey: "id" in data ? data.id : source.id, message: `Native dispatch storage uncertain. No delivery/replay authorized. ${String(error)}` };
+      }
+    });
+  }
+  async nativeRequest(raw: unknown): Promise<CommandResult> {
+    const input = z.object({ dispatch: z.uuid(), session: z.string(), generation: z.int().positive(), text: z.string(), requestKey: z.string().min(1) }).strict().safeParse(raw);
+    const denied = (message: string): CommandResult => ({ ...reject("native-authority", message), disposition: "none" });
+    if (!input.success) return denied("Invalid bounded native workflow request.");
+    const { text, requestKey, dispatch, session, generation } = input.data;
+    const intent = commandIntent(text);
+    if (!["reserve", "reconcile", "workspace", "launch"].includes(intent.kind)) return denied("Native workflow may request only existing bounded reserve, reconcile, workspace or launch stages. No profile, publication or Emperor command authority.");
+    try {
+      const state = this.selected ? await this.store.read(this.selected) : null;
+      if (!state) return denied("Native state unavailable.");
+      const authority = this.nativeAuthority(state, dispatch, session, generation);
+      const taskId = intent.kind === "reserve" || intent.kind === "launch" ? intent.task.id : intent.kind === "reconcile" ? intent.task : intent.kind === "workspace" ? state.workspaceRequests.find(request => request.id === intent.id)?.intent.task : null;
+      const id = typeof taskId === "string" ? taskId : taskId?.id;
+      const task = state.tasks.find(task => task.id === id);
+      if (!task || !state.submissions.some(source => source.id === task.scope.original && source.workflowDispatch && "root" in source.workflowDispatch && source.workflowDispatch.root.id === authority.dispatch.root.id))
+        return denied("Task is not admitted from this Emperor-approved native workflow source.");
+      // Derived host authority is never supplied by the model and never changes Emperor provenance.
+      return await this.command({ text, requestKey, nativeDispatch: dispatch, evidence: { origin: "host-command", transport: "source-unavailable", session, generation, presented: [] } });
+    } catch (error) { return denied(String(error)); }
+  }
   command(raw: unknown): Promise<CommandResult> {
 
     const launchExecution = z.object({ launchRequest: z.string().min(1) }).strict().safeParse(raw);
@@ -1255,6 +1397,8 @@ export class Legion {
         disposition: "none",
       });
     const intent = commandIntent(parsed.data.text);
+    if (parsed.data.workflowInvocation && intent.kind !== "task")
+      return Promise.resolve({ ...reject("provenance", "Explicit native workflow invocation must accompany task instructions."), disposition: "none" });
     const dispositions = {
       status: "observe",
       doctor: "observe",
@@ -1262,6 +1406,9 @@ export class Legion {
       off: "off",
       resume: "resume",
       task: "submit",
+      "profile-on": "submit",
+      "profile-off": "activate",
+      workflow: "submit",
       reserve: "workspace",
       reconcile: "workspace",
       workspace: "workspace",
@@ -1285,7 +1432,7 @@ export class Legion {
       return Promise.resolve(
         reject(
           "usage",
-          "Use on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, or launch <task-id>@<revision>. Use task to escape reserved arguments.",
+          "Use on, task <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, or launch <task-id>@<revision>. Use task to escape reserved arguments.",
         ),
       );
     if (
@@ -1313,6 +1460,7 @@ export class Legion {
         if (!view.snapshot) return reject("unavailable", "Intake records unavailable.");
         try {
           const scope = this.approval(view.snapshot, intent.task);
+          if (input.nativeDispatch) this.nativeAuthority(view.snapshot, input.nativeDispatch, input.evidence.session, input.evidence.generation ?? 0);
           if (input.evidence.generation !== null && input.evidence.generation !== this.binding?.generation) return reject("provenance", "Host launch association generation is stale.");
           if (task?.claim.kind !== "owned")
             return reject("launch-claim", "A confirmed durable claim owned by this Legatus is required. No worker started.");
@@ -1321,6 +1469,10 @@ export class Legion {
           if (task.claim.reservation.approval.scope !== scope)
             return reject("launch-approval", "Claim approval differs from current scope. No worker started.");
           if (task.launch.kind === "unavailable") return reject("launch-history", task.launch.message);
+          if (task.workflowHold) {
+            const failure = workflowFailure(task.workflowChoice);
+            if (failure) return failure;
+          }
           const reservation = task.claim.reservation;
           const prior = view.snapshot.launchRequests.find((r) => r.id === input.requestKey);
           if (prior && JSON.stringify(prior.task) !== JSON.stringify(intent.task))
@@ -1329,7 +1481,10 @@ export class Legion {
           if (!prior) {
             const commonDir = view.snapshot.workspaceRequests.find((r) => r.repositoryId === reservation.repository)?.repository;
             if (!commonDir || !this.binding) return reject("launch-claim", "Claim repository witness unavailable.");
-            const request = LaunchRequest.parse({ id: input.requestKey, task: intent.task, scope, evidence: input.evidence, epoch, generation: this.binding.generation, repository: commonDir, repositoryId: task.claim.reservation.repository });
+            const captured = view.snapshot.launchRequests.find(r => r.task.id === intent.task.id);
+            const startupSelection = captured ? captured.startupSelection : this.settings?.tribuni_model
+              ? { kind: "exact", selection: this.settings.tribuni_model } : { kind: "native-defaults" };
+            const request = LaunchRequest.parse({ ...(input.nativeDispatch ? { nativeDispatch: input.nativeDispatch } : {}), startupSelection, id: input.requestKey, task: intent.task, scope, evidence: input.evidence, epoch, generation: this.binding.generation, repository: commonDir, repositoryId: task.claim.reservation.repository, ...(task.workflowChoice ? { workflowChoice: task.workflowChoice } : {}) });
             view.snapshot.launchRequests.push(request);
             const expected = view.snapshot.revision++;
             await this.store.save(view.snapshot, expected, () => !!this.binding && !this.stopping && this.epoch === epoch);
@@ -1384,6 +1539,7 @@ export class Legion {
                 claim: claims.byTask.get(t.id) ?? claims.fallback,
                 launch: launches.get(t.id) ?? { kind: "not-launched" },
                 tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
+                ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
               })) ?? [],
             ...this.settingsView(),
             diagnostics: this.activationDiagnostics,
@@ -1413,7 +1569,7 @@ export class Legion {
           "stopping",
           "Legion is stopping. No new workspace operations will start. Reservations retained.",
         );
-      const explicitActivation = intent.kind === "on" || intent.kind === "resume" || intent.kind === "task" && !this.binding;
+      const explicitActivation = intent.kind === "on" || intent.kind === "resume" || ["task", "profile-on", "profile-off", "workflow"].includes(intent.kind) && !this.binding;
       let prospectiveSettings = this.settings;
       const settingsDiagnostics: Diagnostic[] = [];
       if (explicitActivation) {
@@ -1433,8 +1589,13 @@ export class Legion {
         return reject("revoked", "Activation was revoked.");
       if (explicitActivation) this.activationDiagnostics = diagnostics;
       const resume = intent.kind === "resume" ? intent.id : null;
-      const isActivation = intent.kind === "on" || intent.kind === "resume";
-      const taskText = intent.kind === "task" ? intent.text : "";
+      const isActivation = intent.kind === "on" || intent.kind === "resume" || intent.kind === "profile-off";
+      const taskText = intent.kind === "task" || intent.kind === "profile-on" || intent.kind === "workflow" ? intent.text : "";
+      const workflowInvocation = intent.kind === "workflow"
+        ? WorkflowInvocation.parse({ kind: "legion-command", command: "implement-spec=on" })
+        : intent.kind === "profile-on"
+          ? WorkflowInvocation.parse({ kind: "legion-command", command: "poteto-mode=on" })
+          : input.workflowInvocation;
       const ready = diagnostics.every((d) => d.status === "ready");
       if (!ready && isActivation) {
         this.revoke();
@@ -1559,6 +1720,8 @@ export class Legion {
           this.uncertain = null;
           return existing.result;
         }
+        if ((intent.kind === "profile-on" || intent.kind === "profile-off" || intent.kind === "workflow" || input.workflowInvocation) && input.evidence.generation !== null && input.evidence.generation !== this.binding?.generation)
+          return reject("provenance", "Host command association generation is stale.");
         if (epoch !== this.epoch)
           return reject("revoked", "Activation was revoked.");
         if (ownership.kind === "acquiring") {
@@ -1589,6 +1752,10 @@ export class Legion {
           });
         }
         this.selected = snapshot.id;
+        if (intent.kind === "profile-on" || intent.kind === "profile-off")
+          snapshot.workflowChoice.profile = intent.kind === "profile-on" ? "poteto-mode" : "matt";
+        if (intent.kind === "workflow") snapshot.workflowChoice.requestedWorkflow = "implement-spec";
+        else if (input.workflowInvocation) snapshot.workflowChoice.requestedWorkflow = input.workflowInvocation.workflow;
         if (!isActivation)
           snapshot.submissions.push({
             id: SubmissionId.parse(randomUUID()),
@@ -1598,6 +1765,9 @@ export class Legion {
             timestamp: new Date().toISOString(),
             evidence: input.evidence,
             originIntent: { kind: "new-task" },
+            workflowChoice: { ...snapshot.workflowChoice },
+            ...(workflowInvocation ? { workflowInvocation } : {}),
+            ...(intent.kind === "workflow" || input.workflowInvocation ? { workflowDispatch: { kind: "pending-native" } } : {}),
             state: { kind: "pending", routing: { kind: "new-task" } },
           });
         const result: CommittedResult = {
@@ -1613,6 +1783,13 @@ export class Legion {
               : "Saved, not admitted. Run /legion doctor.",
           },
         };
+        if (intent.kind === "workflow" || input.workflowInvocation)
+          result.receipt.message = `Saved explicit Matt workflow and instructions; native skill not dispatched. Awaiting guarded native dispatch. Profile unchanged.${ready ? "" : " Not admitted. Run /legion doctor."}`;
+        if (intent.kind === "profile-on" || intent.kind === "profile-off")
+          result.receipt.message += ` Future Tribunus profile: ${snapshot.workflowChoice.profile}. Existing launch choices are unchanged.`;
+        const workflowHold = workflowFailure(snapshot.workflowChoice);
+        if (ready && workflowHold && (!isActivation || intent.kind === "profile-off"))
+          result.receipt.message += ` ${workflowHold.message}`;
         if (!isActivation)
           result.receipt.message +=
             " Command text only. Attachments were not captured.";
@@ -1801,28 +1978,36 @@ export class Legion {
           timestamp: new Date().toISOString(),
           evidence: message.evidence,
           originIntent: { kind: "unclassified" },
+          ...(state.submissions.some(source => source.workflowDispatch?.kind === "applied-native" && source.workflowDispatch.workflow === state.workflowChoice.requestedWorkflow) ? { workflowDispatch: { kind: "pending-native" } } : {}),
+          workflowChoice: { ...state.workflowChoice },
           state: { kind: "pending", routing: { kind: "unclassified" } },
         });
       } else {
         const proposal = message.proposal;
+        let native;
+        if (message.evidence.nativeDispatch) {
+          try { native = this.nativeAuthority(state, message.evidence.nativeDispatch, message.evidence.session, message.evidence.generation); }
+          catch (error) { return reject("native-authority", String(error)); }
+        }
+        const repeatedSpec = native?.dispatch.workflow === "implement-spec" && proposal.kind === "new-task" && proposal.source.id === native.dispatch.root.id;
         const source = state.submissions.find(
           (s) =>
             s.id === proposal.source.id &&
             s.revision === proposal.source.revision &&
-            s.state.kind === "pending",
+            (s.state.kind === "pending" || repeatedSpec && s.state.kind === "applied"),
         );
         if (
           !source ||
           !message.evidence.sources.some(
             (s) => s.id === source.id && s.revision === source.revision,
           ) ||
-          source.state.kind !== "pending"
+          (source.state.kind !== "pending" && !repeatedSpec)
         )
           return reject(
             "stale-source",
             "Source is not pending in this interpretation run.",
           );
-        const routing = source.state.routing;
+        const routing = source.state.kind === "pending" ? source.state.routing : { kind: "new-task" } as const;
         if (routing.kind === "new-task" && proposal.kind !== "new-task")
           return reject(
             "routing",
@@ -1853,8 +2038,8 @@ export class Legion {
         switch (proposal.kind) {
           case "new-task": {
             if (
-              source.state.kind !== "pending" ||
-              source.state.routing.kind === "correction"
+              source.state.kind !== "pending" && !repeatedSpec ||
+              source.state.kind === "pending" && source.state.routing.kind === "correction"
             )
               return reject(
                 "routing",
@@ -2095,6 +2280,8 @@ export class Legion {
                 );
               original.state = { kind: "pending", routing: effect.routing };
               original.revision++;
+              if (message.evidence.nativeDispatch && original.workflowDispatch)
+                original.workflowDispatch = { kind: "pending-native" };
               decision.state = { kind: "resolved", resolution };
             } else if (
               effect.kind === "approve-amendment" ||
@@ -2206,7 +2393,7 @@ export class Legion {
           legatus: state.id,
           requestKey: message.requestKey,
           sequence: state.receipts.length + 1,
-          message: "Saved for interpretation. Intake only.",
+          message: message.kind === "message" && state.submissions.at(-1)?.workflowDispatch ? "Saved for selected native workflow continuation. Not yet dispatched." : "Saved for interpretation. Intake only.",
         },
       };
       state.receipts.push({ fingerprint, result });

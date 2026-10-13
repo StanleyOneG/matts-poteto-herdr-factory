@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { exerciseRace } from "./support/composed-transport.mjs";
 
-test("preflight admits intake with installed Pi 1.1.0 and pi-subagents 0.77.0 composition", async () => {
+test("preflight admits intake with current Pi 1.2.0 and pi-subagents 0.78.0 composition", async () => {
   const result = await exerciseRace("readiness");
-  assert.match(result.doctor, /Pi ready\. Observed Pi 1\.1\.0\./);
-  assert.match(result.doctor, /pi-subagents ready\..*Observed 0\.77\.0\./);
+  assert.match(result.doctor, /Pi ready\. Observed Pi 1\.2\.0\./);
+  assert.match(result.doctor, /pi-subagents ready\..*Observed 0\.78\.0\./);
   assert.match(result.doctor, /@zenspc\/pi-pstack ready\./);
   assert.equal(result.view.mode, "active");
   assert.equal(result.view.snapshot?.submissions[0]?.text, "Fix the Ready label");
@@ -18,6 +18,7 @@ for (const [readinessCase, diagnostic] of [
   ["unsupported-subagents", "pi-subagents unverified."],
   ["missing-subagents", "pi-subagents missing."],
   ["hidden-subagents", "pi-subagents missing."],
+  ["pre-1.2-subagents", "pi-subagents unverified."],
   ["missing-pstack", "@zenspc/pi-pstack missing."],
   ["unsupported-pstack", "@zenspc/pi-pstack unverified."],
 ] satisfies [string, string][]) {
@@ -59,5 +60,21 @@ for (const [readinessCase, message] of [
     assert.equal(result.view.snapshot?.submissions[0]?.text, "Fix the Ready label");
     assert.equal(result.prompts.length, 0);
     assert.match(result.view.diagnostics.map(d => d.message).join(" "), message);
+  });
+}
+
+for (const [readinessCase, diagnostic] of [
+  ["same-version-npm", "@zenspc/pi-pstack unverified."],
+  ["foreign-fork-origin", "@zenspc/pi-pstack unverified."],
+  ["foreign-poteto-skill", "Skill poteto-mode unverified."],
+  ["wrong-fork-skill", "Skill poteto-mode unverified."],
+  ["missing-handoff", "Skill handoff missing."],
+  ["missing-implement-spec", "Skill implement-spec missing."],
+] satisfies [string, string][]) {
+  test(`target discovery holds ${readinessCase} without substitution`, async () => {
+    const result = await exerciseRace("readiness", { readinessCase });
+    assert.ok(result.doctor.includes(diagnostic), result.doctor);
+    assert.equal(result.view.mode, "inactive");
+    assert.equal(result.prompts.length, 0);
   });
 }

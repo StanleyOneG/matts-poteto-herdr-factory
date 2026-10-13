@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
-import { join } from "node:path";
-import { realpathSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { realpathSync, readFileSync, openSync, fsyncSync, closeSync } from "node:fs";
 import { z } from "zod";
 import { Type } from "typebox";
 import {
   getAgentDir,
+  stripFrontmatter,
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
@@ -33,6 +34,7 @@ const Presentation = z.object({
   amendment: AmendmentId.nullable(),
 });
 type RunEvidence = {
+  nativeDispatch?: string;
   session: string;
   generation: number;
   legatus: string;
@@ -82,6 +84,18 @@ type WorkspaceRun = {
   | { kind: "dispatch" | "prepared" | "held" }
   | { kind: "running" | "settled"; callId: string }
 );
+type NativeRun = {
+  kind: "dispatch" | "prepared" | "running" | "held";
+  id: string;
+  input: string;
+  prompt: string;
+  source: { id: string; revision: number };
+  evidence: RunEvidence;
+  data: LegionView;
+};
+const nativeInstructions = `You are the Legatus following the explicitly Emperor-selected native Matt skill, not the intake-only interpreter. Ask necessary requirements, design and test-seam questions before AFK implementation. Let the skill own methodology and task-graph/frontier decisions; Tribuni are separate interactive exploration/implementer subagents, not ordinary native children. Native research, tools, permissions, Trust and child completion remain native.
+Record scoped tickets/tasks and material questions via legion_intake using the exact saved source references. An implement-spec source may scope multiple tickets, all within that Emperor source; new requirements, expanded access, financial commitments and irreversible actions require presented Emperor decisions. Followup answers are saved sources; do not manufacture provenance or infer workflow/profile selection. Use legion_request only for bounded reserve/reconcile/workspace/launch of admitted tasks; then execute the exact returned legion_workspace/legion_launch request identity. Never fabricate request IDs, change profile or bypass held/uncertain outcomes. Resolve uncertainty before any retry.
+This skill entry grants no additional staging, commit, integration, publication, issue closure, deployment, main merge or cleanup authority. Follow the Emperor's separately granted task policy. Do not rewrite upstream skills or global settings.`;
 export default function (pi: ExtensionAPI) {
   if (process.env.PI_SUBAGENT_CHILD === "1") return;
   const bootstrap = managedBootstrap();
@@ -94,6 +108,8 @@ export default function (pi: ExtensionAPI) {
   let binding: { session: string; generation: number; legatus: string } | null =
     null;
   let run: Run | null = null;
+  let nativeRun: NativeRun | null = null;
+  let nativeRequestCall: string | null = null;
   let liveContext: ExtensionContext | null = null;
   const attempted = new Set<string>();
   function report(
@@ -161,6 +177,9 @@ export default function (pi: ExtensionAPI) {
       case "launched":
         report(ctx, result.message, result.launch.state.kind === "held" ? "warning" : "info");
         break;
+      case "native-stage":
+        report(ctx, `Native workflow ${result.dispatch.kind}. Source ${result.source.id}.`);
+        break;
       case "launch-stage":
       case "workspace-stage":
         report(ctx, result.message);
@@ -180,7 +199,7 @@ export default function (pi: ExtensionAPI) {
         const status = v.unavailable
           ? `Legion state unavailable. ${v.unavailable}`
           : v.snapshot
-            ? `${v.mode === "stopping" ? "Legion is stopping. No new workspace operations will start. Reservations retained." : v.mode === "inactive" ? "Legion inactive. Reservations retained." : "Legion is active. Explicit guarded launches are available."}\nLegatus ${v.snapshot.id}\n${v.tasks.length} tasks. ${v.snapshot.submissions.filter((s) => s.state.kind === "pending").length} pending inputs.\nState\n${JSON.stringify(v)}`
+            ? `${v.mode === "stopping" ? "Legion is stopping. No new workspace operations will start. Reservations retained." : v.mode === "inactive" ? "Legion inactive. Reservations retained." : "Legion is active. Explicit guarded launches are available."}\nLegatus ${v.snapshot.id}\n${v.tasks.length} tasks. ${v.snapshot.submissions.filter((s) => s.state.kind === "pending").length} pending inputs.\nFuture Tribunus profile: ${v.snapshot.workflowChoice.profile}; requested workflow: ${v.snapshot.workflowChoice.requestedWorkflow}.\nState\n${JSON.stringify(v)}`
             : "Legion is inactive.";
         report(
           ctx,
@@ -264,6 +283,72 @@ export default function (pi: ExtensionAPI) {
     } catch {}
     await showDecisions(ctx, view);
   }
+  async function holdNative(ctx: ExtensionContext, source: { id: string; revision: number }, message: string) {
+    if (legion && binding) await legion.nativeWorkflow({ kind: "hold", source, message, session: binding.session, generation: binding.generation });
+    report(ctx, `Native workflow held before dispatch. ${message} Instructions remain saved; correct the resource/conflict and explicitly resume.`, "warning");
+  }
+  function readNativeSkill(workflow: "implement" | "implement-spec", text: string) {
+    const commands = pi.getCommands().filter(command => command.name === `skill:${workflow}` && command.source === "skill");
+    const path = commands.length === 1 ? commands[0]?.sourceInfo?.path : undefined;
+    if (!path) throw new Error("Selected native Matt skill discovery is missing or ambiguous.");
+    const body = stripFrontmatter(readFileSync(path, "utf8")).trim();
+    if (!body) throw new Error("Selected native skill body is empty.");
+    return { path, input: `/skill:${workflow} ${text}`, prompt: `<skill name="${workflow}" location="${path}">\nReferences are relative to ${dirname(path)}.\n\n${body}\n</skill>\n\n${text}` };
+  }
+  function nativeModeHold(ctx: ExtensionContext) {
+    const mode = [...ctx.sessionManager.getBranch()].reverse().find(entry => entry.type === "custom" && entry.customType === "pstack-mode");
+    return mode?.type === "custom" && !z.object({ enabled: z.literal(false) }).safeParse(mode.data).success
+      ? "Matt requires native Legatus poteto off. Latest sticky mode is enabled or unknown; only the Emperor may change it." : null;
+  }
+  async function uncertainNative(ctx: ExtensionContext, pending: NativeRun, message: string) {
+    pending.kind = "held";
+    const result = await legion?.nativeWorkflow({ kind: "uncertain", id: pending.id, message, session: pending.evidence.session, generation: pending.evidence.generation });
+    if (result && result.kind !== "native-stage") notifyResult(ctx, result);
+    report(ctx, `Native workflow delivery unresolved. No managed dispatch or replay. ${message}`, "warning");
+  }
+  async function dispatchNative(ctx: ExtensionContext, data: LegionView) {
+    const current = legion, captured = binding;
+    const source = data.snapshot?.submissions.find(source =>
+      (source.workflowDispatch?.kind === "pending-native" || source.workflowDispatch?.kind === "held-native") && !attempted.has(`${source.id}/${source.revision}`));
+    if (!current || !captured || !source || !data.snapshot) return false;
+    attempted.add(`${source.id}/${source.revision}`);
+    const unresolved = data.snapshot.submissions.find(source => source.workflowDispatch?.kind === "dispatching-native" || source.workflowDispatch?.kind === "uncertain-native");
+    if (unresolved) { await holdNative(ctx, source, `Native delivery ${unresolved.id} remains unresolved. Inspect its exact saved prompt and journal; no replay or new native managed work.`); return true; }
+    const choice = data.snapshot.workflowChoice;
+    if (source.workflowInvocation && source.workflowChoice?.requestedWorkflow !== choice.requestedWorkflow) { await holdNative(ctx, source, "Saved explicit workflow differs from the current Emperor selection. Clarify which instructions to continue; never substitute a different skill."); return true; }
+    if (choice.profile !== "matt" || choice.requestedWorkflow === "unknown") {
+      await holdNative(ctx, source, "Explicit Matt workflow conflicts with poteto or is unavailable. Only the Emperor may change the profile.");
+      return true;
+    }
+    try {
+      const modeHold = nativeModeHold(ctx);
+      if (modeHold) throw new Error(modeHold);
+      const diagnostics = await preflight(pi, { principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel(), ...(data.settings ? { settings: data.settings } : {}) }, choice);
+      if (diagnostics.some(d => d.status !== "ready")) {
+        await holdNative(ctx, source, diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" "));
+        return true;
+      }
+      const { path, prompt, input } = readNativeSkill(choice.requestedWorkflow, source.text);
+      if (current !== legion || captured !== binding || run || nativeRun || workspaceRun || !ctx.isIdle() || ctx.hasPendingMessages()) {
+        attempted.delete(`${source.id}/${source.revision}`);
+        return true;
+      }
+      const id = randomUUID();
+      const intent = await current.nativeWorkflow({ kind: "prepare", source: { id: source.id, revision: source.revision }, id, skillPath: path, input, prompt, session: captured.session, generation: captured.generation });
+      if (intent.kind !== "native-stage" || intent.dispatch.kind !== "dispatching-native") { notifyResult(ctx, intent); return true; }
+      const delivery = intent.dispatch;
+      const sources = data.snapshot.submissions.filter(s => s.state.kind === "pending").map(s => ({ id: s.id, revision: s.revision }));
+      if (!sources.some(s => s.id === delivery.root.id)) sources.push(delivery.root);
+      nativeRun = { kind: "dispatch", id, input, prompt, source: intent.source, evidence: { ...captured, run: id, nativeDispatch: id, sources }, data };
+      try { pi.sendUserMessage(input); }
+      catch (error) {
+        nativeRun.kind = "held";
+        await current.nativeWorkflow({ kind: "uncertain", id, message: String(error), session: captured.session, generation: captured.generation });
+        report(ctx, `Native dispatch outcome uncertain. Inspect the saved prompt/session journal; no automatic replay. ${String(error)}`, "error");
+      }
+    } catch (error) { await holdNative(ctx, source, String(error)); }
+    return true;
+  }
   async function dispatch(ctx: ExtensionContext) {
     const current = legion;
     const captured = binding;
@@ -271,19 +356,22 @@ export default function (pi: ExtensionAPI) {
       !current ||
       !captured ||
       run ||
+      nativeRun ||
       workspaceRun ||
       !ctx.isIdle() ||
       ctx.hasPendingMessages()
     )
       return;
     const data = await current.state();
-    if (legion !== current || binding !== captured || run || workspaceRun || !ctx.isIdle() || ctx.hasPendingMessages())
+    if (legion !== current || binding !== captured || run || nativeRun || workspaceRun || !ctx.isIdle() || ctx.hasPendingMessages())
       return;
+    if (await dispatchNative(ctx, data)) return;
     const sources =
       data.snapshot?.submissions
         .filter(
           (s) =>
             s.state.kind === "pending" &&
+            !s.workflowDispatch &&
             !attempted.has(`${s.id}/${s.revision}`),
         )
         .map((s) => ({ id: s.id, revision: s.revision })) ?? [];
@@ -302,13 +390,12 @@ export default function (pi: ExtensionAPI) {
     }
   }
   function schedule(ctx: ExtensionContext) {
+    const session = ctx.sessionManager.getSessionId();
     setTimeout(() => {
-      if (
-        liveContext?.sessionManager.getSessionId() ===
-        ctx.sessionManager.getSessionId()
-      )
-        void dispatch(ctx).catch((error) =>
-          report(ctx, `Intake stalled. ${String(error)}`, "error"),
+      const current = liveContext;
+      if (current && current.sessionManager.getSessionId() === session)
+        void dispatch(current).catch((error) =>
+          report(current, `Intake stalled. ${String(error)}`, "error"),
         );
     }, 0);
   }
@@ -331,13 +418,36 @@ export default function (pi: ExtensionAPI) {
         },
       });
   }
+  const registeredAliases = new Set<string>();
+  function registerNativeAliases(ctx: ExtensionContext) {
+    for (const workflow of ["implement", "implement-spec"] as const) {
+      if (registeredAliases.has(workflow)) continue;
+      if (pi.getCommands().some(command => command.name === workflow)) {
+        report(ctx, `/${workflow} already belongs to another loaded resource; Legion will not override it. Use /skill:${workflow} with active Legion, or /legion implement-spec=on.`, "warning");
+        continue;
+      }
+      registeredAliases.add(workflow);
+      pi.registerCommand(workflow, {
+        description: `Explicit native /skill:${workflow} entry. Does not activate inactive Legion.`,
+        handler: async (text, ctx) => {
+          const current = legion;
+          if (!current || !binding) { pi.sendUserMessage(`/skill:${workflow}${text ? ` ${text}` : ""}`); return; }
+          if (!text.trim()) { report(ctx, "Not saved. Explicit native workflow instructions are required.", "error"); return; }
+          const result = await current.command({ text: `task ${text}`, requestKey: randomUUID(), evidence: evidence(ctx), workflowInvocation: { kind: "native-skill", workflow } });
+          notifyResult(ctx, result); await refresh(ctx); schedule(ctx);
+        },
+      });
+    }
+  }
   pi.on("session_start", async (_event, ctx) => {
     liveContext = ctx;
     binding = null;
     run = null;
+    nativeRun = null;
     attempted.clear();
     workspaceRun = null;
     workspaceAttempts.clear();
+    registerNativeAliases(ctx);
     legion = new Legion({
       storagePath: join(getAgentDir(), "legion"),
       context: realpathSync(ctx.cwd),
@@ -370,11 +480,14 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Enable durable intake and reservations. Arguments: on, task <text>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
+      "Enable durable intake and reservations. Arguments: on, task <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
     getArgumentCompletions: (prefix) =>
       [
         "on",
         "task",
+        "poteto-mode=on",
+        "poteto-mode=off",
+        "implement-spec=on",
         "status",
         "doctor",
         "off",
@@ -437,6 +550,8 @@ export default function (pi: ExtensionAPI) {
           )
             run = null;
           attempted.clear();
+          const unresolved = (await current.state()).snapshot?.submissions.filter(source => source.workflowDispatch?.kind === "dispatching-native" || source.workflowDispatch?.kind === "uncertain-native");
+          if (unresolved?.length) report(ctx, "Native workflow delivery is unresolved. Inspect its recorded prompt and journal. Resume will not replay it.", "warning");
           if (run?.kind === "pre-start" && run.stage === "forwarded")
             report(
               ctx,
@@ -523,6 +638,31 @@ export default function (pi: ExtensionAPI) {
   }
   pi.on("input", async (event, ctx) => {
     if (event.source === "extension") {
+      const pendingNative = nativeRun;
+      if (pendingNative?.kind === "dispatch" && event.text === pendingNative.input) {
+        const view = await legion?.state();
+        if (!binding || binding.session !== pendingNative.evidence.session || binding.generation !== pendingNative.evidence.generation ||
+            event.streamingBehavior || !ctx.isIdle() || ctx.hasPendingMessages() || view?.mode !== "active" || view.snapshot?.workflowChoice.profile !== "matt" ||
+            view.snapshot.workflowChoice.requestedWorkflow === "unknown") {
+          pendingNative.kind = "held";
+          await legion?.nativeWorkflow({ kind: "uncertain", id: pendingNative.id, message: "Authority or idle delivery changed before native start.", session: pendingNative.evidence.session, generation: pendingNative.evidence.generation });
+          report(ctx, "Native dispatch held; intent retained without replay.", "warning");
+          return { action: "handled" };
+        }
+        try {
+          const choice = view.snapshot.workflowChoice;
+          const diagnostics = await preflight(pi, { principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel(), ...(view.settings ? { settings: view.settings } : {}) }, choice);
+          const source = pendingNative.data.snapshot?.submissions.find(source => source.id === pendingNative.source.id && source.revision === pendingNative.source.revision);
+          const modeHold = nativeModeHold(ctx);
+          if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready") || !source || choice.requestedWorkflow === "unknown" || readNativeSkill(choice.requestedWorkflow, source.text).prompt !== pendingNative.prompt)
+            throw new Error(modeHold ?? "Loaded native resources or exact selected skill body changed before delivery.");
+          if (nativeRun !== pendingNative || !binding || binding.generation !== pendingNative.evidence.generation || !ctx.isIdle() || ctx.hasPendingMessages()) throw new Error("Native delivery authority changed during resource checks.");
+        } catch (error) { await uncertainNative(ctx, pendingNative, String(error)); return { action: "handled" }; }
+        pendingNative.kind = "prepared";
+        // Same native skill wrapper/body, with exact saved instructions rather than Pi's argument trimming.
+        return { action: "transform", text: pendingNative.prompt };
+      }
+      if (pendingNative && event.text === pendingNative.input) return { action: "handled" };
       if (event.text.startsWith("Legion workspace dispatch ")) {
         const pending = workspaceRun;
         if (!pending || pending.kind !== "dispatch" || pending.marker !== event.text) return { action: "handled" };
@@ -624,6 +764,14 @@ export default function (pi: ExtensionAPI) {
     const captured = binding;
     if (!current || !captured) return { action: "continue" };
     const caller = evidence(ctx, event.source);
+    const invocation = /^\/skill:(implement|implement-spec)(?: ([\s\S]*))?$/.exec(event.text);
+    if (invocation && !event.images?.length) {
+      if (!(invocation[2]?.trim())) { report(ctx, "Not saved. Explicit native workflow instructions are required.", "error"); return { action: "handled" }; }
+      const result = await current.command({ text: `task ${invocation[2]}`, requestKey: randomUUID(), evidence: caller, workflowInvocation: { kind: "native-skill", workflow: invocation[1] } });
+      notifyResult(ctx, result);
+      await refresh(ctx); schedule(ctx);
+      return { action: "handled" };
+    }
     if (event.images?.length) {
       report(
         ctx,
@@ -653,7 +801,22 @@ export default function (pi: ExtensionAPI) {
     }
     return { action: "handled" };
   });
-  pi.on("before_agent_start", (event, ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
+    if (event.messageType === "custom") {
+      // Ordinary child notifications remain native, including their prompt and completion turn.
+      const data = await legion?.state();
+      const source = [...(data?.snapshot?.submissions ?? [])].reverse().find(source => source.workflowDispatch?.kind === "applied-native" && source.workflowDispatch.session === binding?.session && source.workflowDispatch.generation === binding?.generation);
+      const delivery = source?.workflowDispatch;
+      if (source && !nativeRun && !run && !workspaceRun && binding && data?.mode === "active" && data.snapshot?.workflowChoice.profile === "matt" && delivery?.kind === "applied-native" && delivery.workflow === data.snapshot.workflowChoice.requestedWorkflow) {
+        const sources = data.snapshot.submissions.filter(source => source.state.kind === "pending").map(source => ({ id: source.id, revision: source.revision }));
+        if (!sources.some(source => source.id === delivery.root.id)) sources.push(delivery.root);
+        nativeRun = { kind: "running", id: delivery.id, input: delivery.input, prompt: delivery.prompt, source: { id: source.id, revision: source.revision }, evidence: { ...binding, run: randomUUID(), nativeDispatch: delivery.id, sources }, data };
+      }
+      return;
+    }
+    if (nativeRun?.kind === "prepared" && event.prompt === nativeRun.prompt && nativeRun.evidence.session === ctx.sessionManager.getSessionId()) {
+      return { systemPrompt: `${event.systemPrompt}\n\n${nativeInstructions}`, message: { customType: "legion-native-workflow", display: false, content: `Exact saved sources and current state\n${JSON.stringify({ sources: nativeRun.evidence.sources, state: nativeRun.data })}`, details: { dispatch: nativeRun.id } } };
+    }
     if (
       workspaceRun?.kind === "prepared" &&
       event.prompt === workspaceRun.marker &&
@@ -686,6 +849,25 @@ export default function (pi: ExtensionAPI) {
         details: undefined,
       },
     };
+  });
+  pi.on("context", async (_event, ctx) => {
+    const pending = nativeRun;
+    if (pending?.kind !== "prepared" || pending.evidence.session !== ctx.sessionManager.getSessionId()) return;
+    // Pi 1.2 emits message_end before persistence; context runs after the user entry is saved.
+    const entry = [...ctx.sessionManager.getBranch()].reverse().find(entry => {
+      if (entry.type !== "message" || entry.message.role !== "user") return false;
+      const content = typeof entry.message.content === "string" ? entry.message.content : entry.message.content.filter(part => part.type === "text").map(part => part.text).join("\n");
+      return content === pending.prompt;
+    });
+    const journal = ctx.sessionManager.getSessionFile();
+    if (!entry || !journal) { await uncertainNative(ctx, pending, "Native applied journal witness unavailable."); return; }
+    try {
+      const fd = openSync(journal, "r");
+      try { fsyncSync(fd); } finally { closeSync(fd); }
+      const result = await legion?.nativeWorkflow({ kind: "applied", id: pending.id, prompt: pending.prompt, journal, entry: entry.id, session: pending.evidence.session, generation: pending.evidence.generation });
+      if (result?.kind !== "native-stage" || result.dispatch.kind !== "applied-native") { if (result) notifyResult(ctx, result); await uncertainNative(ctx, pending, "Exact native applied witness could not be committed."); }
+      else pending.kind = "running";
+    } catch (error) { await uncertainNative(ctx, pending, `Native journal witness unavailable. ${String(error)}`); }
   });
   pi.on("agent_start", (_event, ctx) => {
     if (
@@ -721,12 +903,14 @@ export default function (pi: ExtensionAPI) {
         repositories.getStore()
       )
         return;
+      if (nativeRun?.kind === "running" && !["legion_workspace", "legion_launch", "legion_request"].includes(event.toolName)) return;
       return {
         block: true,
         reason:
           "Workspace stage permits only its exact correlated root tool and necessary guarded nested Git calls.",
       };
     }
+    if (event.toolName === "legion_request" && nativeRun?.kind !== "running") return { block: true, reason: "No applied selected native workflow turn is active." };
     if (event.toolName === "legion_workspace" || event.toolName === "legion_launch")
       return {
         block: true,
@@ -742,11 +926,35 @@ export default function (pi: ExtensionAPI) {
         reason:
           "T01 interpretation permits only legion_intake, even after off until the run settles.",
       };
-    if (event.toolName === "legion_intake" && run?.kind !== "running")
+    if (event.toolName === "legion_intake" && run?.kind !== "running" && nativeRun?.kind !== "running")
       return {
         block: true,
         reason: "No correlated Legion interpretation run is active.",
       };
+  });
+  pi.registerTool({
+    name: "legion_request", label: "Legion workflow request", exposure: "model-only",
+    description: "Request an existing bounded reserve, reconcile, workspace or launch stage for an admitted task in the selected native workflow. Supply only the command, never Emperor provenance, workflow/profile or task payload. No publication authority.",
+    parameters: Type.Object({ command: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
+    execute: async (toolCallId, raw, _signal, _update, ctx) => {
+      const captured = nativeRun, current = legion;
+      const args = z.object({ command: z.string().min(1) }).strict().parse(raw);
+      if (!captured || captured.kind !== "running" || !current || workspaceRun || binding?.generation !== captured.evidence.generation || captured.evidence.session !== ctx.sessionManager.getSessionId())
+        throw new Error("No applied current native skill turn authorizes a managed request.");
+      const modeHold = nativeModeHold(ctx);
+      const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
+      if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready")) throw new Error(modeHold ?? diagnostics.map(diagnostic => diagnostic.message).join(" "));
+      if (nativeRequestCall) throw new Error("Another bounded workflow request is unsettled. Inspect its result before requesting another stage.");
+      nativeRequestCall = toolCallId;
+      try {
+        const result = await current.nativeRequest({ text: args.command, requestKey: `${captured.id}/${toolCallId}`, dispatch: captured.id, session: captured.evidence.session, generation: captured.evidence.generation });
+        if (result.kind === "workspace-stage" || result.kind === "launch-stage") {
+          workspaceRun = { kind: "prepared", tool: result.kind === "launch-stage" ? "legion_launch" : "legion_workspace", marker: captured.id, requestId: result.requestId, session: captured.evidence.session, generation: captured.evidence.generation };
+        }
+        if (legion === current) await refresh(ctx);
+        return { content: [{ type: "text", text: JSON.stringify(result) }], details: result, isError: result.kind === "rejected" || result.kind === "uncertain" };
+      } finally { if (nativeRequestCall === toolCallId) nativeRequestCall = null; }
+    },
   });
   for (const tool of ["legion_workspace", "legion_launch"] as const) pi.registerTool({
     name: tool,
@@ -814,7 +1022,10 @@ export default function (pi: ExtensionAPI) {
             result.kind === "ownership-blocked" || (result.kind === "launched" && result.launch.state.kind === "held"),
         };
       } finally {
-        if (workspaceRun === captured) captured.kind = "settled";
+        if (workspaceRun === captured) {
+          if (nativeRun?.kind === "running" && captured.marker === nativeRun.id) workspaceRun = null;
+          else captured.kind = "settled";
+        }
       }
     },
   });
@@ -823,10 +1034,10 @@ export default function (pi: ExtensionAPI) {
     label: "Legion intake",
     exposure: "model-only",
     description:
-      "Record one intake proposal for saved sources. Never execute work. Arguments contain only a proposal, not provenance.",
+      "Record one scoped intake proposal for saved sources in an intake or applied native skill turn. An explicit implement-spec source may scope multiple approved tickets. No workflow selection, execution or manufactured provenance.",
     parameters: Type.Unsafe<Proposal>(z.toJSONSchema(ProposalSchema)),
     execute: async (toolCallId, raw, _signal, _update, ctx) => {
-      const captured = run;
+      const captured = nativeRun?.kind === "running" ? nativeRun : run;
       const current = legion;
       if (
         !current ||
@@ -841,7 +1052,7 @@ export default function (pi: ExtensionAPI) {
         requestKey: `${captured.evidence.run}/${toolCallId}`,
         evidence: structuredClone(captured.evidence),
       });
-      if (result.kind === "applied") captured.proposed = true;
+      if (result.kind === "applied" && "proposed" in captured) captured.proposed = true;
       if (legion === current) await refresh(ctx);
       return {
         content: [{ type: "text", text: JSON.stringify(result) }],
@@ -853,6 +1064,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("agent_settled", async (_event, ctx) => {
     if (workspaceRun?.session === ctx.sessionManager.getSessionId() && workspaceRun.kind !== "dispatch" && workspaceRun.kind !== "held")
       workspaceRun = null;
+    if (nativeRun?.kind === "running" && nativeRun.evidence.session === ctx.sessionManager.getSessionId()) nativeRun = null;
     const previous = run;
     if (
       previous?.kind === "running" &&

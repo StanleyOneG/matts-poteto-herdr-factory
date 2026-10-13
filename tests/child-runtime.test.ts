@@ -39,7 +39,7 @@ test("held principal cannot launch prepared or ordinary native writers while ins
   await exerciseNativeAssignment("child-held-launch");
 });
 
-test("installed 0.77.0 initial startup to fresh top-level journal and runner-plus-writer proof settles normally", async () => {
+test("native initial startup publication to fresh top-level journal and runner-plus-writer proof settles with current helpers", async () => {
   await exerciseNativeAssignment("child-native-startup");
 });
 

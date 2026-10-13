@@ -1,28 +1,51 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile } from "node:fs/promises";
-import { dirname, join, isAbsolute } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { dirname, join, isAbsolute, relative } from "node:path";
 import { z } from "zod";
 import { VERSION, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels, type ModelThinkingLevel } from "@earendil-works/pi-ai";
+import { requiredWorkflowSkills } from "./tribunus.js";
+import type { WorkflowChoice } from "./legion-settings.js";
 import type { LegionSettings } from "./legion-settings.js";
 import { checkPrincipalCompatibility } from "./principal-compatibility.js";
 import type { Diagnostic } from "./intake.js";
 const exec = promisify(execFile);
-const Package = z.object({ name: z.string(), version: z.string() });
-async function packageAt(path: string, name: string): Promise<string | null> {
+const Package = z.object({ name: z.string(), version: z.string(), repository: z.union([z.string(), z.object({ url: z.string() })]).optional() });
+async function packageLocation(path: string, name: string) {
   let dir = dirname(path);
   while (true) {
     try {
       const p = Package.parse(
         JSON.parse(await readFile(join(dir, "package.json"), "utf8")),
       );
-      if (p.name === name) return p.version;
+      if (p.name === name) return { ...p, root: dir };
     } catch {}
     const parent = dirname(dir);
     if (parent === dir) return null;
     dir = parent;
   }
+}
+async function packageAt(path: string, name: string): Promise<string | null> {
+  return (await packageLocation(path, name))?.version ?? null;
+}
+const forkRepository = "https://github.com/StanleyOneG/stanley-pi-pstack";
+function isSuppliedFork(repository: string | undefined) {
+  return repository?.replace(/^git\+/, "").replace(/^git@github.com:/, "https://github.com/").replace(/^ssh:\/\/git@github.com\//, "https://github.com/").replace(/\.git$/, "").replace(/\/$/, "").toLowerCase() === forkRepository.toLowerCase();
+}
+async function loadedFork(path: string, resource: "extensions/pstack/index.ts" | "skills/poteto-mode/SKILL.md") {
+  try {
+    const loadedPath = await realpath(path);
+    const pkg = await packageLocation(loadedPath, "@zenspc/pi-pstack");
+    if (!pkg || loadedPath !== await realpath(join(pkg.root, resource)) || pkg.version !== "0.6.0" || !isSuppliedFork(typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url)) return null;
+    const git = async (...args: string[]) => (await exec("git", ["-C", pkg.root, ...args])).stdout.trim();
+    const root = await realpath(await git("rev-parse", "--show-toplevel"));
+    const origin = await git("remote", "get-url", "origin"), commit = await git("rev-parse", "HEAD");
+    if (root !== await realpath(pkg.root) || !isSuppliedFork(origin) || !/^[a-f0-9]{40,64}$/.test(commit)) return null;
+    await git("ls-files", "--error-unmatch", "--", relative(root, loadedPath));
+    await git("diff", "--exit-code", "HEAD", "--", "extensions/pstack", "skills/poteto-mode");
+    return { root, origin, commit, version: pkg.version };
+  } catch { return null; }
 }
 type PrincipalInput = {
   principal: "Legatus" | "Tribunus";
@@ -53,7 +76,7 @@ export function principalDiagnostics(input: PrincipalInput): Diagnostic[] {
   if (input.settings?.tribuni_model) diagnostics.push(check("Tribunus", input.settings.tribuni_model));
   return diagnostics;
 }
-export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput): Promise<Diagnostic[]> {
+export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput, workflowChoice?: WorkflowChoice): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = principal ? principalDiagnostics(principal) : [];
   const add = (name: string, status: Diagnostic["status"], message: string) =>
     diagnostics.push({ name, status, message });
@@ -68,8 +91,8 @@ export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput): P
   ].every((k) => typeof Reflect.get(pi, k) === "function");
   add(
     "Pi",
-    VERSION === "1.1.0" && contracts ? "ready" : "unverified",
-    `Observed Pi ${VERSION}. Tested runtime target is 1.1.0 with input and settled hooks.`,
+    ["1.1.0", "1.2.0"].includes(VERSION) && contracts ? "ready" : "unverified",
+    `Observed Pi ${VERSION}. Current contract target is 1.2.0; historical target 1.1.0. Native launch verification remains required.`,
   );
   try {
     const { DatabaseSync } = await import("node:sqlite");
@@ -85,27 +108,12 @@ export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput): P
   }
   const commands = pi.getCommands();
   const tools = pi.getAllTools();
-  for (const [name, command, version] of [
-    ["@zenspc/pi-pstack", "pstack", "0.6.0"],
-  ] as const) {
-    const loaded = commands.find(
-      (c) => c.name === command && c.source === "extension",
-    );
-    if (!loaded) {
-      add(
-        name,
-        "missing",
-        `Load ${name} in this Pi context. An installed but unloaded package is not sufficient.`,
-      );
-      continue;
-    }
-    const observed = await packageAt(loaded.sourceInfo.path, name);
-    add(
-      name,
-      observed === version ? "ready" : "unverified",
-      `Loaded resource ${loaded.sourceInfo.path}. Observed ${observed ?? "unknown provenance"}. Tested target ${version}.`,
-    );
-  }
+  const pstackCommands = commands.filter(c => c.name === "pstack" && c.source === "extension");
+  const pstack = pstackCommands.length === 1 ? pstackCommands[0] : undefined;
+  const fork = pstack ? await loadedFork(pstack.sourceInfo.path, "extensions/pstack/index.ts") : null;
+  add("@zenspc/pi-pstack", !pstackCommands.length ? "missing" : fork ? "ready" : "unverified",
+    fork ? `Loaded resource ${pstack?.sourceInfo.path}. Observed ${fork.version}, supplied fork ${fork.origin}, commit ${fork.commit}, root ${fork.root}. Source identity only; native runtime check remains required.`
+      : `Load one unmodified supplied fork ${forkRepository} at version 0.6.0 in this context. Loaded ${pstack?.sourceInfo.path ?? "unknown or ambiguous source"}; manifest, tracked path, checkout origin or commit is unverified. Same npm name/version is insufficient.`);
   const subagent = tools.find(
     (t) =>
       t.name === "subagent" &&
@@ -114,55 +122,26 @@ export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput): P
   const subVersion = subagent
     ? await packageAt(subagent.sourceInfo.path, "pi-subagents")
     : null;
+  const subagentsCompatible = VERSION === "1.2.0" && subVersion === "0.78.0" || VERSION === "1.1.0" && subVersion === "0.77.0";
   add(
     "pi-subagents",
-    !subagent ? "missing" : subVersion === "0.77.0" ? "ready" : "unverified",
+    !subagent ? "missing" : subagentsCompatible ? "ready" : "unverified",
     subagent
-      ? `Loaded root tool ${subagent.sourceInfo.path}. Observed ${subVersion ?? "unknown provenance"}. Tested target 0.77.0.`
+      ? `Loaded root tool ${subagent.sourceInfo.path}. Observed ${subVersion ?? "unknown provenance"}. Current composition target Pi 1.2.0 / pi-subagents 0.78.0; historical Pi 1.1.0 / 0.77.0. No arbitrary-version compatibility.`
       : "Load the pi-subagents root tool in this context.",
   );
-  for (const name of [
-    "herdr",
-    "poteto-mode",
-    "matt-tdd",
-    "matt-teach",
-    "implement",
-    "code-review",
-  ]) {
-    const skill = commands.find(
-      (c) => c.name === `skill:${name}` && c.source === "skill",
-    );
+  for (const name of requiredWorkflowSkills(workflowChoice)) {
+    const matches = commands.filter(c => c.name === `skill:${name}` && c.source === "skill");
+    const skill = matches.length === 1 ? matches[0] : undefined;
     if (!skill) {
-      add(
-        `Skill ${name}`,
-        "missing",
-        `Make ${name} discoverable through Pi native skills. Legion does not install or substitute skills.`,
-      );
+      add(`Skill ${name}`, matches.length ? "unverified" : "missing", `Make one unambiguous ${name} discoverable through Pi native skills. Legion does not install or substitute skills.`);
       continue;
     }
     if (name === "poteto-mode") {
-      let enabled = false;
-      const pstackCommand = commands.find(
-        (c) => c.name === "pstack" && c.source === "extension",
-      );
-      if (pstackCommand) {
-        const source = await packageAt(
-          skill.sourceInfo.path,
-          "@zenspc/pi-pstack",
-        );
-        enabled = source === "0.6.0";
-      }
-      add(
-        `Skill ${name}`,
-        enabled ? "ready" : "unverified",
-        `Loaded skill ${skill.sourceInfo.path}. pstack provenance ${enabled ? "verified" : "unknown"}.`,
-      );
-    } else
-      add(
-        `Skill ${name}`,
-        "ready",
-        `Loaded native skill ${skill.sourceInfo.path}.`,
-      );
+      const skillFork = await loadedFork(skill.sourceInfo.path, "skills/poteto-mode/SKILL.md");
+      const verified = !!fork && !!skillFork && fork.root === skillFork.root && fork.commit === skillFork.commit;
+      add(`Skill ${name}`, verified ? "ready" : "unverified", `Loaded skill ${skill.sourceInfo.path}. Same loaded supplied-fork extension/skill origin ${verified ? "verified" : "unverified"}.`);
+    } else add(`Skill ${name}`, "ready", `Loaded native skill ${skill.sourceInfo.path}.`);
   }
   try {
     const status = z

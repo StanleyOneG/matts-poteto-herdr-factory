@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Legion } from "../src/intake.js";
 import type { WorkspaceRepository } from "../src/git-workspace.js";
-import { LaunchId, LaunchRecord, type TribunusHost } from "../src/tribunus.js";
-async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/intake.js").LegionOptions["assignments"]>["fault"]) {
+import { mattInitializationPrompt, LaunchId, LaunchRecord, type TribunusHost } from "../src/tribunus.js";
+async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/intake.js").LegionOptions["assignments"]>["fault"], requestedWorkflow: "implement" | null = "implement") {
   const root = await mkdtemp(join(tmpdir(), "legion-launch-"));
   const commonDir = join(root, "repo.git");
   await mkdir(commonDir);
@@ -54,7 +54,8 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
   const command = (text: string, requestKey = `request-${++seq}`) => legion.command({
     text, requestKey, evidence
   });
-  await command("task Fix the trial label");
+  await legion.command({ text: "task Fix the trial label", requestKey: "task", evidence,
+    ...(requestedWorkflow ? { workflowInvocation: { kind: "native-skill", workflow: requestedWorkflow } } : {}) });
   const initial = await legion.state();
   const source = initial.snapshot?.submissions[0];
   assert.ok(source);
@@ -166,7 +167,7 @@ test("exact native initialization precedes one bounded assignment even when the 
     }; throw new Error("Applied start; receipt lost"); },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "matching-herdr-session", resources: {
-        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Tribunus model", status: "ready", message: "Native target metadata"
@@ -176,7 +177,7 @@ test("exact native initialization precedes one bounded assignment even when the 
     initialize: async ({ worker, command }) => {
       initialized = true;
       return {
-        command, address: worker.address, nativePrompt: '<skill name="poteto-mode" location="/skills/poteto-mode/SKILL.md">native skill body</skill>', skillPath: "/skills/poteto-mode/SKILL.md", modeEntry: "new-enabled-pstack-entry", settledEntry: "successful-native-turn"
+        profile: "matt", command, address: worker.address, nativePrompt: mattInitializationPrompt(command), skillPath: "", modeEntry: "observed-off", settledEntry: "idle-settlement"
       };
     },
     assign: async ({ assignment }) => { assert.equal(initialized, true); delivered.push(assignment.goal); assert.equal(assignment.authority, "bounded-implementation-only"); return {
@@ -286,7 +287,7 @@ test("a received-only initialization receipt cannot become applied initializatio
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session-reference", resources: {
-        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Tribunus model", status: "ready", message: "Target native model metadata"
@@ -335,7 +336,7 @@ test("the bounded same-generation worker report becomes observable without autho
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session-reference", resources: {
-        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Tribunus model", status: "ready", message: "Target native model metadata"
@@ -343,7 +344,7 @@ test("the bounded same-generation worker report becomes observable without autho
       }
     }),
     initialize: async ({ command }) => ({
-      command, address, nativePrompt: '<skill name="poteto-mode" location="/skills/poteto-mode/SKILL.md">body</skill>', skillPath: "/skills/poteto-mode/SKILL.md", modeEntry: "mode", settledEntry: "settled"
+      profile: "matt", command, address, nativePrompt: mattInitializationPrompt(command), skillPath: "", modeEntry: "observed-off", settledEntry: "idle-settlement"
     }),
     assign: async ({ assignment }) => { delivered.push(assignment.goal); return {
       application: "assignment-entry"
@@ -425,7 +426,7 @@ test("explicit resume resolves the same retained initialization command without 
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session", resources: {
-        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Tribunus model", status: "ready", message: "Target native model metadata"
@@ -435,7 +436,7 @@ test("explicit resume resolves the same retained initialization command without 
     initialize: async ({ command }) => {
       if (!proof)
         proof = {
-          command, address, nativePrompt: '<skill name="poteto-mode" location="/skills/poteto-mode/SKILL.md">body</skill>', skillPath: "/skills/poteto-mode/SKILL.md", modeEntry: "new-mode", settledEntry: "settlement"
+          profile: "matt", command, address, nativePrompt: mattInitializationPrompt(command), skillPath: "", modeEntry: "observed-off", settledEntry: "idle-settlement"
         };
       assert.equal(command, proof.command);
       return lost ? null : proof;
@@ -494,15 +495,17 @@ function externalWorker() {
     }; },
     inspectWorker: async ({ cwd }) => actor.observe({
       address, identityEvidence: "exact-session", resources: {
-        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
             name: "Tribunus model", status: "ready", message: "Target native model metadata"
           }]
       }
     }),
-    initialize: async ({ worker, command }) => { actor.initialized.push(command); return actor.proof({
-      command, address: worker.address, nativePrompt: '<skill name="poteto-mode" location="/skills/poteto-mode/SKILL.md">body</skill>', skillPath: "/skills/poteto-mode/SKILL.md", modeEntry: "new-mode", settledEntry: "settlement"
+    initialize: async ({ worker, command, workflowChoice }) => { actor.initialized.push(command); return actor.proof({
+      profile: workflowChoice.profile, command, address: worker.address,
+      nativePrompt: workflowChoice.profile === "poteto-mode" ? '<skill name="poteto-mode" location="/skills/poteto-mode/SKILL.md">body</skill>' : mattInitializationPrompt(command),
+      skillPath: workflowChoice.profile === "poteto-mode" ? "/skills/poteto-mode/SKILL.md" : "", modeEntry: "observed-controller-mode", settledEntry: "settlement"
     }); },
     assign: async ({ assignment }) => { actor.assignments.push(assignment.goal); return {
       application: "applied-assignment"
@@ -726,6 +729,8 @@ test("missing run ownership evidence keeps a known worker launch visibly unavail
     const view = await f.legion.state();
     assert.equal(view.tasks[0]?.claim.kind, "unavailable");
     assert.equal(view.tasks[0]?.launch.kind, "unavailable");
+    assert.equal(view.tasks[0]?.workflowChoice, null);
+    assert.match(view.tasks[0]?.workflowHold ?? "", /pin.*unavailable/i);
     assert.equal((await f.command(`launch ${f.task.id}@1`, "missing-owner")).kind, "rejected");
     assert.equal(actor.started.length, 1);
     assert.deepEqual(await readFile(join(f.ledgerRoot, "assignments.sqlite")), before);
@@ -741,7 +746,7 @@ test("actual Tribunus below 272000 is held before initialization or assignment w
     inspectWorker: async ({ launch, cwd }) => ({
       address: { launch: launch.id, window, session: "actual-worker", generation: "7c3ace99-1c9d-4e36-a316-d88f6a183c11" }, identityEvidence: "matching-herdr-session",
       resources: { cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 271999 },
-        skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map(name => ({ name, path: `/skills/${name}/SKILL.md` })),
+        skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "implement-spec", "handoff", "code-review"].map(name => ({ name, path: `/skills/${name}/SKILL.md` })),
         diagnostics: [{ name: "Tribunus model", status: "ready", message: "Controlled metadata" }] }
     }),
     initialize: async () => assert.fail("Incompatible principal cannot initialize"),
@@ -772,7 +777,7 @@ test("resumed settings change new intent but never an applied assignment model/t
     await f.legion.command({ launchRequest: "pin-assignment" });
     const before = (await f.legion.state()).tasks[0]?.launch;
     if (before?.kind !== "assigned") assert.fail("Expected applied assignment");
-    assert.deepEqual(before.assignment.modelPin, { model: "controlled/selected", thinking: "high", profile: "implement" });
+    assert.deepEqual(before.assignment.modelPin, { model: "controlled/selected", thinking: "high", profile: "matt" });
     f.setSettings({ context: { warningTokens: 140000, escalationTokens: 160000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
     const id = (await f.legion.state()).snapshot?.id;
     await f.command("off");
@@ -802,7 +807,7 @@ test("new exact override mismatch holds the observed native worker without subst
     if (launch?.kind !== "held") assert.fail("Expected visible override mismatch");
     assert.equal(launch.code, "worker-principal");
     assert.match(launch.message, /expected controlled\/exact-other\/off, observed controlled\/selected\/high/);
-    assert.match(launch.message, /#32/);
+    assert.match(launch.message, /No substitution, relaunch or assignment/);
     if (launch.last.kind !== "verified") assert.fail("Expected retained actual worker observations");
     assert.deepEqual(launch.last.worker.resources.principal, { model: "controlled/selected", thinking: "high", contextWindow: 272000 });
     assert.equal(actor.started.length, 1);
@@ -826,3 +831,172 @@ test("launch persistence preserves model pins in both assignment union arms and 
     assert.equal(historical.state.assignment.modelPin, undefined);
   }
 });
+
+test("unknown workflow holds new dispatch; explicit fresh poteto choice passes the profile gate", async () => {
+  const f = await fixture(undefined, undefined, null);
+  try {
+    await f.ready();
+    const unknown = await f.command(`launch ${f.task.id}@1`, "unknown-workflow");
+    assert.equal(unknown.kind, "rejected");
+    if (unknown.kind !== "rejected") assert.fail("Expected workflow clarification");
+    assert.equal(unknown.code, "workflow-unknown");
+    assert.match(unknown.message, /explicit.*workflow/i);
+    assert.equal((await f.legion.state()).snapshot?.launchRequests.length, 0);
+    assert.match((await f.legion.state()).tasks[0]?.workflowHold ?? "", /explicit.*workflow/i);
+    await f.command("poteto-mode=on Use poteto for future work");
+    assert.equal((await f.command(`launch ${f.task.id}@1`, "explicit-poteto")).kind, "launch-stage");
+    assert.deepEqual((await f.legion.state()).snapshot?.launchRequests[0]?.workflowChoice, { profile: "poteto-mode", requestedWorkflow: "unknown" });
+  } finally { await f.command("off"); }
+});
+
+test("poteto and explicit Matt selections hold conflicting dispatch in either order until Emperor off", async () => {
+  for (const first of ["matt", "poteto"]) {
+    const f = await fixture(undefined, undefined, first === "matt" ? "implement" : null);
+    try {
+      await f.ready();
+      await f.command("poteto-mode=on Poteto instructions remain saved");
+      if (first === "poteto") await f.command("implement-spec=on Follow the approved spec");
+      const refusal = await f.command(`launch ${f.task.id}@1`, "conflict");
+      assert.equal(refusal.kind, "rejected");
+      if (refusal.kind !== "rejected") assert.fail("Expected conflicting controllers to hold");
+      assert.equal(refusal.code, "workflow-conflict");
+      assert.match(refusal.message, /poteto-mode=off.*different workflow/i);
+      const held = await f.legion.state();
+      assert.equal(held.snapshot?.workflowChoice.profile, "poteto-mode");
+      assert.equal(held.snapshot?.launchRequests.length, 0);
+      assert.equal(held.tasks[0]?.launch.kind, "not-launched");
+      assert.match(held.tasks[0]?.workflowHold ?? "", /conflict/i);
+      await f.command("poteto-mode=off");
+      assert.equal((await f.command(`launch ${f.task.id}@1`, "resolved")).kind, "launch-stage");
+      assert.deepEqual((await f.legion.state()).snapshot?.launchRequests[0]?.workflowChoice,
+        { profile: "matt", requestedWorkflow: first === "matt" ? "implement" : "implement-spec" });
+    } finally { await f.command("off"); }
+  }
+});
+
+test("pending launches and applied assignments retain captured workflow across future profile defaults", async () => {
+  const { actor, host } = externalWorker(), f = await fixture(host);
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "captured-matt");
+    await f.command("poteto-mode=on New future instructions");
+    assert.deepEqual((await f.legion.state()).tasks[0]?.workflowChoice, { profile: "matt", requestedWorkflow: "implement" });
+    await f.legion.command({ launchRequest: "captured-matt" });
+    const before = (await f.legion.state()).tasks[0]?.launch;
+    if (before?.kind !== "assigned") assert.fail("Expected captured assignment");
+    assert.deepEqual(before.assignment.modelPin, { model: "controlled/selected", thinking: "high", profile: "matt" });
+    assert.deepEqual(before.assignment.workflowChoice, { profile: "matt", requestedWorkflow: "implement" });
+    await f.command("poteto-mode=off");
+    await f.command("implement-spec=on Future spec workflow");
+    await f.command(`launch ${f.task.id}@1`, "same-assignment");
+    await f.legion.command({ launchRequest: "same-assignment" });
+    const after = (await f.legion.state()).tasks[0]?.launch;
+    if (after?.kind !== "assigned") assert.fail("Expected preserved assignment");
+    assert.deepEqual(after.assignment, before.assignment);
+    assert.equal(actor.started.length, 1);
+    assert.equal(actor.assignments.length, 1);
+  } finally { await f.command("off"); }
+});
+
+test("new poteto and implement-spec assignments pin the explicit controller and actual principal separately", async () => {
+  for (const selected of ["poteto-mode", "implement-spec"]) {
+    const { host } = externalWorker(), f = await fixture(host, undefined, null);
+    try {
+      await f.command(selected === "poteto-mode" ? "poteto-mode=on Bounded poteto task" : "implement-spec=on Approved spec instructions");
+      await f.ready();
+      await f.command(`launch ${f.task.id}@1`, "selected-workflow");
+      await f.legion.command({ launchRequest: "selected-workflow" });
+      const launch = (await f.legion.state()).tasks[0]?.launch;
+      if (launch?.kind !== "assigned") assert.fail("Expected explicit assignment");
+      assert.equal(launch.assignment.workflow, selected);
+      assert.deepEqual(launch.assignment.modelPin, { model: "controlled/selected", thinking: "high", profile: selected === "poteto-mode" ? "poteto-mode" : "matt" });
+      assert.deepEqual(launch.assignment.workflowChoice, selected === "poteto-mode"
+        ? { profile: "poteto-mode", requestedWorkflow: "unknown" }
+        : { profile: "matt", requestedWorkflow: "implement-spec" });
+    } finally { await f.command("off"); }
+  }
+});
+
+test("saved startup selection survives resume and an ambiguous applied launch without retargeting", async () => {
+  const { actor, host } = externalWorker(), f = await fixture(host);
+  const startups: unknown[] = [];
+  const start = host.startPi;
+  host.startPi = async input => { startups.push(Reflect.get(input, "startupSelection")); await start(input); };
+  try {
+    f.setSettings({ context: { warningTokens: 135000, escalationTokens: 150000 }, tribuni_model: { model: "controlled/selected", thinking: "high" } });
+    await f.command("on");
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "frozen-start");
+    const before = await f.legion.state();
+    assert.deepEqual(before.snapshot?.launchRequests[0]?.startupSelection, { kind: "exact", selection: { model: "controlled/selected", thinking: "high" } });
+    const inspect = host.inspectWorker;
+    host.inspectWorker = async () => null;
+    await f.legion.command({ launchRequest: "frozen-start" });
+    f.setSettings({ context: { warningTokens: 135000, escalationTokens: 150000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
+    await f.command("off");
+    await f.command(`resume ${before.snapshot?.id}`);
+    host.inspectWorker = inspect;
+    await f.command(`launch ${f.task.id}@1`, "reconcile-frozen");
+    await f.legion.command({ launchRequest: "reconcile-frozen" });
+    const after = (await f.legion.state()).tasks[0]?.launch;
+    assert.equal(after?.kind, "assigned");
+    assert.deepEqual(startups, [{ kind: "exact", selection: { model: "controlled/selected", thinking: "high" } }]);
+    assert.equal(actor.started.length, 1);
+  } finally { await f.command("off"); }
+});
+
+test("Matt launch accepts only off initialization evidence and passes its captured controller", async () => {
+  const { actor, host } = externalWorker(), f = await fixture(host);
+  const choices: unknown[] = [];
+  host.initialize = async input => {
+    choices.push(Reflect.get(input, "workflowChoice"));
+    return { command: input.command, address: input.worker.address, profile: "matt", nativePrompt: mattInitializationPrompt(input.command), skillPath: "", modeEntry: "observed-off-journal", settledEntry: "idle-journal" };
+  };
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "matt-off");
+    await f.legion.command({ launchRequest: "matt-off" });
+    assert.equal((await f.legion.state()).tasks[0]?.launch.kind, "assigned");
+    assert.deepEqual(choices, [{ profile: "matt", requestedWorkflow: "implement" }]);
+    assert.equal(actor.assignments.length, 1);
+  } finally { await f.command("off"); }
+});
+
+test("captured native-default startup does not acquire a later configured override", async () => {
+  const { host } = externalWorker(), f = await fixture(host);
+  const selections: unknown[] = [], start = host.startPi;
+  host.startPi = async input => { selections.push(input.startupSelection); await start(input); };
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "default-start");
+    const id = (await f.legion.state()).snapshot?.id;
+    f.setSettings({ context: { warningTokens: 135000, escalationTokens: 150000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
+    await f.command("off");
+    await f.command(`resume ${id}`);
+    await f.command(`launch ${f.task.id}@1`, "default-reconcile");
+    await f.legion.command({ launchRequest: "default-reconcile" });
+    assert.equal((await f.legion.state()).tasks[0]?.launch.kind, "assigned");
+    assert.deepEqual(selections, [{ kind: "native-defaults" }]);
+  } finally { await f.command("off"); }
+});
+
+for (const mismatch of ["provider", "thinking"] as const) {
+  test(`exact startup holds ${mismatch} alteration without initialization, fallback or replacement`, async () => {
+    const { actor, host } = externalWorker(), f = await fixture(host);
+    actor.observe = worker => ({ ...worker, resources: { ...worker.resources, principal: {
+      model: mismatch === "provider" ? "foreign/selected" : "controlled/selected", thinking: mismatch === "thinking" ? "off" : "high", contextWindow: 272000,
+    } } });
+    try {
+      f.setSettings({ context: { warningTokens: 135000, escalationTokens: 150000 }, tribuni_model: { model: "controlled/selected", thinking: "high" } });
+      await f.command("on"); await f.ready();
+      await f.command(`launch ${f.task.id}@1`, "altered-start");
+      await f.legion.command({ launchRequest: "altered-start" });
+      const launch = (await f.legion.state()).tasks[0]?.launch;
+      if (launch?.kind !== "held") assert.fail("Expected exact selection hold");
+      assert.equal(launch.code, "worker-principal");
+      assert.deepEqual(actor.initialized, []);
+      assert.deepEqual(actor.assignments, []);
+      assert.equal(actor.started.length, 1);
+    } finally { await f.command("off"); }
+  });
+}
