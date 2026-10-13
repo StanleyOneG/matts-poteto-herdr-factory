@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AssignmentModelPinSchema, ThinkingSchema } from "./legion-settings.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import { createHash } from "node:crypto";
 import { TaskRef, EngineeringResult, EffectMessage, EffectReply } from "./snapshot.js";
@@ -12,7 +13,11 @@ export const WorkerAddress = z.object({
 import { CenturioView } from "./owned-children.js";
 export { CenturioView } from "./owned-children.js";
 export const CenturioObservation = z.strictObject({ address: WorkerAddress, command: z.uuid(), sequence: z.int().positive(), children: z.array(CenturioView) });
+export const PrincipalObservation = z.object({
+  model: z.string().nullable(), thinking: ThinkingSchema.nullable(), contextWindow: z.number().nullable(),
+});
 export const ResourceEvidence = z.object({
+  principal: PrincipalObservation.optional(),
   contract: ContractEvidence.optional(), children: z.array(CenturioView).optional(),
   cwd: z.string(), skills: z.array(z.object({
     name: z.string(), path: z.string()
@@ -29,12 +34,14 @@ export const Initialization = z.object({
   modeEntry: z.string(), settledEntry: z.string(),
 });
 export const BoundedAssignment = z.object({
+  modelPin: AssignmentModelPinSchema.optional(),
   task: TaskRef, scope: z.string(), goal: z.string(), acceptance: z.array(z.string()),
   workflow: z.literal("implement"),
   authority: z.literal("bounded-implementation-only"),
 });
 // Retain historical assignment bytes without making methodology effect authority.
 export const LegacyBoundedAssignment = z.object({
+  modelPin: AssignmentModelPinSchema.optional(),
   task: TaskRef, scope: z.string(), goal: z.string(), acceptance: z.array(z.string()), workflow: z.literal("implement"),
   testContract: z.literal("Matt TDD at Legatus-approved public seams; request an explicit exception if impractical"),
   authority: z.literal("bounded-implementation-only"),

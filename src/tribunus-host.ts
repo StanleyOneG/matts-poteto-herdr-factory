@@ -356,10 +356,13 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   }
   const receipt = (id: string, suffix: string) => join(generationRoot, `${id}.${suffix}.json`);
   async function resources(ctx: ExtensionContext) {
+    const thinking = ctx.thinkingLevel ?? pi.getThinkingLevel();
     return {
       cwd: realpathSync(ctx.cwd), skills: pi.getCommands().filter((c) => c.source === "skill").map((c) => ({
         name: c.name.replace(/^skill:/, ""), path: c.sourceInfo.path
-      })), diagnostics: await preflight(pi)
+      })),
+      principal: { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null, thinking: thinking ?? null, contextWindow: ctx.model && Number.isFinite(ctx.model.contextWindow) ? ctx.model.contextWindow : null },
+      diagnostics: await preflight(pi, { principal: "Tribunus", context: ctx, thinking })
     };
   }
   const incarnation = (ctx: ExtensionContext) => !!address && ctx.mode === "tui" && ctx.sessionManager.getSessionId() === address.session && !manual;
@@ -456,13 +459,15 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           accepted = frame.command;
           const observed = await resources(context);
           if (observed.diagnostics.some((d) => d.status !== "ready") || !incarnation(context) || frame.authority.generation !== controller.generation || frame.authority.session !== controller.session || frame.authority.epoch !== controller.epoch)
-            throw new Error("Actual target resources or incarnation are unavailable. Assignment withheld.");
+            throw new Error(`Actual target resources or incarnation are unavailable. Assignment withheld. ${observed.diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" ")}`);
           const currentMode = context.sessionManager.getBranch().filter((e) => e.type === "custom" && e.customType === "pstack-mode").at(-1);
           const modeEnabled = currentMode?.type === "custom" && z.object({
             enabled: z.literal(true)
           }).safeParse(currentMode.data).success;
           if (frame.kind === "assign" && (!initialized || !modeEnabled || !existsSync(receipt(initialized.command, "applied")) || !frame.assignment || frame.assignment.scope !== descriptor.launch.scope))
             throw new Error("Worker has no same-generation applied initialization or matching bounded assignment.");
+          if (frame.kind === "assign" && frame.assignment?.modelPin && (frame.assignment.modelPin.model !== observed.principal.model || frame.assignment.modelPin.thinking !== observed.principal.thinking))
+            throw new Error(`Actual Tribunus selection changed before assignment: pinned ${frame.assignment.modelPin.model}/${frame.assignment.modelPin.thinking}, observed ${observed.principal.model}/${observed.principal.thinking}. Preserve worker and pin; no fallback.`);
           if (frame.kind === "assign") publish(receipt(frame.command, "assignment"), { assignment: frame.assignment });
           publish(receipt(frame.command, "intent"), {
             fingerprint, command: frame.command, address, authority: frame.authority

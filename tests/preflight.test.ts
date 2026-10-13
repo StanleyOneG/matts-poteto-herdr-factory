@@ -31,3 +31,33 @@ for (const [readinessCase, diagnostic] of [
     assert.equal(result.prompts.length, 0, "Unknown or unsupported loaded composition cannot wake the model");
   });
 }
+
+
+test("actual Legatus below 272000 preserves inactive task input without a model wake", async () => {
+  const result = await exerciseRace("readiness", { readinessCase: "small-legatus" });
+  assert.match(result.doctor, /Legatus.*271999.*272000/);
+  assert.equal(result.view.mode, "inactive");
+  assert.equal(result.view.snapshot?.submissions[0]?.text, "Fix the Ready label");
+  assert.equal(result.prompts.length, 0);
+});
+
+
+for (const [readinessCase, message] of [
+  ["missing-model", /selection is unknown/],
+  ["missing-auth", /no configured authentication/],
+  ["missing-provider", /no registered native Pi provider/],
+  ["unsupported-thinking", /thinking high is unsupported/],
+  ["unknown-window", /at least 272000/],
+  ["actual-unsupported-registered-supported", /actual selected.*thinking high.*unsupported/],
+  ["actual-small-registered-large", /actual selected.*271999.*272000/],
+  ["exact-override-missing", /controlled\/not-selected.*not registered/],
+  ["invalid-settings", /legion.json.*invalid JSON/],
+] satisfies [string, RegExp][]) {
+  test(`activation diagnoses ${readinessCase} without fallback, credential acquisition or model wake`, async () => {
+    const result = await exerciseRace("readiness", { readinessCase });
+    assert.equal(result.view.mode, "inactive");
+    assert.equal(result.view.snapshot?.submissions[0]?.text, "Fix the Ready label");
+    assert.equal(result.prompts.length, 0);
+    assert.match(result.view.diagnostics.map(d => d.message).join(" "), message);
+  });
+}

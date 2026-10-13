@@ -3,7 +3,10 @@ import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import { dirname, join, isAbsolute } from "node:path";
 import { z } from "zod";
-import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { VERSION, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getSupportedThinkingLevels, type ModelThinkingLevel } from "@earendil-works/pi-ai";
+import type { LegionSettings } from "./legion-settings.js";
+import { checkPrincipalCompatibility } from "./principal-compatibility.js";
 import type { Diagnostic } from "./intake.js";
 const exec = promisify(execFile);
 const Package = z.object({ name: z.string(), version: z.string() });
@@ -21,8 +24,37 @@ async function packageAt(path: string, name: string): Promise<string | null> {
     dir = parent;
   }
 }
-export async function preflight(pi: ExtensionAPI): Promise<Diagnostic[]> {
-  const diagnostics: Diagnostic[] = [];
+type PrincipalInput = {
+  principal: "Legatus" | "Tribunus";
+  context: Pick<ExtensionContext, "model" | "modelRegistry">;
+  thinking: ModelThinkingLevel | undefined;
+  settings?: LegionSettings;
+};
+export function principalDiagnostics(input: PrincipalInput): Diagnostic[] {
+  const { model, modelRegistry } = input.context;
+  const selection = model && input.thinking !== undefined ? { model: `${model.provider}/${model.id}`, thinking: input.thinking } : undefined;
+  const check = (principal: PrincipalInput["principal"], selected: typeof selection): Diagnostic => {
+    try {
+      const result = checkPrincipalCompatibility({ principal, selection: selected, registry: modelRegistry });
+      return { name: `${principal} model`, status: result.kind === "compatible" ? "ready" : "incompatible", message: result.kind === "compatible"
+        ? `${selected?.model}, thinking ${selected?.thinking}, window ${result.model.contextWindow}. Native registry/auth/availability metadata only; not provider-request proof.`
+        : result.issues.map(issue => issue.message).join(" ") };
+    } catch (error) {
+      return { name: `${principal} model`, status: "unverified", message: `Native principal metadata lookup failed. Preserve the selection and verify Pi configuration before retrying. ${String(error)}` };
+    }
+  };
+  const diagnostics = [check(input.principal, selection)];
+  if (model && (!Number.isFinite(model.contextWindow) || model.contextWindow < 272000)) {
+    diagnostics.push({ name: `${input.principal} actual window`, status: "incompatible", message: `${input.principal} actual selected ${model.provider}/${model.id} window ${model.contextWindow}; at least 272000 tokens are required. Ask the Emperor to select a compatible principal; no substitution.` });
+  }
+  if (model && input.thinking !== undefined && !getSupportedThinkingLevels(model).includes(input.thinking)) {
+    diagnostics.push({ name: `${input.principal} actual thinking`, status: "incompatible", message: `${input.principal} actual selected ${model.provider}/${model.id} thinking ${input.thinking} is unsupported. Verify native principal metadata and ask the Emperor to correct thinking; no clamping or substitution.` });
+  }
+  if (input.settings?.tribuni_model) diagnostics.push(check("Tribunus", input.settings.tribuni_model));
+  return diagnostics;
+}
+export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput): Promise<Diagnostic[]> {
+  const diagnostics: Diagnostic[] = principal ? principalDiagnostics(principal) : [];
   const add = (name: string, status: Diagnostic["status"], message: string) =>
     diagnostics.push({ name, status, message });
   const contracts = [

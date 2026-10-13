@@ -37,7 +37,11 @@ test("a hot journal blocks only matching discovery and preserves unrelated conte
     const before = await bytes(root);
     for (const [i, opt] of healthyOptions.entries()) {
       const reopened = new Legion(opt);
-      assert.deepEqual(await reopened.state(), healthy[i]);
+      const restarted = await reopened.state();
+      assert.equal(restarted.mode, "inactive");
+      assert.equal(restarted.settings, null, "Restart must not resolve runtime settings before explicit activation/resume");
+      assert.equal(restarted.tribuniModel, null, "Restart must not invent new-assignment defaults");
+      assert.deepEqual(restarted, { ...healthy[i], settings: null, tribuniModel: null });
     }
     assert.deepEqual(await bytes(root), before, "All read-only discovery bytes remain unchanged");
     for (const opt of [{ ...options, context: "/fresh/repo", session: "fresh-context" }, { ...options, session: "fresh-session" }]) {

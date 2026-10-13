@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Legion } from "../src/intake.js";
 import type { WorkspaceRepository } from "../src/git-workspace.js";
-import { LaunchId, type TribunusHost } from "../src/tribunus.js";
+import { LaunchId, LaunchRecord, type TribunusHost } from "../src/tribunus.js";
 async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/intake.js").LegionOptions["assignments"]>["fault"]) {
   const root = await mkdtemp(join(tmpdir(), "legion-launch-"));
   const commonDir = join(root, "repo.git");
@@ -34,7 +34,9 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
       };
     },
   };
+  let settings: import("../src/legion-settings.js").LegionSettings = { context: { warningTokens: 135000, escalationTokens: 150000 } };
   const options = {
+    loadSettings: async () => settings,
     storagePath: join(root, "state"), context: checkout, session: "controller",
     preflight: async () => [],
     assignments: {
@@ -83,7 +85,7 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
   };
   assert.ok(initial.snapshot);
   return {
-    legion, command, task, ready, git, options, root,
+    legion, command, task, ready, git, options, root, setSettings: (next: typeof settings) => { settings = next; },
     ledgerRoot: join(commonDir, "legion", "runs", initial.snapshot.id)
   };
 }
@@ -164,10 +166,10 @@ test("exact native initialization precedes one bounded assignment even when the 
     }; throw new Error("Applied start; receipt lost"); },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "matching-herdr-session", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
-            name: "Pi", status: "ready", message: "Loaded target resources"
+            name: "Tribunus model", status: "ready", message: "Native target metadata"
           }]
       }
     }),
@@ -284,10 +286,10 @@ test("a received-only initialization receipt cannot become applied initializatio
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session-reference", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
-            name: "Pi", status: "ready", message: "Target Pi"
+            name: "Tribunus model", status: "ready", message: "Target native model metadata"
           }]
       }
     }),
@@ -333,10 +335,10 @@ test("the bounded same-generation worker report becomes observable without autho
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session-reference", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
-            name: "Pi", status: "ready", message: "Target Pi"
+            name: "Tribunus model", status: "ready", message: "Target native model metadata"
           }]
       }
     }),
@@ -423,10 +425,10 @@ test("explicit resume resolves the same retained initialization command without 
     }; },
     inspectWorker: async ({ cwd }) => ({
       address, identityEvidence: "exact-session", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
-            name: "Pi", status: "ready", message: "Target Pi"
+            name: "Tribunus model", status: "ready", message: "Target native model metadata"
           }]
       }
     }),
@@ -492,10 +494,10 @@ function externalWorker() {
     }; },
     inspectWorker: async ({ cwd }) => actor.observe({
       address, identityEvidence: "exact-session", resources: {
-        cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
+        cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map((name) => ({
           name, path: `/skills/${name}/SKILL.md`
         })), diagnostics: [{
-            name: "Pi", status: "ready", message: "Target Pi"
+            name: "Tribunus model", status: "ready", message: "Target native model metadata"
           }]
       }
     }),
@@ -728,4 +730,99 @@ test("missing run ownership evidence keeps a known worker launch visibly unavail
     assert.equal(actor.started.length, 1);
     assert.deepEqual(await readFile(join(f.ledgerRoot, "assignments.sqlite")), before);
   } finally { await f.command("off"); }
+});
+
+test("actual Tribunus below 272000 is held before initialization or assignment without replacement", async () => {
+  const window = { endpoint: "/test/local.sock", server: "local-instance", workspace: "w-test", tab: "t-test", pane: "p-test", terminal: "term-test" };
+  let starts = 0;
+  const host: TribunusHost = {
+    createWindow: async () => window,
+    startPi: async () => { starts++; },
+    inspectWorker: async ({ launch, cwd }) => ({
+      address: { launch: launch.id, window, session: "actual-worker", generation: "7c3ace99-1c9d-4e36-a316-d88f6a183c11" }, identityEvidence: "matching-herdr-session",
+      resources: { cwd, principal: { model: "controlled/selected", thinking: "high", contextWindow: 271999 },
+        skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map(name => ({ name, path: `/skills/${name}/SKILL.md` })),
+        diagnostics: [{ name: "Tribunus model", status: "ready", message: "Controlled metadata" }] }
+    }),
+    initialize: async () => assert.fail("Incompatible principal cannot initialize"),
+    assign: async () => assert.fail("Incompatible principal cannot receive assignment"),
+  };
+  const f = await fixture(host);
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "small-worker");
+    const result = await f.legion.command({ launchRequest: "small-worker" });
+    assert.equal(result.kind, "launched");
+    const launch = (await f.legion.state()).tasks[0]?.launch;
+    assert.equal(launch?.kind, "held");
+    if (launch?.kind !== "held") assert.fail("Expected retained incompatible worker");
+    assert.equal(launch.code, "worker-principal");
+    assert.match(launch.message, /271999.*272000/);
+    assert.equal(starts, 1);
+    assert.equal((await f.legion.state()).tasks[0]?.claim.kind, "owned");
+  } finally { await f.command("off"); }
+});
+
+
+test("resumed settings change new intent but never an applied assignment model/thinking/profile pin", async () => {
+  const { actor, host } = externalWorker(), f = await fixture(host);
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "pin-assignment");
+    await f.legion.command({ launchRequest: "pin-assignment" });
+    const before = (await f.legion.state()).tasks[0]?.launch;
+    if (before?.kind !== "assigned") assert.fail("Expected applied assignment");
+    assert.deepEqual(before.assignment.modelPin, { model: "controlled/selected", thinking: "high", profile: "implement" });
+    f.setSettings({ context: { warningTokens: 140000, escalationTokens: 160000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
+    const id = (await f.legion.state()).snapshot?.id;
+    await f.command("off");
+    await f.command(`resume ${id}`);
+    const view = await f.legion.state();
+    assert.deepEqual(view.tribuniModel, { kind: "new-exact-override", selection: { model: "controlled/future", thinking: "off" } });
+    assert.deepEqual(view.tasks[0]?.tribunusModel, { kind: "existing-pinned", pin: before.assignment.modelPin });
+    const after = view.tasks[0]?.launch;
+    if (after?.kind !== "assigned") assert.fail("Expected preserved assignment");
+    assert.deepEqual(after.assignment, before.assignment);
+    await f.command(`launch ${f.task.id}@1`, "after-resume");
+    await f.legion.command({ launchRequest: "after-resume" });
+    assert.equal(actor.started.length, 1);
+    assert.equal(actor.assignments.length, 1);
+  } finally { await f.command("off"); }
+});
+
+test("new exact override mismatch holds the observed native worker without substitution or assignment", async () => {
+  const { actor, host } = externalWorker(), f = await fixture(host);
+  try {
+    f.setSettings({ context: { warningTokens: 135000, escalationTokens: 150000 }, tribuni_model: { model: "controlled/exact-other", thinking: "off" } });
+    await f.command("on");
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "override-mismatch");
+    await f.legion.command({ launchRequest: "override-mismatch" });
+    const launch = (await f.legion.state()).tasks[0]?.launch;
+    if (launch?.kind !== "held") assert.fail("Expected visible override mismatch");
+    assert.equal(launch.code, "worker-principal");
+    assert.match(launch.message, /expected controlled\/exact-other\/off, observed controlled\/selected\/high/);
+    assert.match(launch.message, /#32/);
+    if (launch.last.kind !== "verified") assert.fail("Expected retained actual worker observations");
+    assert.deepEqual(launch.last.worker.resources.principal, { model: "controlled/selected", thinking: "high", contextWindow: 272000 });
+    assert.equal(actor.started.length, 1);
+    assert.equal(actor.initialized.length, 0);
+    assert.equal(actor.assignments.length, 0);
+  } finally { await f.command("off"); }
+});
+
+test("launch persistence preserves model pins in both assignment union arms and leaves missing historical pins unknown", () => {
+  const window = { endpoint: "/fixture", server: "fixture", workspace: "fixture", tab: "fixture", pane: "fixture", terminal: "fixture" };
+  const id = "7c3ace99-1c9d-4e36-a316-d88f6a183c11", address = { launch: id, window, session: "fixture", generation: id };
+  const assignment = { task: { id, revision: 1 }, scope: "fixture", goal: "fixture", acceptance: [], workflow: "implement", authority: "bounded-implementation-only", modelPin: { model: "fixture/original", thinking: "high", profile: "original-declared-profile" } };
+  const record = { id, reservation: id, revision: 1, scope: "fixture", state: { kind: "assigned", worker: { address, identityEvidence: "fixture", resources: { cwd: "/fixture", skills: [], diagnostics: [] } }, initialization: { command: id, address, nativePrompt: "fixture", skillPath: "/fixture", modeEntry: "fixture", settledEntry: "fixture" }, command: id, assignment, application: "fixture" } };
+  for (const legacy of [false, true]) {
+    const saved = LaunchRecord.parse({ ...record, state: { ...record.state, assignment: { ...assignment, ...(legacy ? { testContract: "Matt TDD at Legatus-approved public seams; request an explicit exception if impractical" } : {}) } } });
+    if (saved.state.kind !== "assigned") assert.fail("Expected assigned record");
+    assert.deepEqual(saved.state.assignment.modelPin, { model: "fixture/original", thinking: "high", profile: "original-declared-profile" });
+    const { modelPin, ...unPinned } = assignment;
+    const historical = LaunchRecord.parse({ ...record, state: { ...record.state, assignment: { ...unPinned, ...(legacy ? { testContract: "Matt TDD at Legatus-approved public seams; request an explicit exception if impractical" } : {}) } } });
+    if (historical.state.kind !== "assigned") assert.fail("Expected historical record");
+    assert.equal(historical.state.assignment.modelPin, undefined);
+  }
 });

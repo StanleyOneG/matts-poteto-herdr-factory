@@ -36,14 +36,15 @@ function runtime(cwd, session, journal) {
   let idle = true, pending = false, rootCall = null, onIdle = null, onAuth = null, authenticated = true, sendFailure = false;
   const consumed = new Set();
   const append = entry => { const result = { id: randomUUID(), ...entry }; entries.push(result); fs.appendFileSync(journal, JSON.stringify(result) + "\n"); return result; };
+  const model = { provider: "controlled", id: "selected", api: "controlled-chat", name: "Controlled principal", reasoning: true, thinkingLevelMap: { minimal: null, low: null, medium: null }, input: ["text"], contextWindow: 272000, maxTokens: 1000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
   const ctx = {
     mode: "tui", cwd, isProjectTrusted: () => true,
     isIdle: () => { const hook = onIdle; onIdle = null; hook?.(); return idle; },
     hasPendingMessages: () => pending,
     sessionManager: { getSessionId: () => session, getSessionFile: () => journal, getBranch: () => { const hook = onBranch; onBranch = null; hook?.(); return entries; }, getLeafId: () => entries.at(-1)?.id },
     ui: { notify: message => notices.push(message), setStatus: () => {} },
-    model: { provider: "controlled", id: "selected", input: ["text"] },
-    modelRegistry: { getAvailable: () => [{ provider: "controlled", id: "selected" }], getApiKeyAndHeaders: async () => { const hook = onAuth; onAuth = null; await hook?.(); return authenticated ? { ok: true, apiKey: "controlled" } : { ok: false }; }, hasConfiguredAuth: () => authenticated },
+    model, thinkingLevel: "high",
+    modelRegistry: { find: (provider, id) => provider === model.provider && id === model.id ? model : undefined, getProvider: () => ({}), getError: () => undefined, getAvailable: () => [model], getApiKeyAndHeaders: async () => { throw new Error("Legion must not resolve or refresh credentials"); }, hasConfiguredAuth: () => { const hook = onAuth; onAuth = null; hook?.(); return authenticated; } },
     executeTool: async (name, input) => { const id = `${rootCall}/nested/${randomUUID()}`; const result = await call(name, input, id, rootCall); return { ...(result.result ? result : { result }), toolCall: { id, name, arguments: input }, isError: result.isError ?? false }; }
   };
   const events = new EventEmitter();
@@ -52,7 +53,7 @@ function runtime(cwd, session, journal) {
     on: (name, handler) => handlers.set(name, [...(handlers.get(name) ?? []), handler]),
     registerTool: tool => tools.set(tool.name, tool), registerCommand: (name, command) => registeredCommands.set(name, command),
     getCommands: () => discovered,
-    getSettings: () => ({}),
+    getSettings: () => ({}), getThinkingLevel: () => ctx.thinkingLevel,
     getAllTools: () => [...["read", "grep", "find", "ls", "bash", "write", "edit"].map(name => ({ name, sourceInfo: { path: tools.has(name) ? "controlled-legion-extension" : `builtin:${name}` } })), ...["subagent", "subagents_enable"].map(name => ({ name, exposure: "model-only", sourceInfo: { path: subagentsEntry } }))],
     sendMessage: message => append({ type: "custom_message", ...message }),
     appendEntry: (customType, data) => append({ type: "custom", customType, data }),
@@ -221,6 +222,32 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
   });
   if (kind === "readiness") {
     const scenario = census?.readinessCase;
+    if (scenario === "small-legatus") controller.ctx.model.contextWindow = 271999;
+    if (scenario === "missing-model") controller.ctx.model = undefined;
+    if (scenario === "missing-auth") controller.setAuth(false);
+    if (scenario === "missing-provider") controller.ctx.modelRegistry.getProvider = () => undefined;
+    if (scenario === "unsupported-thinking") controller.ctx.model.thinkingLevelMap.high = null;
+    if (scenario === "unknown-window") controller.ctx.model.contextWindow = undefined;
+    if (scenario === "actual-unsupported-registered-supported") {
+      const registered = { ...controller.ctx.model, thinkingLevelMap: { ...controller.ctx.model.thinkingLevelMap } };
+      controller.ctx.modelRegistry.find = () => registered;
+      controller.ctx.modelRegistry.getAvailable = () => [registered];
+      controller.ctx.model.thinkingLevelMap.high = null;
+    }
+    if (scenario === "actual-small-registered-large") {
+      const registered = { ...controller.ctx.model };
+      controller.ctx.modelRegistry.find = () => registered;
+      controller.ctx.modelRegistry.getAvailable = () => [registered];
+      controller.ctx.model.contextWindow = 271999;
+    }
+    if (scenario === "exact-override-missing") {
+      await mkdir(join(repo, ".pi"));
+      await writeFile(join(repo, ".pi", "legion.json"), JSON.stringify({ tribuni_model: { model: "controlled/not-selected", thinking: "high" } }));
+    }
+    if (scenario === "invalid-settings") {
+      await mkdir(join(repo, ".pi"));
+      await writeFile(join(repo, ".pi", "legion.json"), "{bad-json");
+    }
     if (scenario === "missing-pi-contract") controller.pi.sendUserMessage = undefined;
     if (["unknown-subagents", "unsupported-subagents", "missing-subagents", "hidden-subagents"].includes(scenario)) {
       const discoveredTools = controller.pi.getAllTools();
@@ -249,7 +276,7 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
     await controller.command("status");
     const text = controller.notices.slice(before).find(value => value.includes("\nState\n"));
     assert.ok(text, "Fixture setup must expose public status");
-    return JSON.parse(text.split("\nState\n")[1]);
+    return JSON.parse(text.split("\nState\n")[1].split("\n")[0]);
   }
   async function interpretPending() {
           const pending = (await state()).snapshot.submissions.filter(source => source.state.kind === "pending");
@@ -272,6 +299,9 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       await controller.command("task Fix the Ready label");
       await drain();
       const admitted = await state(), savedHistory = history();
+      const selectedAfter = { model: controller.ctx.model?.id, thinking: controller.ctx.thinkingLevel };
+      assert.equal(selectedAfter.thinking, "high", "Legion must not change thinking");
+      assert.equal(selectedAfter.model, census?.readinessCase === "missing-model" ? undefined : "selected", "Legion must not change the selected model");
       await controller.command("doctor");
       assert.deepEqual(history(), savedHistory, "Doctor must preserve saved history bytes");
       assert.deepEqual(await state(), admitted, "Doctor must not activate, repair or mutate saved state");
@@ -607,7 +637,7 @@ export async function exerciseOrdinaryLegatusResearch(legacyHold = false) {
   const state = async () => {
     await principal.command("status");
     const notice = principal.notices.at(-1);
-    return notice === "Legion is inactive." ? { mode: "inactive", snapshot: null } : JSON.parse(notice.split("State\n")[1]);
+    return notice === "Legion is inactive." ? { mode: "inactive", snapshot: null } : JSON.parse(notice.split("State\n")[1].split("\n")[0]);
   };
   try {
     if (legacyHold) {

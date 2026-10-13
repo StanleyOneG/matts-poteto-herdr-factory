@@ -30,8 +30,8 @@ async function assignmentFixture() {
     createWindow: async () => window,
     startPi: async ({ launch }) => { address = { launch: launch.id, window, session: "worker", generation: randomUUID() }; },
     inspectWorker: async ({ cwd }) => ({ address, identityEvidence: "worker-session", resources: {
-      cwd, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map(name => ({ name, path: `/fixture/${name}/SKILL.md` })),
-      diagnostics: [{ name: "Pi", status: "ready", message: "Fixture target Pi" }],
+      cwd, principal: { model: "fixture/selected", thinking: "high", contextWindow: 272000 }, skills: ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].map(name => ({ name, path: `/fixture/${name}/SKILL.md` })),
+      diagnostics: [{ name: "Tribunus model", status: "ready", message: "Fixture native principal metadata" }],
     } }),
     initialize: async ({ worker, command }) => ({ command, address: worker.address,
       nativePrompt: '<skill name="poteto-mode" location="/fixture/poteto-mode/SKILL.md">fixture initialization</skill>', skillPath: "/fixture/poteto-mode/SKILL.md", modeEntry: "mode", settledEntry: "settled" }),

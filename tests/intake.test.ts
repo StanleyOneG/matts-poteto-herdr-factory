@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Legion } from "../src/intake.js";
@@ -504,12 +504,15 @@ test("off revokes delayed activation and explicit resume preserves identity with
     evidence: { ...evidence, session: "session-b" },
   });
   let resolve: (value: []) => void = () => {};
+  let entered = () => {};
+  const started = new Promise<void>(r => { entered = r; });
   const delayed = new Legion({
     ...options,
     session: "session-c",
     preflight: () =>
       new Promise<[]>((r) => {
         resolve = r;
+        entered();
       }),
   });
   const pending = delayed.command({
@@ -517,7 +520,7 @@ test("off revokes delayed activation and explicit resume preserves identity with
     requestKey: "delayed",
     evidence: { ...evidence, session: "session-c" },
   });
-  await new Promise((r) => setImmediate(r));
+  await started;
   await delayed.command({
     text: "off",
     requestKey: "cancel",
@@ -1033,4 +1036,78 @@ test("product clarification without affected tasks rejects without consuming ori
   assert.equal((await legion.state()).snapshot?.submissions[0]?.state.kind, "pending");
   assert.equal((await legion.state()).snapshot?.submissions[0]?.revision, 2);
   await command("off");
+});
+
+test("explicit activation caches settings; task/status/doctor do not reload and resume rereads", async () => {
+  const f = await fixture();
+  let reads = 0;
+  let warningTokens = 135000;
+  const legion = new Legion({ ...f.options, loadSettings: async () => {
+    reads++;
+    return { context: { warningTokens, escalationTokens: 160000 } };
+  } });
+  let seq = 0;
+  const command = (text: string) => legion.command({ text, requestKey: `settings-${++seq}`, evidence });
+  assert.equal((await legion.state()).mode, "inactive");
+  assert.equal(reads, 0);
+  await command("task Preserve this input");
+  assert.equal(reads, 1);
+  assert.deepEqual((await legion.state()).settings?.context, { warningTokens: 135000, escalationTokens: 160000 });
+  warningTokens = 140000;
+  await command("task Another input");
+  await command("status");
+  await command("doctor");
+  assert.equal(reads, 1);
+  assert.equal((await legion.state()).settings?.context.warningTokens, 135000);
+  const id = (await legion.state()).snapshot?.id;
+  await command("off");
+  await command(`resume ${id}`);
+  assert.equal(reads, 2);
+  assert.equal((await legion.state()).settings?.context.warningTokens, 140000);
+  await command("off");
+});
+
+test("invalid activation settings preserve exact task input inactive and retain actionable status diagnostics", async () => {
+  const f = await fixture();
+  let fail = true;
+  const legion = new Legion({ ...f.options, loadSettings: async () => {
+    if (fail) throw new Error("/checkout/.pi/legion.json context.warningTokens: use a positive safe integer");
+    return { context: { warningTokens: 135000, escalationTokens: 150000 } };
+  } });
+  let seq = 0;
+  const command = (text: string) => legion.command({ text, requestKey: `invalid-settings-${++seq}`, evidence });
+  const saved = await command("task  Preserve exact\nfailed input  ");
+  assert.equal(saved.kind, "saved");
+  const failed = await legion.state();
+  assert.equal(failed.mode, "inactive");
+  assert.equal(failed.settings, null);
+  assert.equal(failed.snapshot?.submissions[0]?.text, " Preserve exact\nfailed input  ");
+  assert.match(failed.diagnostics[0]?.message ?? "", /\.pi\/legion.json.*context.warningTokens/);
+  fail = false;
+  await command(`resume ${failed.snapshot?.id}`);
+  assert.equal((await legion.state()).mode, "active");
+  assert.equal((await legion.state()).snapshot?.submissions.length, 1);
+  await command("off");
+});
+
+
+test("activation reads the owning working checkout from nested cwd, never common Git or primary settings", async t => {
+  const root = await mkdtemp(join(tmpdir(), "legion-settings-checkout-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const primary = join(root, "primary"), working = join(root, "working"), nested = join(working, "nested");
+  const gitdir = join(primary, ".git", "worktrees", "working");
+  await mkdir(gitdir, { recursive: true });
+  await mkdir(join(primary, ".pi"), { recursive: true });
+  await writeFile(join(primary, ".pi", "legion.json"), "INVALID PRIMARY SETTINGS MUST NOT BE READ");
+  await mkdir(join(working, ".pi"), { recursive: true });
+  await mkdir(nested);
+  await writeFile(join(working, ".git"), `gitdir: ${gitdir}\n`);
+  await writeFile(join(working, ".pi", "legion.json"), JSON.stringify({ context: { warningTokens: 141000, escalationTokens: 151000 } }));
+  const legion = new Legion({ storagePath: join(root, "state"), context: nested, session: "session-a", preflight: async () => [] });
+  try {
+    assert.equal((await legion.command({ text: "on", requestKey: "checkout-settings", evidence })).kind, "applied");
+    const view = await legion.state();
+    assert.deepEqual(view.settings?.context, { warningTokens: 141000, escalationTokens: 151000 });
+    assert.equal(view.snapshot?.context, nested, "Settings identity must not rewrite persisted context");
+  } finally { await legion.command({ text: "off", requestKey: "checkout-off", evidence }); }
 });

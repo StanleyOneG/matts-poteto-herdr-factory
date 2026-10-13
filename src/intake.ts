@@ -1,4 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
+import { checkoutIdentity } from "./checkout-identity.js";
+import { loadLegionSettings, selectTribunusModel, type LegionSettings, type TribunusModelIntent } from "./legion-settings.js";
 import { readFileSync, realpathSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
@@ -133,8 +135,11 @@ export type LegionView = {
       eligibility: "admitted" | "inactive" | "blocked";
       claim: ClaimView;
       launch: LaunchView;
+      tribunusModel: TribunusModelIntent | null;
     }
   >;
+  settings: LegionSettings | null;
+  tribuniModel: TribunusModelIntent | null;
   diagnostics: Diagnostic[];
   unavailable: string | null;
   ownerObservations?: ClaimView[];
@@ -246,7 +251,8 @@ export type LegionOptions = {
   storagePath: string;
   context: string;
   session: string;
-  preflight: () => Promise<Diagnostic[]>;
+  preflight: (settings?: LegionSettings) => Promise<Diagnostic[]>;
+  loadSettings?: () => Promise<LegionSettings>;
   storageFault?: (point: StorageFaultPoint) => void;
   tribuni?: { host: () => TribunusHost | null; onUnavailable?: (message: string) => void };
   assignments?: {
@@ -274,6 +280,18 @@ function release(lock: DatabaseSync) {
 }
 export class Legion {
   private store: SnapshotStore;
+  private settings: LegionSettings | null = null;
+  private activationDiagnostics: Diagnostic[] = [];
+  private settingsView() {
+    return { settings: this.settings, tribuniModel: this.settings ? selectTribunusModel({ kind: "new", settings: this.settings }) : null };
+  }
+  private assignmentModelIntent(launch: LaunchView | undefined): TribunusModelIntent | null {
+    const progress = launch?.kind === "held" ? launch.last : launch;
+    if (progress && "assignment" in progress)
+      return selectTribunusModel({ kind: "existing", ...(progress.assignment.modelPin ? { pin: progress.assignment.modelPin } : {}) });
+    if (progress?.kind === "unavailable") return { kind: "existing-unknown" };
+    return this.settingsView().tribuniModel;
+  }
   private selected: string | null = null;
   private binding: Binding | null = null;
   private tail: Promise<unknown> = Promise.resolve();
@@ -1073,6 +1091,19 @@ export class Legion {
         await save(dispatch, startEvidence);
         await this.authorized(request, epoch);
       }
+      const principalFailure = (resources: z.infer<typeof VerifiedWorker>["resources"]): string | null => {
+        const principal = resources.principal;
+        if (!principal?.model || principal.thinking === null || principal.contextWindow === null)
+          return "Actual Tribunus model/thinking/window is unknown. Observe native principal metadata before managed assignment; no inferred defaults.";
+        if (principal.contextWindow < 272000)
+          return `Actual Tribunus ${principal.model} window ${principal.contextWindow}; at least 272000 tokens are required. Preserve the selected principal; no replacement.`;
+        const diagnostic = resources.diagnostics.find(d => d.name === "Tribunus model");
+        if (diagnostic?.status !== "ready") return diagnostic?.message ?? "Actual Tribunus native model/support/auth/thinking compatibility evidence is missing. Assignment withheld.";
+        const intent = this.settings ? selectTribunusModel({ kind: "new", settings: this.settings }) : null;
+        if (intent?.kind === "new-exact-override" && (principal.model !== intent.selection.model || principal.thinking !== intent.selection.thinking))
+          return `Tribunus expected ${intent.selection.model}/${intent.selection.thinking}, observed ${principal.model}/${principal.thinking}. Startup override wiring belongs to #32; no substitution, relaunch or assignment.`;
+        return null;
+      };
       if (launch.state.kind === "pi-dispatched") {
         const worker = await host.inspectWorker({ launch, window: launch.state.window, cwd: reservation.plan.path });
         await this.authorized(request, epoch);
@@ -1080,11 +1111,15 @@ export class Legion {
         const verified = VerifiedWorker.parse(worker);
         if (verified.address.launch !== launch.id || JSON.stringify(verified.address.window) !== JSON.stringify(launch.state.window))
           return hold("worker-identity", "Worker incarnation or local Herdr identity does not match the owned launch. Assignment withheld.");
+        await save({ kind: "verified", worker: verified });
+        const incompatibility = principalFailure(verified.resources);
+        if (incompatibility) return hold("worker-principal", incompatibility);
         if (verified.resources.cwd !== reservation.plan.path || verified.resources.diagnostics.some((d) => d.status !== "ready") || ["herdr", "poteto-mode", "matt-tdd", "matt-teach", "implement", "code-review"].some((name) => !verified.resources.skills.some((s) => s.name === name)))
           return hold("worker-resources", `Actual target worktree resources are missing or incompatible. No substitution or assignment. ${verified.resources.diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" ")}`);
-        await save({ kind: "verified", worker: verified });
       }
       if (launch.state.kind === "verified") {
+        const incompatibility = principalFailure(launch.state.worker.resources);
+        if (incompatibility) return hold("worker-principal", incompatibility);
         await this.authorized(request, epoch);
         await save({ kind: "initializing", worker: launch.state.worker, command: randomUUID() });
       }
@@ -1105,12 +1140,22 @@ export class Legion {
         await revalidate();
         const observed = await host.inspectWorker({ launch, window: phase.worker.address.window, cwd: reservation.plan.path });
         const current = await this.authorized(request, epoch);
-        if (!observed || JSON.stringify(observed.address) !== JSON.stringify(phase.worker.address) || observed.resources.cwd !== reservation.plan.path || observed.resources.diagnostics.some((d) => d.status !== "ready") || JSON.stringify(observed.resources.skills) !== JSON.stringify(phase.worker.resources.skills))
-          return hold("worker-changed", "Exact initialized worker or target resources changed before assignment. Preserve the worker. No successor adoption.");
+        if (!observed || JSON.stringify(observed.address) !== JSON.stringify(phase.worker.address))
+          return hold("worker-changed", "Exact initialized worker changed before assignment. Preserve the worker. No successor adoption.");
+        const incompatibility = principalFailure(observed.resources);
+        if (incompatibility) {
+          await save({ ...phase, worker: { ...phase.worker, resources: observed.resources } });
+          return hold("worker-principal", incompatibility);
+        }
+        if (observed.resources.cwd !== reservation.plan.path || observed.resources.diagnostics.some((d) => d.status !== "ready") || JSON.stringify(observed.resources.skills) !== JSON.stringify(phase.worker.resources.skills))
+          return hold("worker-changed", "Actual target resources changed before assignment. Preserve the worker. No substitution.");
+        const principal = observed.resources.principal;
+        if (!principal?.model || principal.thinking === null) throw new Error("Actual principal selection unavailable.");
         const task = current.state.tasks.find((t) => t.id === request.task.id)?.history.at(-1);
         if (!task) throw new Error("Current task unavailable.");
-        const assignment = BoundedAssignment.parse({ task: request.task, scope: request.scope, goal: task.goal, acceptance: task.acceptance, workflow: "implement", authority: "bounded-implementation-only" });
-        await save({ kind: "assigning", worker: phase.worker, initialization: phase.initialization, command: randomUUID(), assignment });
+        const workflow = "implement";
+        const assignment = BoundedAssignment.parse({ task: request.task, scope: request.scope, goal: task.goal, acceptance: task.acceptance, workflow, authority: "bounded-implementation-only", modelPin: { model: principal.model, thinking: principal.thinking, profile: workflow } });
+        await save({ kind: "assigning", worker: { ...phase.worker, resources: observed.resources }, initialization: phase.initialization, command: randomUUID(), assignment });
       }
       if (launch.state.kind === "assigning") {
         const phase = launch.state;
@@ -1164,6 +1209,7 @@ export class Legion {
             ...t,
             claim: claims.byTask.get(t.id) ?? claims.fallback,
             launch: launches.get(t.id) ?? { kind: "not-launched" },
+            tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
             eligibility:
               !this.binding || this.stopping
                 ? "inactive"
@@ -1175,7 +1221,8 @@ export class Legion {
                   ? "blocked"
                   : "admitted",
           })) ?? [],
-        diagnostics: [],
+        ...this.settingsView(),
+        diagnostics: this.activationDiagnostics,
         unavailable: null,
       };
     } catch (error) {
@@ -1183,7 +1230,8 @@ export class Legion {
         mode: this.stopping ? "stopping" : this.binding ? "active" : "inactive",
         snapshot: null,
         tasks: [],
-        diagnostics: [],
+        ...this.settingsView(),
+        diagnostics: this.activationDiagnostics,
         unavailable: String(error),
       };
     }
@@ -1335,8 +1383,10 @@ export class Legion {
                 eligibility: "inactive",
                 claim: claims.byTask.get(t.id) ?? claims.fallback,
                 launch: launches.get(t.id) ?? { kind: "not-launched" },
+                tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
               })) ?? [],
-            diagnostics: [],
+            ...this.settingsView(),
+            diagnostics: this.activationDiagnostics,
             unavailable: snapshot ? null : "Legatus records were not found.",
           },
         };
@@ -1346,7 +1396,7 @@ export class Legion {
           kind: "observed",
           view: {
             ...(await this.state()),
-            diagnostics: await this.options.preflight(),
+            diagnostics: [...await this.options.preflight(this.settings ?? undefined), ...this.activationDiagnostics.filter(d => d.status !== "ready")],
           },
         };
       if (
@@ -1363,9 +1413,25 @@ export class Legion {
           "stopping",
           "Legion is stopping. No new workspace operations will start. Reservations retained.",
         );
-      const diagnostics = await this.options.preflight();
+      const explicitActivation = intent.kind === "on" || intent.kind === "resume" || intent.kind === "task" && !this.binding;
+      let prospectiveSettings = this.settings;
+      const settingsDiagnostics: Diagnostic[] = [];
+      if (explicitActivation) {
+        let checkoutPath: string;
+        try { checkoutPath = checkoutIdentity(this.options.context); }
+        catch (error) { return reject("ownership", `Exclusive checkout ownership is unavailable. ${String(error)}`); }
+        try {
+          prospectiveSettings = await (this.options.loadSettings?.() ?? loadLegionSettings({ checkoutPath }));
+        } catch (error) {
+          prospectiveSettings = null;
+          settingsDiagnostics.push({ name: "Legion settings", status: "incompatible", message: String(error) });
+        }
+        if (epoch !== this.epoch) return reject("revoked", "Activation was revoked.");
+      }
+      const diagnostics = [...await this.options.preflight(prospectiveSettings ?? undefined), ...settingsDiagnostics];
       if (epoch !== this.epoch)
         return reject("revoked", "Activation was revoked.");
+      if (explicitActivation) this.activationDiagnostics = diagnostics;
       const resume = intent.kind === "resume" ? intent.id : null;
       const isActivation = intent.kind === "on" || intent.kind === "resume";
       const taskText = intent.kind === "task" ? intent.text : "";
@@ -1568,7 +1634,10 @@ export class Legion {
           };
         }
         if (!ready) this.revoke();
-        else this.stopRequested = false;
+        else {
+          if (explicitActivation) this.settings = prospectiveSettings;
+          this.stopRequested = false;
+        }
         return result;
       } finally {
         try {

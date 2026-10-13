@@ -24,7 +24,7 @@ import {
   InputEvidence,
   type EmperorInputEvidence,
 } from "./snapshot.js";
-import { preflight } from "./preflight.js";
+import { preflight, principalDiagnostics } from "./preflight.js";
 import { LocalTribunusHost, managedBootstrap, installTribunus } from "./tribunus-host.js";
 import type { TribunusHost } from "./tribunus.js";
 const Presentation = z.object({
@@ -342,7 +342,10 @@ export default function (pi: ExtensionAPI) {
       storagePath: join(getAgentDir(), "legion"),
       context: realpathSync(ctx.cwd),
       session: ctx.sessionManager.getSessionId(),
-      preflight: () => preflight(pi),
+      preflight: settings => {
+        const context = liveContext ?? ctx;
+        return preflight(pi, { principal: "Legatus", context, thinking: context.thinkingLevel ?? pi.getThinkingLevel(), ...(settings ? { settings } : {}) });
+      },
       tribuni: { host: () => hosts.getStore() ?? null, onUnavailable: message => { if (liveContext) report(liveContext, message, "error"); } },
       assignments: {
         repository: () => repositories.getStore() ?? null,
@@ -384,6 +387,7 @@ export default function (pi: ExtensionAPI) {
         .filter((value) => value.startsWith(prefix))
         .map((value) => ({ value, label: value })),
     handler: async (text, ctx) => {
+      liveContext = ctx;
       const current = legion;
       if (!current) {
         report(ctx, "Legion is unavailable. Start a session.", "error");
@@ -532,11 +536,10 @@ export default function (pi: ExtensionAPI) {
         }
         let check;
         try {
-          const model = ctx.model;
-          const auth = model ? await ctx.modelRegistry.getApiKeyAndHeaders(model) : null;
+          const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
           if (workspaceRun !== pending || pending.kind !== "dispatch") return { action: "handled" };
-          if (!model || !auth?.ok || (!auth.apiKey && !ctx.modelRegistry.hasConfiguredAuth(model))) {
-            retireWorkspace(pending, ctx, "held", "Workspace authentication is unavailable before start.");
+          if (diagnostics.some(d => d.status !== "ready")) {
+            retireWorkspace(pending, ctx, "held", diagnostics.map(d => d.message).join(" "));
             return { action: "handled" };
           }
           check = await legion?.command({
@@ -586,16 +589,7 @@ export default function (pi: ExtensionAPI) {
         stage: "checking",
       };
       run = checking;
-      let authenticated = false;
-      try {
-        const model = ctx.model;
-        if (model) {
-          const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-          authenticated =
-            auth.ok &&
-            (!!auth.apiKey || ctx.modelRegistry.hasConfiguredAuth(model));
-        }
-      } catch {}
+      const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
       const currentState = await legion?.state();
       if (
         currentState?.mode !== "active" ||
@@ -607,11 +601,11 @@ export default function (pi: ExtensionAPI) {
         binding.generation !== checking.evidence.generation
       )
         return { action: "handled" };
-      if (!authenticated) {
+      if (diagnostics.some(d => d.status !== "ready")) {
         run = { ...checking, stage: "failed" };
         report(
           ctx,
-          "Intake stalled before delivery. Authentication is unavailable. Inputs remain saved. Restore authentication, then explicitly resume intake.",
+          `Intake stalled before delivery. ${diagnostics.map(d => d.message).join(" ")} Inputs remain saved. Correct native configuration, then explicitly resume intake.`,
           "warning",
         );
         return { action: "handled" };
