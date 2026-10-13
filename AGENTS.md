@@ -92,6 +92,10 @@ Use the five default triage labels. Before triaging, read `docs/agents/triage-la
 
 Use a single-context layout. Before exploring the codebase, read `docs/agents/domain.md`.
 
+### Temporary storage
+
+Before running tests or native checks, producing bulk temporary files, delegating work, or cleaning temporary data, read `.agents/skills/temp-storage/SKILL.md`. Apply its ownership and cleanup rules to every subagent.
+
 ### Legion development
 
 Before implementing or resuming development of Legion, or opening or closing its development/test Herdr tabs, read `docs/agents/legion-engineering-policy.md`. Its tab-cleanup rule applies to the coordinator and all subagents.
