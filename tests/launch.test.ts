@@ -47,7 +47,12 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
     tribuni: {
       host: () => host ?? null
     },
+    resume: {
+      repository: () => ({ observeResources: async () => ({ disposition: "identified" as const, association: await git.inspect({ branch: "", path: "", parent: "", commit: "" }), dirty: { kind: "observed" as const, value: false }, reasons: [] }) }),
+      worker: () => resumeReader,
+    },
   };
+  let resumeReader: import("../src/resume.js").ResumeResourceReader | null = null;
   let legion = new Legion(options);
   let seq = 0;
   const evidence = {
@@ -109,6 +114,7 @@ async function fixture(host?: TribunusHost, fault?: NonNullable<import("../src/i
       assert.deepEqual((await legion.state()).snapshot, before, "Explicit resume reads the truthful pre-shutdown input");
     },
     setSettings: (next: typeof settings) => { settings = next; },
+    setResumeReader: (reader: import("../src/resume.js").ResumeResourceReader) => { resumeReader = reader; },
     ledgerRoot: join(commonDir, "legion", "runs", initial.snapshot.id)
   };
 }
@@ -546,7 +552,7 @@ test("missing known launch history cannot be interpreted as a pre-launch reposit
     await f.command("off");
   }
 });
-test("explicit resume resolves the same retained initialization command without starting or assigning twice", async () => {
+test("explicit resume observes the retained initialization command without retransmission or restored assignment authority", async () => {
   const window = {
     endpoint: "/test/local.sock", server: "local-instance", workspace: "w-test", tab: "t-test", pane: "p-test", terminal: "term-test"
   };
@@ -591,6 +597,8 @@ test("explicit resume resolves the same retained initialization command without 
     if (held?.kind !== "held" || held.last.kind !== "initializing")
       assert.fail("Expected retained initializing command");
     const initializationCommand = held.last.command;
+    const observed = (await f.legion.state()).snapshot; assert.ok(observed);
+    f.setResumeReader(activeResourceReader(() => address, observed));
     await f.restartFromPreShutdownInput();
     const owner = (await f.legion.state()).snapshot?.id;
     assert.equal((await f.command(`resume ${owner}`, "resume")).kind, "applied");
@@ -600,17 +608,26 @@ test("explicit resume resolves the same retained initialization command without 
       launchRequest: "reconcile-existing"
     });
     const state = (await f.legion.state()).tasks[0]?.launch;
-    assert.equal(state?.kind, "assigned");
-    if (state?.kind !== "assigned")
-      assert.fail("Expected retained receipt recovery");
-    assert.equal(state.initialization.command, initializationCommand);
+    assert.equal(state?.kind, "held");
+    if (state?.kind !== "held" || state.last.kind !== "initializing") assert.fail("Expected retained exact command hold");
+    assert.equal(state.last.command, initializationCommand);
+    assert.equal((await f.legion.state()).tasks[0]?.eligibility, "blocked");
     assert.equal(starts.length, 1);
-    assert.deepEqual(assignments, [state.command]);
+    assert.deepEqual(assignments, []);
   }
   finally {
     await f.command("off");
   }
 });
+function activeResourceReader(address: () => import("zod").z.infer<typeof import("../src/tribunus.js").WorkerAddress>, snapshot: import("../src/snapshot.js").LegatusSnapshot): import("../src/resume.js").ResumeResourceReader {
+  return { observeResources: async ({ launch }) => {
+    const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
+    const origin = snapshot.launchRequests.find(request => request.attempt === launch.id); assert.ok(origin);
+    return { launch: launch.id, reservation: launch.reservation, scope: launch.scope, disposition: "hold", reasons: ["Fixture-owned actor still active"], recommendation: "Preserve the original actor; no revival.", evidence: [],
+      process: { kind: "alive", identity: { pid: process.pid, boot: "fixture-boot", start: "1" } },
+      live: { kind: "observed", value: { nonce: "ba344b8a-861a-4baa-a6ad-79d3f901d0b5", address: address(), controller: { owner: snapshot.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch }, command: "assignment" in progress ? progress.command : null, principal: "active", busy: true, pendingMessages: false, admissionHold: null, childrenOutstanding: false, childrenHeld: false, effectsOutstanding: false, retirement: null } }, retirement: null, report: null, actions: [], effects: [], children: [] };
+  } };
+}
 function externalWorker() {
   const window = {
     endpoint: "/test/local.sock", server: "local-instance", workspace: "w-test", tab: "t-test", pane: "p-test", terminal: "term-test"
@@ -915,6 +932,8 @@ test("resumed settings change new intent but never an applied assignment model/t
     assert.deepEqual(before.assignment.modelPin, { model: "controlled/selected", thinking: "high", profile: "matt" });
     f.setSettings({ context: { warningTokens: 140000, escalationTokens: 160000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
     const id = (await f.legion.state()).snapshot?.id;
+    const savedOrigin = (await f.legion.state()).snapshot; assert.ok(savedOrigin);
+    f.setResumeReader(activeResourceReader(() => before.worker.address, savedOrigin));
     await f.restartFromPreShutdownInput();
     assert.equal((await f.command(`resume ${id}`)).kind, "applied");
     const view = await f.legion.state();
@@ -1069,12 +1088,15 @@ test("saved startup selection survives resume and an ambiguous applied launch wi
     await f.legion.command({ launchRequest: "frozen-start" });
     f.setSettings({ context: { warningTokens: 135000, escalationTokens: 150000 }, tribuni_model: { model: "controlled/future", thinking: "off" } });
     await f.restartFromPreShutdownInput();
-    assert.equal((await f.command(`resume ${before.snapshot?.id}`)).kind, "applied");
+    const refused = await f.command(`resume ${before.snapshot?.id}`);
+    assert.equal(refused.kind, "rejected", "An unknown start cannot gain worker authority from a later current PID/session");
+    assert.deepEqual((await f.legion.state()).snapshot?.launchRequests[0]?.startupSelection, { kind: "exact", selection: { model: "controlled/selected", thinking: "high" } });
     host.inspectWorker = inspect;
     await f.command(`launch ${f.task.id}@1`, "reconcile-frozen");
     await f.legion.command({ launchRequest: "reconcile-frozen" });
     const after = (await f.legion.state()).tasks[0]?.launch;
-    assert.equal(after?.kind, "assigned");
+    assert.equal(after?.kind, "held");
+    assert.deepEqual(actor.assignments, []);
     assert.deepEqual(startups, [{ kind: "exact", selection: { model: "controlled/selected", thinking: "high" } }]);
     assert.equal(actor.started.length, 1);
   } finally { await f.command("off"); }
@@ -1135,3 +1157,50 @@ for (const mismatch of ["provider", "thinking"] as const) {
     } finally { await f.command("off"); }
   });
 }
+
+for (const observation of ["current", "unknown", "active-child"] as const) test(`resumed parked assignments remain retired; off requires ${observation} current resource evidence`, async () => {
+  const { actor, host } = externalWorker();
+  let retirement: import("zod").z.infer<typeof import("../src/tribunus.js").WorkerStop> | null = null;
+  const f = await fixture(host);
+  let unknown = false, childActive = false, stops = 0;
+  try {
+    await f.ready(); await f.command(`launch ${f.task.id}@1`, "parked-launch");
+    await f.legion.command({ launchRequest: "parked-launch" });
+    const saved = (await f.legion.state()).snapshot; assert.ok(saved);
+    const assigned = (await f.legion.state()).tasks[0]?.launch;
+    if (assigned?.kind !== "assigned") assert.fail("Expected applied fixture assignment");
+    host.stop = async ({ worker, shutdown, command }, emit) => {
+      stops++;
+      const request = saved.launchRequests.find(request => request.attempt === worker.address.launch); assert.ok(request);
+      retirement = { shutdown, command, address: worker.address, authority: { owner: saved.id, session: request.evidence.session, generation: request.generation, epoch: request.epoch }, state: { kind: "parked", evidence: ["fixture-park-receipt"] } };
+      await emit(retirement);
+    };
+    await f.command("off");
+    for (let i = 0; i < 1000 && (await f.legion.state()).mode !== "inactive"; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal((await f.legion.state()).mode, "inactive");
+    assert.ok(retirement);
+    const active = activeResourceReader(() => assigned.worker.address, saved);
+    const reader: import("../src/resume.js").ResumeResourceReader = { observeResources: async input => {
+      const value = await active.observeResources(input);
+      if (unknown) return { ...value, disposition: "hold", reasons: ["Current liveness unavailable"], live: { kind: "unknown", reason: "Unavailable" } };
+      assert.ok(retirement);
+      if (value.live.kind !== "observed") assert.fail("Expected fixture live evidence");
+      return { ...value, disposition: childActive ? "hold" : "settled", evidence: ["fixture-current-settlement"], reasons: childActive ? ["Native child activity is outstanding"] : [], retirement,
+        report: { address: assigned.worker.address, command: assigned.command, outcome: "reported-result", assistantText: "Reported only, not accepted", evidence: ["fixture-report"] },
+        live: { kind: "observed", value: { ...value.live.value, principal: "settled", busy: false, childrenOutstanding: childActive, retirement } } };
+    } };
+    f.setResumeReader(reader);
+    childActive = observation === "active-child";
+    assert.equal((await f.command(`resume ${saved.id}`)).kind, "applied");
+    const resumed = await f.legion.state();
+    assert.equal(resumed.tasks[0]?.eligibility, "blocked");
+    assert.equal(resumed.snapshot?.resumeState?.holds[0]?.activity, childActive ? "unresolved" : "retired-settled");
+    assert.equal((await f.command(`launch ${f.task.id}@1`, "no-revival")).kind, "rejected");
+    unknown = observation === "unknown";
+    await f.command("off");
+    assert.equal((await f.legion.state()).mode, unknown || childActive ? "stopping" : "inactive");
+    assert.equal(stops, 1, "Resume and off never retransmit control to the original retired actor");
+    assert.equal(actor.started.length, 1); assert.equal(actor.initialized.length, 1); assert.equal(actor.assignments.length, 1);
+    assert.equal((await f.legion.state()).snapshot?.resumeState?.holds[0]?.activity, childActive ? "unresolved" : "retired-settled", "Current uncertainty cannot erase historical retirement evidence");
+  } finally { unknown = false; childActive = false; await f.command("off"); }
+});

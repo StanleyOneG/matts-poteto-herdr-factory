@@ -17,6 +17,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 import extension from "../../src/extension.ts";
 import { installTribunus, LocalTribunusHost } from "../../src/tribunus-host.ts";
+import { observeNativeChild } from "../../src/centuriones.ts";
 import { Legion } from "../../src/intake.ts";
 import { stripFrontmatter, createReadTool, createReadToolDefinition, createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition, loadSkills, DefaultResourceLoader, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { validateToolArguments } from "@earendil-works/pi-ai";
@@ -30,6 +31,7 @@ async function until(predicate, label) {
   for (let i = 0; i < 1000; i++) { if (await predicate()) return; await delay(5); }
   throw new Error(`Fixture timeout. ${label}`);
 }
+export { runtime as composedRuntime };
 function runtime(cwd, session, journal) {
   fs.writeFileSync(journal, JSON.stringify({ type: "session", id: session, cwd }) + "\n");
   const handlers = new Map(), tools = new Map(), registeredCommands = new Map(), entries = [], prompts = [], notices = [], statuses = [], sent = [];
@@ -177,6 +179,8 @@ export async function exerciseChildStartup(inherited) {
 }
 
 export async function exerciseNativeAssignment(scenario = "write", census) {
+  const resumeStickyProof = scenario === "child-resume-sticky-proof";
+  if (resumeStickyProof) scenario = "child-unknown-proof";
   const kind = scenario === "readiness" ? "readiness" : "native";
   // Keep the actual generation-specific Unix endpoint below the platform path limit on disk-backed TMPDIR.
   const root = await mkdtemp(join(tmpdir(), "lc-")), profile = join(root, "a"), repo = join(root, "repo"), bin = join(root, "bin");
@@ -643,6 +647,78 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       assert.equal(observation.kind, "ok", "Exact read-only observation cannot adopt a newer controller");
       assert.deepEqual(observation.value.authority, workerDescriptor.authority);
     }
+    if (scenario.startsWith("resume-resource-")) {
+      const evidenceRoot = join(profile, "legion", "tribuni", assignment.worker.address.launch);
+      const generationRoot = join(evidenceRoot, assignment.worker.address.generation);
+      const savedLaunch = { ...launched.details.launch, state: { ...assignment, initialization: JSON.parse(fs.readFileSync(join(generationRoot, `${assignment.initialization.command}.applied.json`), "utf8")) } };
+      const freshHost = new LocalTribunusHost(async () => { throw new Error("Resume observation must not execute a guarded effect"); }, { ...workerDescriptor.authority, session: "fresh-legatus", generation: workerDescriptor.authority.generation + 1 });
+      const bytes = () => fs.readdirSync(evidenceRoot, { recursive: true }).filter(file => fs.statSync(join(evidenceRoot, file)).isFile()).sort().map(file => [file, fs.readFileSync(join(evidenceRoot, file), "utf8")]);
+      if (scenario === "resume-resource-effect") {
+        assert.equal((await worker.call("write", { path: "observed.txt", content: "Retain effect" })).isError ?? false, false);
+        await until(async () => (await state()).snapshot.effects.at(-1)?.state.kind === "completed", "same-action production effect receipt");
+      }
+      const settledResource = ["resume-resource-retired", "resume-resource-saved-hold", "resume-resource-uncertain-start"].includes(scenario);
+      if (settledResource) {
+        await workerControl({ kind: "stop", command: randomUUID(), assignment: null, currentCommand: assignment.command });
+        await worker.settle();
+        await until(() => fs.readdirSync(generationRoot).some(file => file.endsWith(".park.json")), "actual production retirement/park");
+      }
+      if (scenario === "resume-resource-saved-hold") savedLaunch.state = { kind: "held", last: savedLaunch.state, code: "assignment-unknown", message: "Original applied outcome is unresolved" };
+      if (scenario === "resume-resource-uncertain-start") savedLaunch.startEvidence = { kind: "uncertain", message: "Original start completion is unresolved" };
+      if (scenario === "resume-resource-legacy") {
+        const helloPath = join(evidenceRoot, "hello.json"), hello = JSON.parse(fs.readFileSync(helloPath, "utf8"));
+        delete hello.process; fs.writeFileSync(helloPath, JSON.stringify(hello));
+      }
+      if (scenario === "resume-resource-process-mismatch") {
+        const helloPath = join(evidenceRoot, "hello.json"), hello = JSON.parse(fs.readFileSync(helloPath, "utf8"));
+        hello.process.start = "0"; fs.writeFileSync(helloPath, JSON.stringify(hello));
+      }
+      if (scenario === "resume-resource-missing-session") {
+        const pane = JSON.parse(fs.readFileSync(paneFile, "utf8")); delete pane.agent_session;
+        fs.writeFileSync(paneFile, JSON.stringify(pane));
+      }
+      if (scenario === "resume-resource-wrong-origin") {
+        const origin = worker.ctx.sessionManager.getBranch().find(entry => entry.message?.role === "user");
+        fs.writeFileSync(join(generationRoot, `${assignment.command}.applied.json`), JSON.stringify({ application: `${worker.ctx.sessionManager.getSessionFile()}#${origin.id}` }));
+      }
+      if (scenario === "resume-resource-wrong-receipt") {
+        const intentPath = join(generationRoot, `${assignment.command}.intent.json`), intent = JSON.parse(fs.readFileSync(intentPath, "utf8"));
+        intent.command = randomUUID(); fs.writeFileSync(intentPath, JSON.stringify(intent));
+      }
+      const before = bytes(), prompts = [...worker.prompts];
+      const observation = await freshHost.observeResources({ launch: savedLaunch, cwd: worker.ctx.cwd, signal: AbortSignal.timeout(5000) });
+      if (["resume-resource-active", "resume-resource-effect"].includes(scenario) || settledResource) {
+        assert.equal(observation.disposition, scenario === "resume-resource-retired" ? "settled" : "hold", JSON.stringify(observation));
+        assert.equal(observation.live.kind, "observed");
+        assert.equal(observation.live.value.principal, settledResource ? "settled" : "active");
+        assert.equal(observation.live.value.command, assignment.command);
+        assert.deepEqual(observation.live.value.controller, workerDescriptor.authority);
+        assert.equal(observation.process.kind, "alive");
+        assert.equal(observation.actions.length, 2, "Only exact applied initialization and assignment receipts correlate");
+        if (scenario === "resume-resource-effect") {
+          assert.equal(observation.effects.length, 1);
+          assert.equal(observation.effects[0].state.kind, "completed");
+          assert.equal(observation.effects[0].id, (await state()).snapshot.effects.at(-1).intent.id);
+        }
+        if (settledResource) {
+          assert.equal(observation.retirement.state.kind, "parked");
+          assert.equal(observation.report.command, assignment.command);
+          if (scenario === "resume-resource-retired") assert.match(observation.recommendation, /does not authorize reuse/);
+          if (scenario === "resume-resource-saved-hold") assert.match(observation.reasons.join(" "), /Retained launch hold assignment-unknown/);
+          if (scenario === "resume-resource-uncertain-start") assert.match(observation.reasons.join(" "), /Original Pi start outcome remains uncertain/);
+        }
+      } else {
+        assert.equal(observation.disposition, "hold");
+        assert.equal(observation.live.kind, "unknown");
+        assert.ok(observation.reasons.length);
+        if (["resume-resource-wrong-receipt", "resume-resource-wrong-origin"].includes(scenario)) assert.equal(observation.actions.some(action => action.kind === "assign"), false);
+        if (scenario === "resume-resource-process-mismatch") assert.equal(observation.process.kind, "mismatch");
+        if (scenario === "resume-resource-legacy") assert.equal(observation.process.kind, "unknown");
+      }
+      assert.deepEqual(bytes(), before, "Resume probing cannot publish receipts, rebind controllers or latch retirement");
+      assert.deepEqual(worker.prompts, prompts, "Resume cannot inject native work");
+      return { root, observation };
+    }
     if (scenario.startsWith("owner-loss-")) {
       const read = fs.readFileSync;
       if (scenario === "owner-loss-session") await writeFile(callerFile, JSON.stringify({ ...pane, agent_session: { kind: "id", value: "replacement-owner-session" } }));
@@ -991,6 +1067,16 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       publishNative();
       worker.pi.events.emit("subagent:async-started", { id: run, sessionId: status.sessionId, cwd: input.cwd, asyncDir: directory, agent: "worker" });
       await until(async () => (await state()).tasks[0].launch.worker.resources.children[0].state.kind === "active", "native child association");
+      if (scenario === "child-resume-observation") {
+        const intentPath = prepared.details.evidence;
+        const before = fs.readFileSync(intentPath, "utf8"), prompts = [...worker.prompts];
+        const observation = observeNativeChild({ path: intentPath, owner: assignment.worker.address, command: assignment.command });
+        assert.equal(observation.disposition, "hold"); assert.equal(observation.state.kind, "active", JSON.stringify(observation));
+        assert.equal(observation.state.run, run);
+        assert.equal(fs.readFileSync(intentPath, "utf8"), before);
+        assert.deepEqual(worker.prompts, prompts);
+        assert.equal(nativeInvocations, 1);
+      }
       if (scenario === "child-owned-controls") {
         let invoked = 0;
         worker.external(async (name, raw) => { assert.equal(name, "subagent"); assert.equal(raw.id, run); invoked++; return { content: [], details: {} }; });
@@ -1067,6 +1153,28 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
         return held ? launch.worker.resources.children[0].state.kind === expectedHold : launch.kind === "reported";
       }, "native terminal observation");
       if (held) await delay(40);
+      if (scenario === "child-resume-observation") {
+        const intentPath = prepared.details.evidence, observation = observeNativeChild({ path: intentPath, owner: assignment.worker.address, command: assignment.command });
+        assert.equal(observation.disposition, "settled", JSON.stringify(observation));
+        assert.equal(observation.state.kind, "process-terminal"); assert.equal(observation.state.run, run);
+        assert.match(observation.reason, /no child revival/);
+        const evidenceRoot = join(profile, "legion", "tribuni", assignment.worker.address.launch), generationRoot = join(evidenceRoot, assignment.worker.address.generation);
+        const savedLaunch = { ...launched.details.launch, state: { ...assignment, initialization: JSON.parse(fs.readFileSync(join(generationRoot, `${assignment.initialization.command}.applied.json`), "utf8")) } };
+        const freshHost = new LocalTribunusHost(async () => { throw new Error("Observation cannot execute guarded effects"); }, { ...workerDescriptor.authority, session: "fresh-legatus", generation: workerDescriptor.authority.generation + 1 });
+        const workerObservation = await freshHost.observeResources({ launch: savedLaunch, cwd: worker.ctx.cwd, signal: AbortSignal.timeout(5000) });
+        assert.equal(workerObservation.disposition, "settled", JSON.stringify(workerObservation));
+        assert.equal(workerObservation.children.length, 1); assert.equal(workerObservation.children[0].disposition, "settled");
+        const locatorPath = join(dirname(intentPath), `${prepared.details.intent}.centurio-runtime.json`), locator = fs.readFileSync(locatorPath);
+        fs.unlinkSync(locatorPath);
+        assert.equal(observeNativeChild({ path: intentPath, owner: assignment.worker.address, command: assignment.command }).disposition, "hold", "Known terminal projection cannot guess an expired genuine native result locator");
+        fs.writeFileSync(locatorPath, locator, { mode: 0o600 });
+        const originalJournal = fs.readFileSync(childJournal);
+        fs.writeFileSync(childJournal, JSON.stringify({ type: "session", id: "replaced-native-session", cwd: input.cwd }) + "\n");
+        assert.equal(observeNativeChild({ path: intentPath, owner: assignment.worker.address, command: assignment.command }).state.kind, "mismatch");
+        fs.writeFileSync(childJournal, originalJournal);
+        assert.equal(nativeInvocations, 1, "Reading current/expired/mismatched evidence cannot launch/resume native children");
+        return { root, observation, view: await state() };
+      }
       if (scenario === "child-drain-native-turn") {
         await worker.startCustom();
         await controller.command("off");
@@ -1122,6 +1230,12 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       if (scenario === "child-unknown-proof") {
         status.processTerminal.state = "observed"; proof.state = "observed"; publishNative(); fs.writeFileSync(join(directory, "process-terminal.json"), JSON.stringify(proof)); await delay(40);
         assert.equal((await state()).tasks[0].launch.worker.resources.children[0].state.kind, "unknown", "Unknown cannot be promoted by a later ordinary observation");
+        if (resumeStickyProof) {
+          const observation = observeNativeChild({ path: prepared.details.evidence, owner: assignment.worker.address, command: assignment.command });
+          assert.equal(observation.disposition, "hold"); assert.equal(observation.state.kind, "unknown");
+          assert.match(observation.reason, /sticky/);
+          assert.equal(nativeInvocations, 1);
+        }
       }
       return { root, view: await state() };
     }

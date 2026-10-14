@@ -11,7 +11,7 @@ const command = (legion: Legion, session: string, text: string, requestKey: stri
 async function bytes(root: string) {
   return new Map(await Promise.all((await readdir(root)).map(async file => [file, await readFile(join(root, file))] as const)));
 }
-test("a hot journal blocks only matching discovery and preserves unrelated contexts and independent same-context sessions", { timeout: 20000 }, async () => {
+test("a hot journal preserves unrelated discovery but blocks new same-checkout authority until explicit recovery", { timeout: 20000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "legion-isolation-"));
   const options = { storagePath: root, context: "/crashed/repo", session: "owner", preflight: async () => [] };
   const owner = new Legion(options);
@@ -44,12 +44,16 @@ test("a hot journal blocks only matching discovery and preserves unrelated conte
       assert.deepEqual(restarted, { ...healthy[i], settings: null, tribuniModel: null });
     }
     assert.deepEqual(await bytes(root), before, "All read-only discovery bytes remain unchanged");
-    for (const opt of [{ ...options, context: "/fresh/repo", session: "fresh-context" }, { ...options, session: "fresh-session" }]) {
-      const unrelated = new Legion(opt);
-      assert.equal((await command(unrelated, opt.session, "on", "activate")).kind, "applied");
-      assert.equal((await unrelated.state()).mode, "active");
-      await command(unrelated, opt.session, "off", "deactivate");
-    }
+    const unrelatedOptions = { ...options, context: "/fresh/repo", session: "fresh-context" };
+    const unrelated = new Legion(unrelatedOptions);
+    assert.equal((await command(unrelated, unrelatedOptions.session, "on", "activate")).kind, "applied");
+    assert.equal((await unrelated.state()).mode, "active");
+    await command(unrelated, unrelatedOptions.session, "off", "deactivate");
+    const fresh = new Legion({ ...options, session: "fresh-session" });
+    const refused = await command(fresh, "fresh-session", "on", "no-uncertain-history-bypass");
+    assert.equal(refused.kind, "rejected");
+    if (refused.kind === "rejected") assert.equal(refused.code, "resume-required");
+    assert.equal((await fresh.state()).snapshot, null);
     const matching = new Legion(options);
     assert.ok((await matching.state()).unavailable);
     assert.equal((await command(matching, "owner", "on", "do-not-replace")).kind, "rejected");
@@ -62,6 +66,20 @@ test("a hot journal blocks only matching discovery and preserves unrelated conte
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
   }
 });
+test("readable resource-free saved history permits an independent same-checkout session without adoption", async () => {
+  const root = await mkdtemp(join(tmpdir(), "legion-resource-free-"));
+  const options = { storagePath: root, context: "/resource-free/repo", session: "original", preflight: async () => [] };
+  const original = new Legion(options);
+  assert.equal((await command(original, "original", "task Preserved original input", "original")).kind, "saved");
+  await command(original, "original", "off", "off");
+  const saved = (await original.state()).snapshot; assert.ok(saved);
+  const independent = new Legion({ ...options, session: "independent" });
+  assert.equal((await command(independent, "independent", "on", "independent-on")).kind, "applied");
+  assert.notEqual((await independent.state()).snapshot?.id, saved.id);
+  assert.deepEqual((await original.state()).snapshot, saved);
+  await command(independent, "independent", "off", "independent-off");
+});
+
 for (const phase of ["before-route-publish", "after-route-publish", "after-bootstrap-commit", "before-initialized-publish", "after-initialized-publish", "before-commit", "after-commit", "after-receipt"]) {
   test(`first creation ${phase} explicitly recovers one identity without inventing unacknowledged input`, { timeout: 20000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), "legion-first-"));
@@ -100,7 +118,7 @@ for (const phase of ["before-route-publish", "after-route-publish", "after-boots
   });
 }
 
-test("incomplete metadata fails closed only for its routed identity and cannot be overwritten by recovery", { timeout: 20000 }, async () => {
+test("incomplete metadata preserves routed discovery and blocks new same-checkout authority without repair", { timeout: 20000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "legion-incomplete-route-"));
   const options = { storagePath: root, context: "/incomplete/repo", session: "incomplete-session", preflight: async () => [] };
   const child = fork(resolve("tests/initial-owner-worker.ts"), [root, options.context, options.session, "route-opened"], { execArgv: ["--import", "tsx"], stdio: ["ignore", "ignore", "pipe", "ipc"] });
@@ -130,8 +148,13 @@ test("incomplete metadata fails closed only for its routed identity and cannot b
   assert.ok(inactive.unavailable);
   assert.deepEqual(await bytes(root), afterMutation, "Subsequent observation preserves all remaining files and bytes");
   const independent = new Legion({ ...options, session: "independent" });
-  assert.equal((await command(independent, "independent", "on", "independent-on")).kind, "applied");
-  await command(independent, "independent", "off", "independent-off");
+  const refused = await command(independent, "independent", "on", "no-incomplete-history-bypass");
+  assert.equal(refused.kind, "rejected");
+  if (refused.kind === "rejected") assert.equal(refused.code, "resume-required");
+  assert.deepEqual(await bytes(root), afterMutation);
+  const unrelated = new Legion({ ...options, context: "/unrelated/incomplete", session: "unrelated" });
+  assert.equal((await command(unrelated, "unrelated", "on", "unrelated-on")).kind, "applied");
+  await command(unrelated, "unrelated", "off", "unrelated-off");
 });
 for (const phase of ["before-route-publish", "after-route-publish", "before-commit"]) {
   test(`alias ${phase} never grants attachment before commit and explicit resume reconciles one identity`, { timeout: 20000 }, async () => {
@@ -174,7 +197,10 @@ test("initialized missing data and malformed identity never reset acknowledged h
   const before = await bytes(root);
   assert.ok((await owner.state()).unavailable);
   assert.deepEqual(await bytes(root), before);
-  assert.equal((await command(owner, "owner", `resume ${id}`, "no-reset")).kind, "rejected");
+  const refused = await command(owner, "owner", `resume ${id}`, "no-reset");
+  assert.equal(refused.kind, "rejected");
+  assert.deepEqual(await bytes(root), before, "Refused recovery must not recreate an initialized database");
+  if (refused.kind === "rejected") assert.match(refused.message, /Initialized snapshot history is missing/);
   const route = (await readdir(root)).find(f => f.endsWith(".initial.route"));
   assert.ok(route);
   await writeFile(join(root, route), "{malformed");
@@ -214,7 +240,7 @@ test("explicit recovery from the wrong context cannot publish or bootstrap anoth
   assert.equal((await command(wrong, "wrong-session", `resume ${id}`, "wrong-context")).kind, "rejected");
   assert.deepEqual(await bytes(root), before, "Wrong-context recovery cannot alter pending routing or bootstrap data");
 });
-test("unknown route fields fail closed for the affected identity without blocking an independent session", async () => {
+test("unknown route fields block new same-checkout authority while preserving unrelated context activation", async () => {
   const root = await mkdtemp(join(tmpdir(), "legion-unknown-route-"));
   const options = { storagePath: root, context: "/unknown/repo", session: "owner", preflight: async () => [] };
   const owner = new Legion(options);
@@ -226,9 +252,15 @@ test("unknown route fields fail closed for the affected identity without blockin
   await writeFile(join(root, file), JSON.stringify({ ...route, unknown: true }));
   assert.ok((await new Legion(options).state()).unavailable);
   assert.equal((await command(owner, "owner", `resume ${route.id}`, "no-takeover")).kind, "rejected");
+  const before = await bytes(root);
   const independent = new Legion({ ...options, session: "independent" });
-  assert.equal((await command(independent, "independent", "on", "independent-on")).kind, "applied");
-  await command(independent, "independent", "off", "independent-off");
+  const refused = await command(independent, "independent", "on", "no-unknown-history-bypass");
+  assert.equal(refused.kind, "rejected");
+  if (refused.kind === "rejected") assert.equal(refused.code, "resume-required");
+  assert.deepEqual(await bytes(root), before);
+  const unrelated = new Legion({ ...options, context: "/unrelated/unknown", session: "unrelated" });
+  assert.equal((await command(unrelated, "unrelated", "on", "unrelated-on")).kind, "applied");
+  await command(unrelated, "unrelated", "off", "unrelated-off");
 });
 test("multiple scoped candidate identities remain unavailable until an explicit identity is selected", async () => {
   const root = await mkdtemp(join(tmpdir(), "legion-ambiguous-routes-"));

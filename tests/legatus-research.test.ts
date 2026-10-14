@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSnapshot, SnapshotStore, TaskId } from "../src/snapshot.js";
@@ -10,6 +10,11 @@ import { exerciseOrdinaryLegatusResearch } from "./support/composed-transport.mj
 import { Legion } from "../src/intake.js";
 
 const evidence = { origin: "emperor", transport: "rpc", session: "research-principal", generation: null, presented: [] };
+async function retainedBytes(storagePath: string) {
+  const files = await Promise.all((await readdir(storagePath)).map(async file => [file, await readFile(join(storagePath, file))] as const));
+  for (const [file, content] of files) if (file.endsWith(".lock")) assert.equal(content.length, 0, "Operational lease files hold no run history");
+  return new Map(files.filter(([file]) => !file.endsWith(".lock")));
+}
 async function fixture() {
   const storagePath = await mkdtemp(join(tmpdir(), "legatus-research-"));
   const options = { storagePath, context: "/disposable/research", session: evidence.session, preflight: async () => [] };
@@ -84,7 +89,7 @@ for (const legacyHold of [false, true]) test(`ordinary Legatus research keeps na
   }
 });
 
-test("legacy research evidence survives read/write and retired protocol submissions cannot adopt or settle it", async () => {
+test("legacy unknown research blocks activation and resume while retired submissions cannot adopt or settle preserved evidence", async () => {
   const { legion, options, command } = await fixture();
   const snapshot = createSnapshot({ id: randomUUID(), context: options.context });
   snapshot.generation = 1;
@@ -98,9 +103,15 @@ test("legacy research evidence survives read/write and retired protocol submissi
       result: { evidence: "/retained/finding.json", source: "old-journal#finding", sha256: "historical-finding", preview: "Retained reference" }, evidence: ["/retained/intent.json", "/retained/finding.json"] } });
   await new SnapshotStore(options.storagePath).save(snapshot, null, () => true);
   assert.equal((await legion.state()).mode, "stopping");
-  // Fresh explicit activation may persist intake, but must not adopt historical resources.
-  assert.equal((await command("on")).kind, "applied");
-  assert.equal((await command("task New bounded intake")).kind, "saved");
+  const bytes = () => retainedBytes(options.storagePath);
+  const preservedBytes = await bytes();
+  for (const text of ["on", "task New bounded intake", `resume ${snapshot.id}`]) {
+    const refused = await command(text);
+    assert.equal(refused.kind, "rejected");
+    if (refused.kind === "rejected") assert.match(refused.message, /legacy|resources|resume/i);
+    assert.deepEqual((await legion.state()).snapshot, snapshot);
+    assert.deepEqual(await bytes(), preservedBytes);
+  }
   const before = (await legion.state()).snapshot;
   assert.ok(before);
   assert.deepEqual(before.research, snapshot.research);
@@ -128,17 +139,9 @@ test("legacy research evidence survives read/write and retired protocol submissi
   if (stopped.kind !== "observed") assert.fail("Expected shutdown observation");
   assert.equal(stopped.view.mode, "stopping", "Off cannot settle legacy research");
   const after = stopped.view.snapshot;
-  assert.ok(after?.shutdown);
-  const { revision: beforeRevision, shutdown: beforeShutdown, ...beforeDomain } = before;
-  const { revision: afterRevision, shutdown, ...afterDomain } = after;
-  assert.deepEqual(afterDomain, beforeDomain, "Off preserves every domain field, not only research history");
-  assert.equal(beforeShutdown, null);
-  assert.equal(afterRevision, beforeRevision + 1, "Only the required shutdown envelope is published");
-  assert.ok(shutdown.id);
-  assert.equal(shutdown.generation, before.generation);
-  assert.equal(shutdown.epoch, 0);
-  assert.deepEqual(shutdown.workers, []);
+  assert.deepEqual(after, before, "Without attachment, off observes legacy uncertainty without publishing shutdown or adopting resources");
   assert.deepEqual((await new Legion(options).state()).snapshot, after);
+  assert.deepEqual(await bytes(), preservedBytes, "All retained storage bytes remain unchanged");
 });
 
 for (const kind of ["prepared", "active", "logical-terminal", "process-terminal", "unknown", "mismatch", "launch-unresolved", "corroboration-pending"] as const) {
@@ -196,9 +199,16 @@ for (const kind of ["outstanding", "unknown"] as const) {
       assert.equal(result.view.mode, "stopping", `Unsettled effects cannot mean inactive in ${text}; ${result.view.unavailable ?? ""}`);
       assert.deepEqual(result.view.snapshot, snapshot);
     }
-    assert.equal((await command("on")).kind, "applied");
-    assert.equal((await command("task Fresh bounded intake")).kind, "saved");
+    const bytes = () => retainedBytes(options.storagePath);
+    const preservedBytes = await bytes();
+    for (const text of ["on", "task Fresh bounded intake", `resume ${snapshot.id}`]) {
+      const refused = await command(text);
+      assert.equal(refused.kind, "rejected");
+      if (refused.kind === "rejected") assert.match(refused.message, /effect|resources|resume/i);
+      assert.deepEqual((await legion.state()).snapshot, snapshot);
+    }
     await command("off");
+    assert.deepEqual(await bytes(), preservedBytes, "Unsupported effect history cannot be repaired or adopted by a new intake");
     const reopened = await new Legion(options).state();
     assert.equal(reopened.mode, "stopping");
     assert.deepEqual(reopened.snapshot?.engineering, snapshot.engineering);

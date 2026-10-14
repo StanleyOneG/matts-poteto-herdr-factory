@@ -15,7 +15,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 
@@ -240,6 +240,14 @@ export const SnapshotSchema = z.object({
   generation: z.int(),
   shutdown: z.object({ id: z.uuid(), generation: z.int().positive(), epoch: z.int().nonnegative(), workers: z.array(z.object({ launch: z.uuid(), addressDigest: z.string(), command: z.uuid().nullable(), state: ParkState })).default([]) }).nullable().default(null),
   workflowChoice: WorkflowChoiceSchema.default({ profile: "matt", requestedWorkflow: "unknown" }),
+  resumeState: z.strictObject({
+    generation: z.int().positive(),
+    holds: z.array(z.strictObject({ task: TaskId, reservation: z.uuid(), message: z.string().min(1), evidence: z.array(z.string()),
+      activity: z.enum(["unresolved", "retired-settled"]),
+      result: z.strictObject({ outcome: z.enum(["reported-result", "blocked", "failed"]), evidence: z.array(z.string()) }).nullable(),
+    })),
+    continuation: z.strictObject({ root: SubmissionRef, dispatch: WorkflowDispatch }).nullable(),
+  }).nullable().default(null),
   attachments: z.array(z.object({ session: z.string(), generation: z.int() })),
   workspaceRequests: z.array(WorkspaceRequest).default([]),
   launchRequests: z.array(LaunchRequest).default([]),
@@ -526,7 +534,12 @@ export class SnapshotStore {
       throw new Error(
         "Ownership was revoked before opening initialization storage.",
       );
-    const db = new DB(this.path(identity.id, "sqlite"));
+    const path = this.path(identity.id, "sqlite");
+    if (this.initialized(identity) && !existsSync(path))
+      throw new Error(
+        "Initialized snapshot history is missing. History cannot be reset.",
+      );
+    const db = new DB(path);
     let state: LegatusSnapshot;
     try {
       db.exec("PRAGMA synchronous=FULL; PRAGMA journal_mode=DELETE");
@@ -673,6 +686,33 @@ export class SnapshotStore {
     if (!state || !state.attachments.some((a) => a.session === session))
       throw new Error(`Attachment is not committed. Explicitly resume ${id}.`);
     return state;
+  }
+  /** Checkout-local saved records only; never attach, recover or repair during a census. */
+  async retained(context: string): Promise<LegatusSnapshot[]> {
+    const snapshots: LegatusSnapshot[] = [];
+    const checkout = checkoutIdentity(context);
+    for (const file of this.files().filter(file => file.endsWith(".initial.route") || file.endsWith(".initial.route.pending"))) {
+      let route: Route;
+      try { route = this.route(file); }
+      catch (error) {
+        if (file.startsWith(`v1.${digest(context)}.`) || file.startsWith(`v1.${digest(checkout)}.`)) throw error;
+        continue;
+      }
+      let sameCheckout = route.context === context || route.context === checkout;
+      if (!sameCheckout) {
+        try { sameCheckout = checkoutIdentity(route.context) === checkout; }
+        catch (error) {
+          if (resolve(route.context).startsWith(checkout + sep)) throw error;
+          // Inaccessible unrelated/unknown aliases are preserved, not adopted or repaired.
+          continue;
+        }
+      }
+      if (!sameCheckout) continue;
+      const snapshot = await this.read(route.id);
+      if (!snapshot) throw new Error(`Saved run ${route.id} is unavailable. Explicitly reconcile its history.`);
+      snapshots.push(snapshot);
+    }
+    return snapshots;
   }
   async acquireAssociation(input: {
     context: string;

@@ -22,6 +22,16 @@ For the legacy command reference, setup instructions and evidence links, read th
 - Advisory context alerts default to 135,000 and 150,000 tokens, without percentage scaling. Native compaction stays enabled and unchanged. Tribunus handoff uses the unchanged `/skill:handoff` with a purpose, a temporary file and an explicit successor instruction to read that exact path before continuing.
 - The target includes safe stop, explicit reconciled resume, a minimal indicator plus status/doctor, exact-result review, parent-branch integration and owned-resource cleanup. Unsupported or uncertain outcomes preserve work and ask the Emperor. Automatic Legatus rotation and manual takeover/return are outside the product.
 
+## Explicit continuation (#35)
+
+Ordinary startup stays inactive. Use `/legion resume <run-id>` to continue a preserved run in its saved checkout, including from a fresh Legatus session. Resume rereads configuration and checks exclusive checkout/run ownership, retained history, actual Git associations and exact worker/native identities before attaching. Dirty files, staged changes and legitimate later commits are retained, not reset to the original parent pin. Status/doctor are observations, not recovery.
+
+Dispatched workers remain observation-only with persistent task holds; run continuation does not revive them, transfer child controls or retry missing outcomes. Unknown liveness, incomplete Git operations, missing initialized history or uncertain effects block dependent work. Preserve the named resources/evidence and resolve the exact blocker rather than resubmitting with a new key or using `on` to bypass recovery. Unresolved saved shutdown still refuses resume.
+
+Fresh selected-workflow continuation uses compact saved tasks, questions and results, separately from Emperor inputs; it does not replay the original task/prompt or change existing assignment model/profile pins. Run-scoped poteto state persists, while a separate new run starts off. Unsupported legacy/handoff-dependent recovery is not reconstructed; #36 still owns handoff mechanics.
+
+See [#35 verification and limitations](docs/verification/issue35-resume.md). Its focused retained-resource and installed-native observations are not #41 installed journeys; final integrated checks and independent review are still pending at this checkpoint.
+
 ## Safe stopping (#34)
 
 `/legion off` immediately withholds new assignments/effects and persists one shutdown identity. Repeated off observes that shutdown. Already-admitted effects and registered native children may settle; only corroborated native settlement and the addressed worker's parked receipt release the live owner's observation lock. Unknown effects/activity preserve resources and show stopping/blockers. Restart never schedules saved work or erases an unresolved shutdown; parked/report receipts are not acceptance, resume or cleanup authority.

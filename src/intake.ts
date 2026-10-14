@@ -2,7 +2,7 @@ import { ContextAlerts, ContextSample, type ContextAlert, type ContextObservatio
 import { isDeepStrictEqual } from "node:util";
 import { checkoutIdentity } from "./checkout-identity.js";
 import { loadLegionSettings, selectTribunusModel, type LegionSettings, type TribunusModelIntent, type WorkflowChoice } from "./legion-settings.js";
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
 import { mattInitializationPrompt, requiredWorkflowSkills, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, WorkerStop, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
@@ -17,7 +17,9 @@ import {
   type WorkspaceState,
   type AssignmentFaultPoint,
 } from "./assignments.js";
+import type { ResumeResourceReader, WorkerResourceObservation } from "./resume.js";
 import type {
+  GitWorkspace,
   WorkspaceRepository,
   GitOutcome,
   WorkspaceObservation,
@@ -142,6 +144,7 @@ export type LegionView = {
       tribunusModel: TribunusModelIntent | null;
       workflowChoice: WorkflowChoice | null;
       workflowHold: string | null;
+      resumeHold: string | null;
     }
   >;
   settings: LegionSettings | null;
@@ -170,7 +173,7 @@ export type OperationResult =
   | { kind: "workspace-stage"; requestId: string; message: string }
   | { kind: "launch-stage"; requestId: string; message: string }
   | { kind: "launched"; launch: LaunchResult; message: string }
-  | { kind: "native-stage"; source: z.infer<typeof SubmissionRef>; dispatch: z.infer<typeof WorkflowDispatch> };
+  | { kind: "native-stage"; source: z.infer<typeof SubmissionRef>; dispatch: z.infer<typeof WorkflowDispatch>; continuation?: true };
 type CommandIntent =
   | { kind: "status"; id: string }
   | { kind: "doctor" | "on" | "off" }
@@ -286,6 +289,10 @@ export type LegionOptions = {
   onContextUpdate?: () => void;
   storageFault?: (point: StorageFaultPoint) => void;
   tribuni?: { host: () => TribunusHost | null; onUnavailable?: (message: string) => void };
+  resume?: {
+    repository: (commonDir: string) => Pick<GitWorkspace, "observeResources"> | null;
+    worker: (authority: z.infer<typeof WorkerStop>["authority"]) => ResumeResourceReader | null;
+  };
   assignments?: {
     workspaceRoot?: string;
     repository: () => WorkspaceRepository | null;
@@ -357,6 +364,7 @@ export class Legion {
   private binding: Binding | null = null;
   private tail: Promise<unknown> = Promise.resolve();
   private epoch = 0;
+  private resumeSignal = new AbortController();
   private stopping = false;
   private stopRequested = false;
   private pendingStop: Omit<NonNullable<LegatusSnapshot["shutdown"]>, "workers"> | null = null;
@@ -375,6 +383,8 @@ export class Legion {
     return next;
   }
   private revoke() {
+    this.resumeSignal.abort();
+    this.resumeSignal = new AbortController();
     this.epoch++;
     this.contextAlerts.invalidate("Owner authority revoked; observation unresolved");
     for (const dispose of this.contextWatchers.splice(0)) dispose();
@@ -411,28 +421,31 @@ export class Legion {
         byTask: new Map<string, ClaimView>(),
         fallback,
       };
-    const commonDir = snapshot.workspaceRequests
-      .filter((r) => r.repository)
-      .at(-1)?.repository;
-    if (!commonDir)
+    const repositories = new Set(snapshot.workspaceRequests.flatMap(request => request.repository ? [request.repository] : []));
+    if (!repositories.size)
       return {
         all: Array<ClaimView>(),
         byTask: new Map<string, ClaimView>(),
         fallback,
       };
     try {
-      const observed = await new AssignmentLedger({
-        commonDir,
-        owner: snapshot.id,
-        fault: this.options.assignments?.fault,
-        expectedRepository: snapshot.workspaceRequests.find(
-          (r) => r.repository === commonDir && r.repositoryId,
-        )?.repositoryId ?? null,
-        historyRequired: true,
-      }).observations(snapshot.id);
+      const all: ClaimView[] = [];
+      const byTask = new Map<string, ClaimView>();
+      for (const commonDir of repositories) {
+        const observed = await new AssignmentLedger({
+          commonDir, owner: snapshot.id, fault: this.options.assignments?.fault,
+          expectedRepository: snapshot.workspaceRequests.find(request => request.repository === commonDir && request.repositoryId)?.repositoryId ?? null,
+          historyRequired: true,
+        }).observations(snapshot.id);
+        all.push(...observed.claims);
+        for (const [task, claim] of observed.byTask) {
+          if (byTask.has(task)) throw new Error("Task ownership is ambiguous across saved repositories. Preserve history.");
+          byTask.set(task, claim);
+        }
+      }
       return {
-        all: observed.claims,
-        byTask: observed.byTask,
+        all,
+        byTask,
         fallback: { kind: "unreserved" } satisfies ClaimView,
       };
     } catch (error) {
@@ -450,6 +463,8 @@ export class Legion {
     state: LegatusSnapshot,
     ref: z.infer<typeof TaskRef>,
   ): string {
+    const hold = state.resumeState?.holds.find(hold => hold.task === ref.id);
+    if (hold) throw new Error(`Retained assignment is observation-only after resume. ${hold.message}`);
     const task = state.tasks.find((t) => t.id === ref.id);
     if (!task || task.history.at(-1)?.revision !== ref.revision)
       throw new Error("Exact task revision is not current.");
@@ -1080,6 +1095,92 @@ export class Legion {
     }
     return views;
   }
+  private async resumeHistory({ snapshot, epoch, noWorkInitialization = new Set<string>() }: { snapshot: LegatusSnapshot; epoch: number; noWorkInitialization?: Set<string> }) {
+    const claims = await this.claims(snapshot);
+    const noAdmittedResources = !claims.all.length && !snapshot.workspaceRequests.some(request => request.repositoryId) && !snapshot.launchRequests.length && !snapshot.effects.length && !hasLegacyResearchHold(snapshot);
+    // A published resume generation witnesses reconciliation of its older pending requests,
+    // never of a request admitted later in that same generation.
+    if (snapshot.workspaceRequests.some(request => request.repository && !request.repositoryId &&
+        !(snapshot.resumeState && request.generation < snapshot.resumeState.generation) &&
+        !(noAdmittedResources && noWorkInitialization.has(request.repository))))
+      throw new Error("Pending/legacy repository authority has no durable no-effect witness. Preserve its exact request and history; do not infer safety from empty rows or retry.");
+    if (claims.fallback.kind === "unavailable" && (snapshot.workspaceRequests.some(request => request.repository) || snapshot.launchRequests.length)) throw new Error(claims.fallback.message);
+    for (const request of snapshot.workspaceRequests.filter(request => request.repositoryId)) {
+      if (!request.repository) throw new Error(`Repository path missing for saved request ${request.id}.`);
+      const ledger = new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: request.repositoryId, historyRequired: true });
+      const replay = await ledger.replay(snapshot.id, request.id, request.fingerprint);
+      if (!replay) throw new Error(`Saved workspace request ${request.id} has no matching receipt/history. Do not recreate it.`);
+      if (replay.receipt.reservation.repository !== request.repositoryId) throw new Error("Saved request repository identity differs from its receipt.");
+    }
+    for (const request of snapshot.launchRequests) {
+      const claim = claims.byTask.get(request.task.id);
+      if (claim?.kind !== "owned" || claim.reservation.repository !== request.repositoryId || claim.reservation.approval.scope !== request.scope)
+        throw new Error(`Saved launch ${request.id} has no exact owned reservation/history.`);
+      await new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: request.repositoryId, historyRequired: true }).launchState(claim.reservation, request.attempt);
+    }
+    const launches = new Map<string, LaunchRecord | null>();
+    for (const claim of claims.all) {
+      if (claim.kind !== "owned") throw new Error("Saved claim identity is unresolved.");
+      const request = snapshot.workspaceRequests.find(request => request.repositoryId === claim.reservation.repository);
+      if (!request?.repository) throw new Error("Saved repository witness unavailable.");
+      launches.set(claim.reservation.id, await new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: claim.reservation.repository, historyRequired: true }).readLaunch({ reservation: claim.reservation }));
+    }
+    if (epoch !== this.epoch) throw new Error("Resume revoked during history observation.");
+    return { ...claims, launches };
+  }
+  private workerObservationMatches({ snapshot, launch, observation }: { snapshot: LegatusSnapshot; launch: LaunchRecord; observation: WorkerResourceObservation }) {
+    const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
+    const origin = snapshot.launchRequests.find(request => request.attempt === launch.id);
+    return "worker" in progress && !!origin && observation.launch === launch.id && observation.reservation === launch.reservation && observation.scope === launch.scope &&
+      observation.process.kind === "alive" && observation.live.kind === "observed" && isDeepStrictEqual(observation.live.value.address, progress.worker.address) &&
+      observation.live.value.command === ("assignment" in progress ? progress.command : null) &&
+      isDeepStrictEqual(observation.live.value.controller, { owner: snapshot.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch });
+  }
+  private retiredSettlement({ snapshot, launch, observation }: { snapshot: LegatusSnapshot; launch: LaunchRecord; observation: WorkerResourceObservation }) {
+    const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
+    const retirement = observation.retirement;
+    return this.workerObservationMatches({ snapshot, launch, observation }) && observation.evidence.length > 0 && observation.disposition === "settled" && !!retirement && retirement.state.kind === "parked" &&
+      "worker" in progress && isDeepStrictEqual(retirement.address, progress.worker.address) && observation.live.kind === "observed" &&
+      isDeepStrictEqual(retirement.authority, observation.live.value.controller) && retirement.command === ("assignment" in progress ? progress.command : null);
+  }
+  private async resumeResources({ snapshot, epoch, claims }: { snapshot: LegatusSnapshot; epoch: number; claims: Awaited<ReturnType<Legion["claims"]>> }) {
+    if (hasLegacyResearchHold(snapshot)) throw new Error("Unsupported legacy research activity is unresolved. Preserve it; no replacement or adoption.");
+    const holds: NonNullable<LegatusSnapshot["resumeState"]>["holds"] = [];
+    for (const claim of claims.all) {
+      if (claim.kind !== "owned") throw new Error("Saved reservation ownership cannot be identified.");
+      if (claim.workspace.kind !== "ready") throw new Error(`Retained Git operation for ${claim.reservation.task} is unresolved. Preserve its exact action; no retry.`);
+      const request = snapshot.workspaceRequests.find(request => request.repositoryId === claim.reservation.repository);
+      if (!request?.repository) throw new Error("Saved repository witness is missing.");
+      const git = this.options.resume?.repository(request.repository);
+      if (!git) throw new Error("Read-only Git resource observation unavailable. Restore resume dependencies; no attachment or new operation.");
+      const observed = await git.observeResources({ plan: claim.reservation.plan, commonDir: request.repository });
+      if (epoch !== this.epoch) throw new Error("Resume revoked during Git observation.");
+      if (observed.disposition !== "identified" || observed.dirty.kind !== "observed") throw new Error(`Git resources are unresolved: ${observed.reasons.join(" ")}`);
+      const ledger = new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: claim.reservation.repository, historyRequired: true });
+      const attempt = snapshot.launchRequests.find(request => request.task.id === claim.reservation.task && request.attempt)?.attempt ?? null;
+      const launch = await ledger.readLaunch({ reservation: claim.reservation, known: attempt });
+      if (!launch || launch.state.kind === "prepared") continue;
+      const origin = snapshot.launchRequests.find(request => request.attempt === launch.id);
+      if (!origin) throw new Error(`Original launch authority/history is unavailable for ${launch.id}. Preserve it; no reconstructed controller.`);
+      const reader = this.options.resume?.worker({ owner: snapshot.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch });
+      if (!reader) throw new Error(`Read-only worker observation unavailable for launch ${launch.id}. Preserve it; no control retransmission.`);
+      const observedWorker = await reader.observeResources({ launch, cwd: claim.reservation.plan.path, signal: this.resumeSignal.signal });
+      if (epoch !== this.epoch) throw new Error("Resume revoked during worker observation.");
+      if (observedWorker.launch !== launch.id || observedWorker.reservation !== claim.reservation.id || observedWorker.scope !== launch.scope)
+        throw new Error("Worker observation does not join the exact saved launch/reservation/scope.");
+      const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
+      if (!this.workerObservationMatches({ snapshot, launch, observation: observedWorker }))
+        throw new Error(`Worker liveness/action identity is unresolved. ${observedWorker.reasons.join(" ")} ${observedWorker.recommendation}`);
+      holds.push({ task: claim.reservation.task, reservation: claim.reservation.id,
+        message: `${observedWorker.reasons.join(" ")} ${observedWorker.recommendation} Run continuation never restores old worker authority.`, evidence: observedWorker.evidence,
+        activity: this.retiredSettlement({ snapshot, launch, observation: observedWorker }) ? "retired-settled" : "unresolved",
+        result: "assignment" in progress && observedWorker.report?.command === progress.command && isDeepStrictEqual(observedWorker.report.address, progress.worker.address)
+          ? { outcome: observedWorker.report.outcome, evidence: observedWorker.report.evidence } : null });
+    }
+    if (snapshot.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown"))
+      throw new Error("Retained native effect outcome is unresolved. Reconcile the exact action evidence; process/session liveness is not outcome proof.");
+    return holds;
+  }
   private async executeLaunch(id: string): Promise<OperationResult> {
     const epoch = this.epoch;
     const git = this.options.assignments?.repository();
@@ -1376,10 +1477,11 @@ export class Legion {
             launch: launches.get(t.id) ?? { kind: "not-launched" },
             tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
             ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
+            resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
             eligibility:
               !this.binding || this.stopping
                 ? "inactive"
-                : snapshot.decisions.some(
+                : snapshot.resumeState?.holds.some(hold => hold.task === t.id) || snapshot.decisions.some(
                       (d) =>
                         d.state.kind === "open" &&
                         d.history.at(-1)?.affected.some((a) => a.id === t.id),
@@ -1412,17 +1514,19 @@ export class Legion {
   // Pinned assignment observation requires its applied origin, not eligibility for future dispatch.
   private appliedNativeAuthority(state: LegatusSnapshot, id: string, session: string, generation: number) {
     const source = state.submissions.find(source => source.workflowDispatch && "id" in source.workflowDispatch && source.workflowDispatch.id === id);
-    const dispatch = source?.workflowDispatch;
+    const continuation = state.resumeState?.continuation;
+    const dispatch = continuation?.dispatch && "id" in continuation.dispatch && continuation.dispatch.id === id ? continuation.dispatch : source?.workflowDispatch;
+    const origin = source ?? state.submissions.find(source => source.id === continuation?.root.id && source.revision === continuation.root.revision);
     if (!this.binding || this.stopping || !dispatch || dispatch.kind !== "applied-native" ||
         session !== this.options.session || dispatch.session !== session || generation !== this.binding.generation ||
         dispatch.generation !== generation)
       throw new Error("No applied current native workflow origin. Off, resume or uncertain delivery withholds observation and managed dispatch.");
-    return { source, dispatch };
+    return { source: origin, dispatch };
   }
   async nativeWorkflow(raw: unknown): Promise<OperationResult> {
     const input = z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("prepare"), source: SubmissionRef, id: z.uuid(), skillPath: z.string().min(1), input: z.string().min(1), prompt: z.string().min(1), session: z.string(), generation: z.int().positive() }),
-      z.object({ kind: z.literal("hold"), source: SubmissionRef, message: z.string(), session: z.string(), generation: z.int().positive() }),
+      z.object({ kind: z.literal("prepare"), source: SubmissionRef, continuation: z.literal(true).optional(), id: z.uuid(), skillPath: z.string().min(1), input: z.string().min(1), prompt: z.string().min(1), session: z.string(), generation: z.int().positive() }),
+      z.object({ kind: z.literal("hold"), source: SubmissionRef, continuation: z.literal(true).optional(), message: z.string(), session: z.string(), generation: z.int().positive() }),
       z.object({ kind: z.literal("applied"), id: z.uuid(), prompt: z.string(), journal: z.string().min(1), entry: z.string().min(1), session: z.string(), generation: z.int().positive() }),
       z.object({ kind: z.literal("uncertain"), id: z.uuid(), message: z.string(), session: z.string(), generation: z.int().positive() }),
     ]).safeParse(raw);
@@ -1434,24 +1538,33 @@ export class Legion {
         return reject("provenance", "Current host native dispatch association required.");
       const state = this.selected ? await this.store.read(this.selected) : null;
       if (!state) return reject("unavailable", "Native dispatch state unavailable.");
-      const source = state.submissions.find(source => "source" in data
-        ? source.id === data.source.id && source.revision === data.source.revision
+      const savedContinuation = state.resumeState?.continuation;
+      const continuation = ("continuation" in data && data.continuation || "id" in data && savedContinuation?.dispatch && "id" in savedContinuation.dispatch && savedContinuation.dispatch.id === data.id) ? savedContinuation : null;
+      const source = state.submissions.find(source => continuation
+        ? source.id === continuation.root.id && source.revision === continuation.root.revision
+        : "source" in data ? source.id === data.source.id && source.revision === data.source.revision
         : source.workflowDispatch && "id" in source.workflowDispatch && source.workflowDispatch.id === data.id);
-      if (!source?.workflowDispatch) return reject("native-source", "No pending native source.");
-      const previous = source.workflowDispatch;
+      const previous = continuation?.dispatch ?? source?.workflowDispatch;
+      if (!source || !previous) return reject("native-source", "No exact saved native source/root. Preserve history.");
+      const publishDispatch = (dispatch: z.infer<typeof WorkflowDispatch>) => {
+        if (continuation) continuation.dispatch = dispatch;
+        else source.workflowDispatch = dispatch;
+      };
       if (data.kind === "prepare" || data.kind === "hold") {
         if (previous.kind !== "pending-native" && previous.kind !== "held-native")
           return reject("native-replay", "Native dispatch already attempted. Reconcile its journal; never replay an uncertain delivery.");
         const failure = workflowFailure(state.workflowChoice);
-        if (data.kind === "hold") source.workflowDispatch = { kind: "held-native", message: data.message };
+        if (data.kind === "hold") publishDispatch({ kind: "held-native", message: data.message });
         else {
           if (failure) return failure;
           const invocation = source.workflowInvocation;
           const prior = [...state.submissions].reverse().find(source => source.workflowDispatch?.kind === "applied-native");
-          const root = invocation ? { id: source.id, revision: source.revision } : prior?.workflowDispatch && "root" in prior.workflowDispatch ? prior.workflowDispatch.root : null;
+          if (continuation && state.submissions.some(source => source.workflowDispatch?.kind === "dispatching-native" || source.workflowDispatch?.kind === "uncertain-native"))
+            return reject("native-replay", "Original native prompt application is unresolved. Inspect its exact saved journal; no continuation replay.");
+          const root = continuation?.root ?? (invocation ? { id: source.id, revision: source.revision } : prior?.workflowDispatch && "root" in prior.workflowDispatch ? prior.workflowDispatch.root : null);
           const workflow = state.workflowChoice.requestedWorkflow;
           if (!root || workflow === "unknown") return reject("native-source", "Explicit Emperor workflow source required.");
-          source.workflowDispatch = { kind: "dispatching-native", id: data.id, session: data.session, generation: data.generation, skillPath: data.skillPath, input: data.input, prompt: data.prompt, root, workflow };
+          publishDispatch({ kind: "dispatching-native", id: data.id, session: data.session, generation: data.generation, skillPath: data.skillPath, input: data.input, prompt: data.prompt, root, workflow });
         }
       } else {
         if (previous.kind !== "dispatching-native" || previous.id !== data.id || previous.session !== data.session || previous.generation !== data.generation)
@@ -1466,13 +1579,15 @@ export class Legion {
             const content = typeof witness.data.message.content === "string" ? witness.data.message.content : witness.data.message.content.map(part => part.text).join("\n");
             if (content !== previous.prompt) throw new Error("Persisted skill prompt differs.");
           } catch (error) { return reject("native-witness", `Applied journal witness unavailable. No managed dispatch. ${String(error)}`); }
-          source.workflowDispatch = { ...previous, kind: "applied-native", journal: data.journal, entry: data.entry };
-        } else source.workflowDispatch = { ...previous, kind: "uncertain-native", message: data.message };
+          publishDispatch({ ...previous, kind: "applied-native", journal: data.journal, entry: data.entry });
+        } else publishDispatch({ ...previous, kind: "uncertain-native", message: data.message });
       }
       const expected = state.revision++;
       try {
         await this.store.save(state, expected, () => this.binding === binding && epoch === this.epoch && !this.stopping);
-        return { kind: "native-stage", source: { id: source.id, revision: source.revision }, dispatch: source.workflowDispatch };
+        const dispatch = continuation?.dispatch ?? source.workflowDispatch;
+        if (!dispatch) throw new Error("Native dispatch publication missing.");
+        return { kind: "native-stage", source: { id: source.id, revision: source.revision }, dispatch, ...(continuation ? { continuation: true } : {}) };
       } catch (error) {
         this.revoke();
         return { kind: "uncertain", requestKey: "id" in data ? data.id : source.id, message: `Native dispatch storage uncertain. No delivery/replay authorized. ${String(error)}` };
@@ -1672,6 +1787,7 @@ export class Legion {
                 launch: launches.get(t.id) ?? { kind: "not-launched" },
                 tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
                 ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
+                resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
               })) ?? [],
             ...this.settingsView(),
             diagnostics: this.activationDiagnostics,
@@ -1804,6 +1920,8 @@ export class Legion {
         }
         if (resume && !state)
           return reject("not-found", "Legatus records were not found.");
+        let resumeClaims: Awaited<ReturnType<Legion["resumeHistory"]>> | null = null;
+        const noWorkInitialization = new Set<string>();
         if (resume && state) {
           for (const commonDir of new Set(
             state.workspaceRequests.flatMap((r) =>
@@ -1811,6 +1929,9 @@ export class Legion {
             ),
           )) {
             try {
+              const ledgerRoot = join(commonDir, "legion", "runs", state.id);
+              // reserve cannot admit its transaction/Git dispatch until initialization publication returns.
+              const initializing = existsSync(join(ledgerRoot, "assignments.pending")) && !existsSync(join(ledgerRoot, "assignments.initialized"));
               await new AssignmentLedger({
                 commonDir,
                 owner: state.id,
@@ -1820,6 +1941,7 @@ export class Legion {
                 )?.repositoryId ?? null,
                 historyRequired: true,
               }).recoverExisting(() => epoch === this.epoch);
+              if (initializing) noWorkInitialization.add(commonDir);
             } catch (error) {
               return reject(
                 "assignment-recovery",
@@ -1828,16 +1950,57 @@ export class Legion {
             }
           }
         }
+        if (resume && state) {
+          try { resumeClaims = await this.resumeHistory({ snapshot: state, epoch, noWorkInitialization }); }
+          catch (error) { return reject("assignment-recovery", `Saved assignment history is unresolved. Preserve resources. ${String(error)}`); }
+        }
+        if (!resume && !state) {
+          try {
+            for (const retained of await this.store.retained(this.options.context)) {
+              if (retained.workspaceRequests.some(request => request.repository) || retained.launchRequests.length) {
+                try { await this.resumeHistory({ snapshot: retained, epoch }); }
+                catch (error) { return reject("resume-required", `Saved run ${retained.id} has unresolved history. Explicitly /legion resume ${retained.id}. ${String(error)}`); }
+              }
+              const claims = await this.claims(retained);
+              const launches = await this.launchViews({ snapshot: retained, claims: claims.byTask, fallback: claims.fallback });
+              if (claims.fallback.kind === "unavailable" && retained.workspaceRequests.some(request => request.repository) || retained.workspaceRequests.some(request => request.repositoryId && !claims.byTask.has(typeof request.intent.task === "string" ? request.intent.task : request.intent.task.id)) ||
+                  claims.all.some(claim => claim.kind !== "owned" || claim.workspace.kind !== "ready") || hasUnsettledWork(retained, launches) ||
+                  [...launches.values()].some(launch => launch.kind !== "not-launched" && launch.kind !== "prepared") && !retained.shutdown ||
+                  retained.submissions.some(source => source.workflowDispatch?.kind === "dispatching-native" || source.workflowDispatch?.kind === "uncertain-native") ||
+                  retained.resumeState?.continuation?.dispatch.kind === "dispatching-native" || retained.resumeState?.continuation?.dispatch.kind === "uncertain-native")
+                return reject("resume-required", `Saved run ${retained.id} has unresolved managed resources/actions. ${claims.fallback.kind === "unavailable" ? claims.fallback.message : ""} Explicitly /legion resume ${retained.id}; no new run bypass.`);
+            }
+          } catch (error) { return reject("resume-required", `Saved checkout history cannot be classified. Preserve it and explicitly resume its run. ${String(error)}`); }
+        }
         if (state && state.context !== this.options.context)
           return reject(
             "context",
             "Legatus belongs to a different working context.",
           );
+        if (state && !resume && !this.binding && (state.workspaceRequests.some(request => request.repositoryId) || state.launchRequests.length || state.effects.length || hasLegacyResearchHold(state)))
+          return reject("resume-required", `Retained managed resources require explicit /legion resume ${state.id}. On and new task keys cannot bypass reconciliation.`);
         if (state?.shutdown) {
           const claims = await this.claims(state);
           const launches = await this.launchViews({ snapshot: state, claims: claims.byTask, fallback: claims.fallback });
           if (hasUnsettledWork(state, launches))
             return reject("stopping", "Owned work is not known settled. Preserve the shutdown and resources; activation cannot resume a retiring actor.");
+        }
+        if (resume && state) {
+          const roots = [state.resumeState?.continuation?.root, ...state.submissions.flatMap(source => source.workflowDispatch && "root" in source.workflowDispatch ? [source.workflowDispatch.root] : [])].filter(root => root !== undefined);
+          if (roots.some(root => !state.submissions.some(source => source.id === root.id && source.revision === root.revision)))
+            return reject("native-history", "Saved native continuation root/history is missing. Preserve the exact prompt/journal; no reconstructed Emperor input or replay.");
+        }
+        let resumeHolds: NonNullable<LegatusSnapshot["resumeState"]>["holds"] | null = null;
+        if (resume && state && resumeClaims) {
+          try { resumeHolds = await this.resumeResources({ snapshot: state, epoch, claims: resumeClaims }); }
+          catch (error) { return reject(epoch === this.epoch ? "resume-resources" : "revoked", `Explicit continuation blocked. ${String(error)}`); }
+          const current = await this.store.read(state.id);
+          if (epoch !== this.epoch) return reject("revoked", "Resume was revoked before publication.");
+          if (!current || current.revision !== state.revision) return reject("resume-revision", "Saved run changed during observation. Preserve evidence and explicitly reconcile again.");
+          try {
+            if (!isDeepStrictEqual(await this.resumeHistory({ snapshot: current, epoch, noWorkInitialization }), resumeClaims)) throw new Error("Saved assignment/launch revision changed.");
+          }
+          catch (error) { return reject("assignment-recovery", `History changed during resource observation. ${String(error)}`); }
         }
         const expectedRevision = state?.revision ?? null;
         const snapshot =
@@ -1890,6 +2053,14 @@ export class Legion {
           });
         }
         this.selected = snapshot.id;
+        if (resumeHolds && snapshot.resumeState?.generation !== snapshot.generation) {
+          const priorContinuation = snapshot.resumeState?.continuation;
+          const unresolved = priorContinuation && ["dispatching-native", "uncertain-native"].includes(priorContinuation.dispatch.kind);
+          const rootSource = [...snapshot.submissions].reverse().find(source => source.workflowDispatch?.kind === "applied-native" && source.workflowDispatch.workflow === snapshot.workflowChoice.requestedWorkflow);
+          const root = rootSource?.workflowDispatch && "root" in rootSource.workflowDispatch ? rootSource.workflowDispatch.root : null;
+          snapshot.resumeState = { generation: snapshot.generation, holds: resumeHolds,
+            continuation: unresolved ? priorContinuation : root ? { root, dispatch: { kind: "pending-native" } } : null };
+        }
         snapshot.shutdown = null;
         if (intent.kind === "profile-on" || intent.kind === "profile-off")
           snapshot.workflowChoice.profile = intent.kind === "profile-on" ? "poteto-mode" : "matt";
@@ -1981,13 +2152,45 @@ export class Legion {
     if (!state?.shutdown || !binding) return;
     const shutdown = state.shutdown;
     let changed = false;
+    const retired = new Map<string, z.infer<typeof WorkerStop>["state"]>();
+    for (const task of view.tasks) {
+      const hold = state.resumeState?.holds.find(hold => hold.task === task.id);
+      const progress = task.launch.kind === "held" ? task.launch.last : task.launch;
+      if (!hold || task.claim.kind !== "owned" || !("worker" in progress)) continue;
+      const addressDigest = createHash("sha256").update(JSON.stringify(progress.worker.address)).digest("hex");
+      if (shutdown.workers.some(worker => worker.addressDigest === addressDigest && worker.state.kind === "parked")) continue;
+      try {
+        const reservation = task.claim.reservation;
+        const repository = state.workspaceRequests.find(request => request.repositoryId === reservation.repository);
+        if (!repository?.repository) throw new Error("Current read-only retirement observation unavailable.");
+        const launch = await new AssignmentLedger({ commonDir: repository.repository, owner: state.id, expectedRepository: repository.repositoryId, historyRequired: true }).readLaunch({ reservation: task.claim.reservation });
+        if (!launch) throw new Error("Retained retirement launch history unavailable.");
+        const origin = state.launchRequests.find(request => request.attempt === launch.id);
+        if (!origin) throw new Error("Original retired launch authority/history unavailable.");
+        const reader = this.options.resume?.worker({ owner: state.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch });
+        if (!reader) throw new Error("Current read-only retirement observation unavailable.");
+        const observation = await reader.observeResources({ launch, cwd: task.claim.reservation.plan.path, signal: this.resumeSignal.signal });
+        if (binding !== this.binding) return;
+        if (!this.retiredSettlement({ snapshot: state, launch, observation })) throw new Error(`Current retired resource settlement is unresolved. ${observation.reasons.join(" ")}`);
+        retired.set(addressDigest, { kind: "parked", evidence: observation.evidence });
+      } catch (error) { retired.set(addressDigest, { kind: "held", message: `Retired actor remains observation-only; off cannot establish current settlement. ${String(error)}` }); }
+    }
     const targets = view.tasks.flatMap(task => {
       const progress = task.launch.kind === "held" ? task.launch.last : task.launch;
       if (!("worker" in progress)) return [];
       const addressDigest = createHash("sha256").update(JSON.stringify(progress.worker.address)).digest("hex");
       const command = "assignment" in progress ? progress.command : null;
-      const host = task.claim.kind === "owned" ? this.workerHosts.get(task.claim.reservation.id) : null;
+      const observationOnly = state.resumeState?.holds.some(hold => hold.task === task.id);
+      const host = !observationOnly && task.claim.kind === "owned" ? this.workerHosts.get(task.claim.reservation.id) : null;
       const saved = shutdown.workers.find(worker => worker.addressDigest === addressDigest);
+      const observedRetirement = retired.get(addressDigest);
+      if (observedRetirement) {
+        if (!saved) shutdown.workers.push({ launch: progress.worker.address.launch, addressDigest, command, state: observedRetirement });
+        else if (!isDeepStrictEqual(saved.state, observedRetirement)) saved.state = observedRetirement;
+        else return [];
+        changed = true;
+        return [];
+      }
       if (saved?.state.kind === "parked") return [];
       if (!saved) {
         shutdown.workers.push({ launch: progress.worker.address.launch, addressDigest, command, state: host?.stop ? { kind: "draining" } : { kind: "held", message: "Addressed stop transport unavailable. Preserve the worker; delivery and settlement are unresolved." } });

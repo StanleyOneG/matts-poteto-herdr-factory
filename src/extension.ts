@@ -93,7 +93,22 @@ type NativeRun = {
   source: { id: string; revision: number };
   evidence: RunEvidence;
   data: LegionView;
+  continuation?: true;
 };
+function compactContinuation(view: LegionView): string {
+  const state = view.snapshot;
+  if (!state) throw new Error("Saved continuation state is unavailable.");
+  return `Explicit run continuation ${state.id}. This is saved state, not a new Emperor task. Continue the selected workflow from these references and known decisions/results; do not replay original task, assignment or applied prompts. Retained workers are observation-only: no revival, control retransmission, active-child transfer or inferred outcomes. Resolve displayed blockers before dependent work.\n${JSON.stringify({
+    run: state.id, workflow: state.workflowChoice,
+    tasks: view.tasks.map(task => { const launch = task.launch.kind === "held" ? task.launch.last : task.launch; return {
+      id: task.id, revision: task.history.at(-1)?.revision, scope: task.scope, current: task.history.at(-1), choices: task.technicalChoices,
+      eligibility: task.eligibility, hold: task.resumeHold, reservation: task.claim.kind === "owned" ? task.claim.reservation.id : null,
+      launch: task.launch.kind, model: task.tribunusModel, workflow: task.workflowChoice,
+      reportedResult: launch.kind === "reported" ? launch.report : state.resumeState?.holds.find(hold => hold.task === task.id)?.result ?? null,
+    }; }), decisions: state.decisions, resolutions: state.resolutions,
+    effects: state.effects.map(effect => ({ id: effect.intent.id, task: effect.intent.pin.task, state: effect.state })),
+  })}`;
+}
 const nativeInstructions = `You are the Legatus following the explicitly Emperor-selected native Matt skill, not the intake-only interpreter. Ask necessary requirements, design and test-seam questions before AFK implementation. Let the skill own methodology and task-graph/frontier decisions; Tribuni are separate interactive exploration/implementer subagents, not ordinary native children. Native research, tools, permissions, Trust and child completion remain native.
 Record scoped tickets/tasks and material questions via legion_intake using the exact saved source references. An implement-spec source may scope multiple tickets, all within that Emperor source; new requirements, expanded access, financial commitments and irreversible actions require presented Emperor decisions. Followup answers are saved sources; do not manufacture provenance or infer workflow/profile selection. Use legion_request only for bounded reserve/reconcile/workspace/launch of admitted tasks; then execute the exact returned legion_workspace/legion_launch request identity. Never fabricate request IDs, change profile or bypass held/uncertain outcomes. Resolve uncertainty before any retry.
 This skill entry grants no additional staging, commit, integration, publication, issue closure, deployment, main merge or cleanup authority. Follow the Emperor's separately granted task policy. Do not rewrite upstream skills or global settings.`;
@@ -301,8 +316,8 @@ export default function (pi: ExtensionAPI) {
     } catch {}
     if (presentDecisions) await showDecisions(ctx, view);
   }
-  async function holdNative(ctx: ExtensionContext, source: { id: string; revision: number }, message: string) {
-    if (legion && binding) await legion.nativeWorkflow({ kind: "hold", source, message, session: binding.session, generation: binding.generation });
+  async function holdNative(ctx: ExtensionContext, source: { id: string; revision: number }, message: string, continuation?: true) {
+    if (legion && binding) await legion.nativeWorkflow({ kind: "hold", source, message, ...(continuation ? { continuation } : {}), session: binding.session, generation: binding.generation });
     report(ctx, `Native workflow held before dispatch. ${message} Instructions remain saved; correct the resource/conflict and explicitly resume.`, "warning");
   }
   function readNativeSkill(workflow: "implement" | "implement-spec", text: string) {
@@ -326,16 +341,27 @@ export default function (pi: ExtensionAPI) {
   }
   async function dispatchNative(ctx: ExtensionContext, data: LegionView) {
     const current = legion, captured = binding;
-    const source = data.snapshot?.submissions.find(source =>
-      (source.workflowDispatch?.kind === "pending-native" || source.workflowDispatch?.kind === "held-native") && !attempted.has(`${source.id}/${source.revision}`));
-    if (!current || !captured || !source || !data.snapshot) return false;
-    attempted.add(`${source.id}/${source.revision}`);
+    const retainedContinuation = data.snapshot?.resumeState?.continuation;
+    const continuation = retainedContinuation?.dispatch.kind === "applied-native" ? null : retainedContinuation;
+    const continuationKey = `resume/${data.snapshot?.generation}`;
+    if (continuation && ["dispatching-native", "uncertain-native"].includes(continuation.dispatch.kind)) return false;
+    const source = continuation
+      ? { ...continuation.root, text: compactContinuation(data), evidence: undefined, workflowInvocation: undefined, workflowChoice: data.snapshot?.workflowChoice, workflowDispatch: continuation.dispatch }
+      : data.snapshot?.submissions.find(source =>
+        (source.workflowDispatch?.kind === "pending-native" || source.workflowDispatch?.kind === "held-native") && !attempted.has(`${source.id}/${source.revision}`));
+    if (!current || !captured || !source || !data.snapshot || continuation && attempted.has(continuationKey)) return false;
+    attempted.add(continuation ? continuationKey : `${source.id}/${source.revision}`);
+    const hold = (message: string) => holdNative(ctx, source, message, continuation ? true : undefined);
+    if (!continuation && data.snapshot.resumeState && (source.evidence?.session !== captured.session || source.evidence?.generation !== captured.generation)) {
+      await hold("Saved selected-workflow applied root is unavailable for fresh continuation. Preserve its source/history; no original task or prompt replay. Clarify unsupported history before dependent work.");
+      return true;
+    }
     const unresolved = data.snapshot.submissions.find(source => source.workflowDispatch?.kind === "dispatching-native" || source.workflowDispatch?.kind === "uncertain-native");
-    if (unresolved) { await holdNative(ctx, source, `Native delivery ${unresolved.id} remains unresolved. Inspect its exact saved prompt and journal; no replay or new native managed work.`); return true; }
+    if (unresolved) { await hold(`Native delivery ${unresolved.id} remains unresolved. Inspect its exact saved prompt and journal; no replay or new native managed work.`); return true; }
     const choice = data.snapshot.workflowChoice;
-    if (source.workflowInvocation && source.workflowChoice?.requestedWorkflow !== choice.requestedWorkflow) { await holdNative(ctx, source, "Saved explicit workflow differs from the current Emperor selection. Clarify which instructions to continue; never substitute a different skill."); return true; }
+    if (source.workflowInvocation && source.workflowChoice?.requestedWorkflow !== choice.requestedWorkflow) { await hold("Saved explicit workflow differs from the current Emperor selection. Clarify which instructions to continue; never substitute a different skill."); return true; }
     if (choice.profile !== "matt" || choice.requestedWorkflow === "unknown") {
-      await holdNative(ctx, source, "Explicit Matt workflow conflicts with poteto or is unavailable. Only the Emperor may change the profile.");
+      await hold("Explicit Matt workflow conflicts with poteto or is unavailable. Only the Emperor may change the profile.");
       return true;
     }
     try {
@@ -343,28 +369,30 @@ export default function (pi: ExtensionAPI) {
       if (modeHold) throw new Error(modeHold);
       const diagnostics = await preflight(pi, { principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel(), ...(data.settings ? { settings: data.settings } : {}) }, choice);
       if (diagnostics.some(d => d.status !== "ready")) {
-        await holdNative(ctx, source, diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" "));
+        await hold(diagnostics.filter(d => d.status !== "ready").map(d => d.message).join(" "));
         return true;
       }
       const { path, prompt, input } = readNativeSkill(choice.requestedWorkflow, source.text);
       if (current !== legion || captured !== binding || run || nativeRun || workspaceRun || !ctx.isIdle() || ctx.hasPendingMessages()) {
-        attempted.delete(`${source.id}/${source.revision}`);
+        attempted.delete(continuation ? continuationKey : `${source.id}/${source.revision}`);
         return true;
       }
       const id = randomUUID();
-      const intent = await current.nativeWorkflow({ kind: "prepare", source: { id: source.id, revision: source.revision }, id, skillPath: path, input, prompt, session: captured.session, generation: captured.generation });
+      const intent = await current.nativeWorkflow({ kind: "prepare", source: { id: source.id, revision: source.revision }, ...(continuation ? { continuation: true } : {}), id, skillPath: path, input, prompt, session: captured.session, generation: captured.generation });
       if (intent.kind !== "native-stage" || intent.dispatch.kind !== "dispatching-native") { notifyResult(ctx, intent); return true; }
       const delivery = intent.dispatch;
+      const published = await current.state();
+      if (current !== legion || captured !== binding || published.mode !== "active" || published.snapshot?.generation !== captured.generation || run || nativeRun || workspaceRun || !ctx.isIdle() || ctx.hasPendingMessages()) return true;
       const sources = data.snapshot.submissions.filter(s => s.state.kind === "pending").map(s => ({ id: s.id, revision: s.revision }));
       if (!sources.some(s => s.id === delivery.root.id)) sources.push(delivery.root);
-      nativeRun = { kind: "dispatch", id, input, prompt, source: intent.source, evidence: { ...captured, run: id, nativeDispatch: id, sources }, data };
+      nativeRun = { kind: "dispatch", id, input, prompt, source: intent.source, evidence: { ...captured, run: id, nativeDispatch: id, sources }, data, ...(continuation ? { continuation: true } : {}) };
       try { pi.sendUserMessage(input); }
       catch (error) {
         nativeRun.kind = "held";
         await current.nativeWorkflow({ kind: "uncertain", id, message: String(error), session: captured.session, generation: captured.generation });
         report(ctx, `Native dispatch outcome uncertain. Inspect the saved prompt/session journal; no automatic replay. ${String(error)}`, "error");
       }
-    } catch (error) { await holdNative(ctx, source, String(error)); }
+    } catch (error) { await hold(String(error)); }
     return true;
   }
   async function dispatch(ctx: ExtensionContext) {
@@ -475,6 +503,13 @@ export default function (pi: ExtensionAPI) {
       preflight: settings => {
         const context = liveContext ?? ctx;
         return preflight(pi, { principal: "Legatus", context, thinking: context.thinkingLevel ?? pi.getThinkingLevel(), ...(settings ? { settings } : {}) });
+      },
+      resume: {
+        repository: commonDir => new GitWorkspace(commonDir, async command => {
+          try { const result = await pi.exec("bash", ["-c", command]); return { kind: "finished", code: result.code, output: result.stdout + result.stderr }; }
+          catch (error) { return { kind: "unknown", message: String(error) }; }
+        }),
+        worker: authority => new LocalTribunusHost(async () => { throw new Error("Resume is observation-only; guarded effects are unavailable."); }, authority),
       },
       tribuni: { host: () => hosts.getStore() ?? null, onUnavailable: message => { if (liveContext) report(liveContext, message, "error"); } },
       assignments: {
@@ -682,7 +717,8 @@ export default function (pi: ExtensionAPI) {
           const diagnostics = await preflight(pi, { principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel(), ...(view.settings ? { settings: view.settings } : {}) }, choice);
           const source = pendingNative.data.snapshot?.submissions.find(source => source.id === pendingNative.source.id && source.revision === pendingNative.source.revision);
           const modeHold = nativeModeHold(ctx);
-          if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready") || !source || choice.requestedWorkflow === "unknown" || readNativeSkill(choice.requestedWorkflow, source.text).prompt !== pendingNative.prompt)
+          const text = pendingNative.continuation ? compactContinuation(pendingNative.data) : source?.text;
+          if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready") || text === undefined || choice.requestedWorkflow === "unknown" || readNativeSkill(choice.requestedWorkflow, text).prompt !== pendingNative.prompt)
             throw new Error(modeHold ?? "Loaded native resources or exact selected skill body changed before delivery.");
           if (nativeRun !== pendingNative || !binding || binding.generation !== pendingNative.evidence.generation || !ctx.isIdle() || ctx.hasPendingMessages()) throw new Error("Native delivery authority changed during resource checks.");
         } catch (error) { await uncertainNative(ctx, pendingNative, String(error)); return { action: "handled" }; }
@@ -833,17 +869,20 @@ export default function (pi: ExtensionAPI) {
     if (event.messageType === "custom") {
       // Ordinary child notifications remain native, including their prompt and completion turn.
       const data = await legion?.state();
-      const source = [...(data?.snapshot?.submissions ?? [])].reverse().find(source => source.workflowDispatch?.kind === "applied-native" && source.workflowDispatch.session === binding?.session && source.workflowDispatch.generation === binding?.generation);
-      const delivery = source?.workflowDispatch;
+      const savedContinuation = data?.snapshot?.resumeState?.continuation;
+      const resumed = savedContinuation?.dispatch.kind === "applied-native" && savedContinuation.dispatch.session === binding?.session && savedContinuation.dispatch.generation === binding?.generation ? savedContinuation : null;
+      const source = resumed ? data?.snapshot?.submissions.find(source => source.id === resumed.root.id && source.revision === resumed.root.revision)
+        : [...(data?.snapshot?.submissions ?? [])].reverse().find(source => source.workflowDispatch?.kind === "applied-native" && source.workflowDispatch.session === binding?.session && source.workflowDispatch.generation === binding?.generation);
+      const delivery = resumed?.dispatch ?? source?.workflowDispatch;
       if (source && !nativeRun && !run && !workspaceRun && binding && data?.mode === "active" && data.snapshot?.workflowChoice.profile === "matt" && delivery?.kind === "applied-native" && delivery.workflow === data.snapshot.workflowChoice.requestedWorkflow) {
         const sources = data.snapshot.submissions.filter(source => source.state.kind === "pending").map(source => ({ id: source.id, revision: source.revision }));
         if (!sources.some(source => source.id === delivery.root.id)) sources.push(delivery.root);
-        nativeRun = { kind: "running", id: delivery.id, input: delivery.input, prompt: delivery.prompt, source: { id: source.id, revision: source.revision }, evidence: { ...binding, run: randomUUID(), nativeDispatch: delivery.id, sources }, data };
+        nativeRun = { kind: "running", id: delivery.id, input: delivery.input, prompt: delivery.prompt, source: { id: source.id, revision: source.revision }, evidence: { ...binding, run: randomUUID(), nativeDispatch: delivery.id, sources }, data, ...(resumed ? { continuation: true } : {}) };
       }
       return;
     }
     if (nativeRun?.kind === "prepared" && event.prompt === nativeRun.prompt && nativeRun.evidence.session === ctx.sessionManager.getSessionId()) {
-      return { systemPrompt: `${event.systemPrompt}\n\n${nativeInstructions}`, message: { customType: "legion-native-workflow", display: false, content: `Exact saved sources and current state\n${JSON.stringify({ sources: nativeRun.evidence.sources, state: modelState(nativeRun.data) })}`, details: { dispatch: nativeRun.id } } };
+      return { systemPrompt: `${event.systemPrompt}\n\n${nativeInstructions}`, message: { customType: "legion-native-workflow", display: false, content: nativeRun.continuation ? compactContinuation(nativeRun.data) : `Exact saved sources and current state\n${JSON.stringify({ sources: nativeRun.evidence.sources, state: modelState(nativeRun.data) })}`, details: { dispatch: nativeRun.id } } };
     }
     if (
       workspaceRun?.kind === "prepared" &&

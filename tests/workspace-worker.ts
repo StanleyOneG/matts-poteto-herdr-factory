@@ -1,7 +1,8 @@
 import { Legion } from "../src/intake.js";
 import { GitWorkspace } from "../src/git-workspace.js";
 import { join } from "node:path";
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { writeFile, rename } from "node:fs/promises";
 import { z } from "zod";
@@ -11,7 +12,7 @@ const args = z
     root: z.string(),
     cwd: z.string(),
     session: z.string(),
-    mode: z.enum(["reserve", "interrupt", "reconcile", "observe", "contend"]),
+    mode: z.enum(["reserve", "interrupt", "reconcile", "observe", "contend", "resume"]),
     gate: z.string().optional(),
     effectGate: z.string().optional(),
   })
@@ -33,15 +34,6 @@ const runner = async (command: string) => {
   }
   if (args.mode === "interrupt" && command.includes("'update-ref'")) {
     if (!args.gate) throw new Error("Missing test-owned gate");
-    const child = spawn(
-      "bash",
-      [
-        "-c",
-        `read -r released < '${args.gate}'; ${command}; printf done > '${args.gate}.done'`,
-      ],
-      { cwd: args.cwd, detached: true, stdio: "ignore" },
-    );
-    child.unref();
     const view = await legion.state();
     const claim = view.tasks[0]?.claim;
     if (claim?.kind !== "owned") throw new Error("Missing dispatched claim");
@@ -52,11 +44,16 @@ const runner = async (command: string) => {
         id: claim.reservation.id,
         branch: claim.reservation.plan.branch,
         path: claim.reservation.plan.path,
-        child: child.pid,
+        command,
       }) + "\n",
-      () => process.exit(0),
     );
-    return new Promise<never>(() => {});
+    const input = createInterface({ input: process.stdin });
+    for await (const line of input) {
+      if (line !== "effect-started") throw new Error("Missing owned effect acknowledgement");
+      input.close();
+      process.exit(0);
+    }
+    throw new Error("Owned effect acknowledgement missing");
   }
   try {
     return {
@@ -111,6 +108,7 @@ const legion = new Legion({
     workspaceRoot: join(args.root, "workspaces"),
     repository: () => git,
   },
+  resume: { repository: commonDir => new GitWorkspace(commonDir, runner), worker: () => null },
 });
 const evidence = {
   origin: "host-command",
@@ -126,7 +124,11 @@ const command = (text: string) =>
     evidence,
   });
 let view = await legion.state();
-if (args.mode === "observe") {
+if (args.mode === "resume") {
+  if (!view.snapshot) throw new Error("Missing saved snapshot");
+  const result = await command(`resume ${view.snapshot.id}`);
+  process.stdout.write(JSON.stringify({ result, view: await legion.state() }) + "\n");
+} else if (args.mode === "observe") {
   const claim = view.tasks[0]?.claim;
   process.stdout.write(
     JSON.stringify({
@@ -138,7 +140,10 @@ if (args.mode === "observe") {
     }) + "\n",
   );
 } else {
-  if (view.snapshot) await command(`resume ${view.snapshot.id}`);
+  if (view.snapshot) {
+    const result = await command(`resume ${view.snapshot.id}`);
+    if (result.kind !== "applied") throw new Error(JSON.stringify(result));
+  }
   else {
     await command("task Shared external work");
     view = await legion.state();

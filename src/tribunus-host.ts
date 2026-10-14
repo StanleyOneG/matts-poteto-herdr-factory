@@ -1,5 +1,6 @@
 import { sampleContext } from "./context-alerts.js";
-import { Centuriones, CenturioRequest, type NativeCenturioIntent } from "./centuriones.js";
+import { Centuriones, CenturioRequest, observeNativeChild, type NativeCenturioIntent } from "./centuriones.js";
+import { LocalProcessIdentity, WorkerActivity, type ResumeResourceReader, type WorkerResourceObservation } from "./resume.js";
 import { privateFile, publish } from "./private-evidence.js";
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { connect, createServer, type Server } from "node:net";
@@ -19,6 +20,7 @@ import type { GuardedCommand } from "./git-workspace.js";
 import { prepareCenturioWorkspace, CenturioAllocationHeld } from "./centurio-workspace.js";
 const exec = promisify(execFile);
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+const boundedAssignmentPrompt = (command: string, assignment: unknown) => `Legion bounded assignment ${command}\n${JSON.stringify(assignment)}\nYou own only this bounded assignment. Use the requested skills, meaningful tests and independent review for methodology. Ordinary native child tools, model resolution and permissions remain unchanged. Each concurrent writer needs its own branch/worktree: legion_centurio prepares one owned native launch using an ordinary configured agent. Do not schedule the spec, integrate, accept, clean up, publish, or close issues. A result is not acceptance.`;
 const Authority = ContextAuthority;
 const OwnerProcess = z.strictObject({ pid: z.int().positive(), boot: z.string().min(1), start: z.string().regex(/^\d+$/), window: WindowIdentity });
 function processIdentity(pid: number) {
@@ -34,8 +36,9 @@ const Descriptor = z.object({
   workflowChoice: WorkflowChoiceSchema.optional(), startupSelection: StartupSelectionSchema.optional()
 });
 const Hello = z.object({
-  address: WorkerAddress, endpoint: z.string(), journal: z.string(), pid: z.int().positive()
+  address: WorkerAddress, endpoint: z.string(), journal: z.string(), pid: z.int().positive(), process: LocalProcessIdentity.optional()
 });
+const ResourceObservationFrame = z.strictObject({ kind: z.literal("observe-resources"), capability: z.string(), address: WorkerAddress, reservation: z.uuid(), scope: z.string(), nonce: z.uuid() });
 const ControlFrame = z.object({
   capability: z.string(), authority: Authority, reservation: z.uuid(), scope: z.string(), address: WorkerAddress, command: z.uuid(), kind: z.enum(["inspect", "initialize", "assign"]), assignment: BoundedAssignment.nullable()
 }).strict();
@@ -73,7 +76,7 @@ async function paneAt(pane: string) {
     })
   }).parse(JSON.parse((await exec("herdr", ["pane", "get", pane])).stdout)).result.pane;
 }
-export class LocalTribunusHost implements TribunusHost {
+export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
   private root = join(getAgentDir(), "legion", "tribuni");
   constructor(private run: GuardedCommand, private authority: z.infer<typeof Authority>, private notify: (message: string) => void = () => { }) { }
   private descriptor(launch: string) { return join(this.root, launch, "bootstrap.json"); }
@@ -209,6 +212,112 @@ export class LocalTribunusHost implements TribunusHost {
     const response = Envelope.parse(JSON.parse(reply));
     if (response.kind === "held") throw new Error(response.message);
     await collect();
+  }
+  async observeResources({ launch, cwd, signal }: Parameters<ResumeResourceReader["observeResources"]>[0]): Promise<WorkerResourceObservation> {
+    const result: WorkerResourceObservation = { launch: launch.id, reservation: launch.reservation, scope: launch.scope, disposition: "hold", reasons: [],
+      recommendation: "Preserve this launch and its resources; resolve the exact retained identity/outcome before dependent work. Do not retry or revive the worker.", evidence: [],
+      process: { kind: "unknown", reason: "Exact worker process locator is unavailable." }, live: { kind: "unknown", reason: "Live incarnation observation is unavailable." }, retirement: null, report: null, actions: [], effects: [], children: [] };
+    if (launch.state.kind === "held") result.reasons.push(`Retained launch hold ${launch.state.code}: ${launch.state.message} Exact matching receipts are evidence for explicit reconciliation, not automatic release.`);
+    if (launch.startEvidence.kind === "uncertain") result.reasons.push(`Original Pi start outcome remains uncertain: ${launch.startEvidence.message} Current process/session does not resolve the original action.`);
+    try {
+      const descriptorPath = this.descriptor(launch.id), descriptor = Descriptor.parse(privateFile(descriptorPath));
+      if (descriptor.launch.id !== launch.id || descriptor.launch.reservation !== launch.reservation || descriptor.launch.scope !== launch.scope || descriptor.cwd !== cwd)
+        throw new Error("Bootstrap does not join the exact saved launch/reservation/scope/workspace.");
+      result.evidence.push(descriptorPath);
+      const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
+      if (!("worker" in progress)) throw new Error("Saved launch has no verified worker incarnation. Dispatched resources cannot be inferred or retried.");
+      const worker = progress.worker, helloPath = join(this.root, launch.id, "hello.json"), hello = await this.hello(launch.id);
+      if (!isDeepStrictEqual(hello.address, worker.address) || hello.address.launch !== launch.id) throw new Error("Retained hello identifies another worker incarnation.");
+      result.evidence.push(helloPath);
+      if (!hello.process || hello.pid !== hello.process.pid) throw new Error("Legacy/missing exact worker boot/PID/start locator; preserve uncertain liveness.");
+      try {
+        result.process = { kind: isDeepStrictEqual(processIdentity(hello.pid), hello.process) ? "alive" : "mismatch", identity: hello.process };
+      } catch (error) {
+        const absent = error instanceof Error && "code" in error && error.code === "ENOENT" && "path" in error && error.path === `/proc/${hello.pid}/stat`;
+        result.process = absent ? { kind: "absent", identity: hello.process } : { kind: "unknown", reason: String(error) };
+      }
+      const root = join(this.root, launch.id, hello.address.generation);
+      const retirementPath = join(this.root, launch.id, "retirement.json");
+      if (existsSync(retirementPath)) {
+        const retained = Retirement.parse(privateFile(retirementPath));
+        if (!isDeepStrictEqual(retained.stop.address, hello.address) || !isDeepStrictEqual(retained.stop.authority, descriptor.authority)) throw new Error("Retirement does not join the original worker/controller.");
+        result.retirement = retained.stop; result.evidence.push(retirementPath);
+        const parkedPath = join(root, `${retained.stop.shutdown}.park.json`);
+        if (existsSync(parkedPath)) {
+          const parked = WorkerStop.parse(privateFile(parkedPath));
+          if (parked.shutdown !== retained.stop.shutdown || parked.command !== retained.stop.command || !isDeepStrictEqual(parked.address, hello.address) || !isDeepStrictEqual(parked.authority, retained.stop.authority) || parked.state.kind !== "parked") throw new Error("Park evidence differs from retained retirement.");
+          result.retirement = parked; result.evidence.push(parkedPath);
+        }
+      }
+      const commands = ["initialization" in progress ? { kind: "initialize", command: progress.initialization.command, assignment: null } : progress.kind === "initializing" ? { kind: "initialize", command: progress.command, assignment: null } : null,
+        "assignment" in progress ? { kind: "assign", command: progress.command, assignment: progress.assignment } : null].filter(value => value !== null);
+      for (const action of commands) {
+        const intentPath = join(root, `${action.command}.intent.json`), appliedPath = join(root, `${action.command}.applied.json`);
+        if (!existsSync(intentPath) || !existsSync(appliedPath)) { result.reasons.push(`Exact ${action.kind} ${action.command} applied receipt is missing; absence is not no-effect proof.`); continue; }
+        const intent = z.object({ fingerprint: z.string(), command: z.uuid(), address: WorkerAddress, authority: Authority }).parse(privateFile(intentPath));
+        const fingerprint = createHash("sha256").update(JSON.stringify({ address: hello.address, command: action.command, kind: action.kind, assignment: action.assignment, reservation: launch.reservation, scope: launch.scope })).digest("hex");
+        if (intent.fingerprint !== fingerprint || intent.command !== action.command || !isDeepStrictEqual(intent.address, hello.address) || !isDeepStrictEqual(intent.authority, descriptor.authority)) throw new Error("Applied action intent differs from the exact saved payload/controller.");
+        if (action.kind === "initialize") {
+          const receipt = Initialization.parse(privateFile(appliedPath));
+          if (receipt.command !== action.command || !isDeepStrictEqual(receipt.address, hello.address) || receipt.profile !== descriptor.workflowChoice?.profile || "initialization" in progress && !isDeepStrictEqual(receipt, progress.initialization)) throw new Error("Initialization receipt identifies another action/incarnation/profile.");
+          result.actions.push({ kind: "initialize", command: action.command, receipt });
+        } else {
+          const receipt = z.strictObject({ application: z.string() }).parse(privateFile(appliedPath));
+          const prefix = `${hello.journal}#`;
+          if (!receipt.application.startsWith(prefix)) throw new Error("Application receipt identifies another journal.");
+          const entry = readFileSync(hello.journal, "utf8").trimEnd().split("\n").map(line => z.object({ id: z.string().optional(), message: z.object({ role: z.string(), content: z.unknown().optional() }).optional() }).parse(JSON.parse(line))).find(entry => entry.id === receipt.application.slice(prefix.length));
+          const content = z.array(z.object({ type: z.literal("text"), text: z.string() })).safeParse(entry?.message?.content);
+          if (entry?.message?.role !== "user" || !content.success || !content.data.some(part => part.text === boundedAssignmentPrompt(action.command, action.assignment))) throw new Error("Applied assignment journal origin does not contain the exact saved action/payload.");
+          result.actions.push({ kind: "assign", command: action.command, receipt });
+        }
+        result.evidence.push(intentPath, appliedPath);
+      }
+      if ("assignment" in progress) {
+        const command = progress.command, reportPath = join(root, `${command}.report.json`);
+        if (existsSync(reportPath)) {
+          const report = WorkerReport.parse(privateFile(reportPath));
+          if (report.command !== command || !isDeepStrictEqual(report.address, hello.address) || !result.actions.some(action => action.kind === "assign" && action.command === command)) throw new Error("Report has no exact applied assignment join.");
+          result.report = report; result.evidence.push(reportPath);
+        }
+        for (const file of readdirSync(root).filter(file => file.startsWith(`${command}.`) && file.endsWith(".effect-observation.json"))) {
+          const path = join(root, file), envelope = z.strictObject({ capability: z.string(), address: WorkerAddress, assignment: z.string(), message: EffectMessage }).parse(privateFile(path));
+          if (envelope.capability !== descriptor.capability || envelope.assignment !== command || !isDeepStrictEqual(envelope.address, hello.address) || envelope.message.kind !== "effect-observation") throw new Error("Effect observation does not join exact assignment/capability/incarnation.");
+          const message = envelope.message, responsePath = join(root, `${command}.${message.id}.effect-response.json`), admitted = EffectReply.parse(privateFile(responsePath));
+          const pin = { ...descriptor.authority, task: progress.assignment.task, scope: launch.scope, reservation: launch.reservation, assignment: command, launch: launch.id,
+            workerSession: hello.address.session, workerGeneration: hello.address.generation, addressDigest: createHash("sha256").update(JSON.stringify(hello.address)).digest("hex") };
+          if (admitted.kind !== "effect" || admitted.effect.digest !== message.digest || admitted.effect.intent.id !== message.id || !isDeepStrictEqual(admitted.effect.intent.pin, pin) || admitted.effect.digest !== createHash("sha256").update(JSON.stringify(admitted.effect.intent)).digest("hex")) throw new Error("Effect outcome has no exact retained admission/payload.");
+          result.effects.push(message); result.evidence.push(path, responsePath);
+        }
+        for (const file of readdirSync(root).filter(file => file.endsWith(".centurio-intent.json"))) {
+          const child = observeNativeChild({ path: join(root, file), owner: hello.address, command });
+          result.children.push(child); result.evidence.push(...child.evidence);
+          if (child.disposition !== "settled") result.reasons.push(child.reason);
+        }
+      }
+      if (result.process.kind !== "alive") throw new Error("Worker process is not exactly live; death/mismatch cannot establish action or native settlement.");
+      const window = hello.address.window, local = await localIdentity(), pane = await paneAt(window.pane);
+      const processes = z.object({ result: z.object({ process_info: z.object({ foreground_processes: z.array(z.object({ pid: z.int() })) }) }) }).parse(JSON.parse((await exec("herdr", ["pane", "process-info", "--pane", window.pane])).stdout));
+      if (local.endpoint !== window.endpoint || local.server !== window.server || pane.workspace_id !== window.workspace || pane.tab_id !== window.tab || pane.pane_id !== window.pane || pane.terminal_id !== window.terminal || pane.foreground_cwd !== cwd || pane.agent !== "pi" || !pane.agent_session || (pane.agent_session.kind === "id" ? pane.agent_session.value !== hello.address.session : pane.agent_session.value !== hello.journal) || !processes.result.process_info.foreground_processes.some(p => p.pid === hello.pid)) throw new Error("Actual Herdr workspace/tab/pane/session/process association is missing or inconsistent.");
+      const request = ResourceObservationFrame.parse({ kind: "observe-resources", capability: descriptor.capability, address: hello.address, reservation: launch.reservation, scope: launch.scope, nonce: randomUUID() });
+      const line = await new Promise<string>((resolve, reject) => {
+        const socket = connect({ path: hello.endpoint, signal }); let buffer = "";
+        socket.once("connect", () => socket.write(JSON.stringify(request) + "\n"));
+        socket.on("data", chunk => { buffer += chunk; const end = buffer.indexOf("\n"); if (end < 0) return; resolve(buffer.slice(0, end)); socket.destroy(); });
+        socket.once("error", reject); socket.once("close", () => reject(new Error("Resource observation closed without a complete response.")));
+      });
+      const reply = Envelope.parse(JSON.parse(line));
+      if (reply.kind !== "ok") throw new Error(reply.message);
+      const live = WorkerActivity.parse(reply.value);
+      if (live.nonce !== request.nonce || !isDeepStrictEqual(live.address, hello.address) || !isDeepStrictEqual(live.controller, descriptor.authority) || live.command !== ("assignment" in progress ? progress.command : null) || !isDeepStrictEqual(processIdentity(hello.pid), hello.process)) throw new Error("Live observation does not authenticate original incarnation/controller/action.");
+      result.live = { kind: "observed", value: live };
+      if (live.retirement && (!result.retirement || live.retirement.shutdown !== result.retirement.shutdown || live.retirement.command !== result.retirement.command || !isDeepStrictEqual(live.retirement.address, result.retirement.address))) throw new Error("Live retirement differs from retained evidence.");
+      if (live.principal !== "settled" || live.busy || live.pendingMessages || live.admissionHold || live.childrenOutstanding || live.childrenHeld || live.effectsOutstanding) result.reasons.push("Actual principal/native children/effects are active or unresolved; observe only and preserve this assignment.");
+      if ("assignment" in progress && (!result.report || result.report.outcome === "blocked")) result.reasons.push("Same-assignment report/settlement is missing or blocked.");
+      if (result.effects.some(effect => effect.state.kind === "unknown")) result.reasons.push("Retained effect outcome is unknown; process liveness cannot resolve it.");
+      if (result.retirement && result.retirement.state.kind !== "parked") result.reasons.push("Retirement is permanently retained and its safe parking is unresolved.");
+      if (!result.reasons.length) { result.disposition = "settled"; result.recommendation = "Exact resources are known settled at this observation. Preserve historical assignment and retirement; this does not authorize reuse, adoption or cleanup."; }
+    } catch (error) { result.reasons.push(String(error)); }
+    return result;
   }
   async inspectWorker({ launch, window, cwd }: Parameters<TribunusHost["inspectWorker"]>[0]) {
     if (!existsSync(join(this.root, launch.id, "hello.json")))
@@ -619,6 +728,18 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
         socket.removeAllListeners("data");
         try {
           const raw: unknown = JSON.parse(buffer.slice(0, buffer.indexOf("\n")));
+          const observation = ResourceObservationFrame.safeParse(raw);
+          if (observation.success) {
+            const request = observation.data, received = Buffer.from(request.capability), expected = Buffer.from(descriptor.capability);
+            if (received.length !== expected.length || !timingSafeEqual(received, expected) || !address || !isDeepStrictEqual(request.address, address) || request.reservation !== descriptor.launch.reservation || request.scope !== descriptor.launch.scope || !context || !incarnation(context)) throw new Error("Observation does not address this exact worker incarnation.");
+            // Deliberately before observeOwner/control: reading cannot latch retirement, adopt a controller or admit work.
+            const value = WorkerActivity.parse({ nonce: request.nonce, address, controller, command: assignmentCommand, principal: principalActivity,
+              busy: !!active || !!pendingSettlement || !context.isIdle(), pendingMessages: context.hasPendingMessages(), admissionHold,
+              childrenOutstanding: centuriones?.outstanding ?? false, childrenHeld: centuriones?.held ?? false,
+              effectsOutstanding: [...effects.values()].some(effect => effect.execution !== "observed" || effect.record.state.kind === "unknown"), retirement });
+            socket.end(JSON.stringify({ kind: "ok", value }) + "\n");
+            return;
+          }
           const frame = Frame.parse(raw);
           const received = Buffer.from(frame.capability), expected = Buffer.from(descriptor.capability);
           if (received.length !== expected.length || !timingSafeEqual(received, expected) || !address || JSON.stringify(frame.address) !== JSON.stringify(address) || frame.reservation !== descriptor.launch.reservation || frame.scope !== descriptor.launch.scope || frame.authority.owner !== descriptor.authority.owner || frame.authority.generation < controller.generation || (frame.authority.generation === controller.generation && (frame.authority.session !== controller.session || frame.authority.epoch !== controller.epoch)) || !context || !incarnation(context))
@@ -702,7 +823,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           const prompt = frame.kind === "initialize"
             ? choice.profile === "matt" ? mattInitializationPrompt(frame.command)
               : `/skill:poteto-mode Legion native initialization ${frame.command}. No implementation assignment is authorized yet. Do not use tools, delegate, edit files, or run commands. Reply in one sentence that you are waiting for the bounded assignment.`
-            : `Legion bounded assignment ${frame.command}\n${JSON.stringify(frame.assignment)}\nYou own only this bounded assignment. Use the requested skills, meaningful tests and independent review for methodology. Ordinary native child tools, model resolution and permissions remain unchanged. Each concurrent writer needs its own branch/worktree: legion_centurio prepares one owned native launch using an ordinary configured agent. Do not schedule the spec, integrate, accept, clean up, publish, or close issues. A result is not acceptance.`;
+            : boundedAssignmentPrompt(frame.command, frame.assignment);
           const done = new Promise<unknown>((resolve) => { active = {
             kind: "running", frame, prompt, expanded: null, priorMode: new Set(context?.sessionManager.getBranch().filter((e) => e.type === "custom" && e.customType === "pstack-mode").map((e) => e.id)), resolve
           }; });
@@ -727,7 +848,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     });
     await new Promise<void>((resolve, reject) => { server?.once("error", reject); server?.listen(endpoint, resolve); });
     publish(join(dirname(path), "hello.json"), {
-      address, endpoint, journal, pid: process.pid
+      address, endpoint, journal, pid: process.pid, process: processIdentity(process.pid)
     });
     ctx.ui.setStatus("legion-intake", "Tribunus awaiting verified initialization. No assignment.");
   });

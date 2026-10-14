@@ -362,18 +362,31 @@ export class AssignmentLedger {
     if (version.version !== 2) throw new Error("Unsupported launch history.");
     return "current";
   }
+  private retainedLaunch({ row, reservation, known }: { row: unknown; reservation: Reservation; known: string | null }): LaunchRecord {
+    const stored = LaunchRecord.pick({ id: true, reservation: true, revision: true }).extend({ value: z.string() }).parse(row);
+    const launch = LaunchRecord.parse(JSON.parse(stored.value));
+    if (launch.id !== stored.id || launch.revision !== stored.revision)
+      throw new Error("Launch row identity changed. Preserve assignment history.");
+    if (known && launch.id !== known) throw new Error("Known launch identity changed.");
+    if (launch.reservation !== stored.reservation || launch.reservation !== reservation.id || launch.scope !== reservation.approval.scope)
+      throw new Error("Launch reservation history changed. Preserve assignment history and pinned resources.");
+    return launch;
+  }
   async launchState(reservation: Reservation, known: string | null = null): Promise<LaunchView> {
+    const launch = await this.readLaunch({ reservation, known });
+    return launch ? { ...projectLaunch(launch.state), startEvidence: launch.startEvidence } : { kind: "not-launched" };
+  }
+  /** Read exact retained history without creating or migrating a launch. */
+  async readLaunch({ reservation, known = null }: { reservation: Reservation; known?: string | null }): Promise<LaunchRecord | null> {
     if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
     const db = await this.open(false);
     if (!db) throw new Error("Known assignment history unavailable.");
     try {
       this.confirmReservation({ db, reservation });
-      if (this.launchSchema(db, known !== null) === "legacy") return { kind: "not-launched" };
-      const row = db.prepare("SELECT value FROM tribuni WHERE reservation=?").get(reservation.id);
+      if (this.launchSchema(db, known !== null) === "legacy") return null;
+      const row = db.prepare("SELECT reservation,id,revision,value FROM tribuni WHERE reservation=?").get(reservation.id);
       if (known && !row) throw new Error("Known launch row is missing. History cannot be reset.");
-      if (!row) return { kind: "not-launched" };
-      const launch = LaunchRecord.parse(JSON.parse(rowValue(row)));
-      return { ...projectLaunch(launch.state), startEvidence: launch.startEvidence };
+      return row ? this.retainedLaunch({ row, reservation, known }) : null;
     } finally { db.close(); }
   }
   async beginLaunch(reservation: Reservation, owned: () => boolean, known: string | null = null): Promise<LaunchRecord> {
@@ -392,10 +405,10 @@ export class AssignmentLedger {
         this.fault?.("after-launch-migration-commit");
         db.exec("BEGIN IMMEDIATE");
       }
-      const row = db.prepare("SELECT value FROM tribuni WHERE reservation=?").get(reservation.id);
+      const row = db.prepare("SELECT reservation,id,revision,value FROM tribuni WHERE reservation=?").get(reservation.id);
       if (row) {
-        const launch = LaunchRecord.parse(JSON.parse(rowValue(row)));
-        if (known && launch.id !== known) throw new Error("Known launch identity changed.");
+        this.confirmReservation({ db, reservation });
+        const launch = this.retainedLaunch({ row, reservation, known });
         db.exec("ROLLBACK"); return launch;
       }
       if (known) throw new Error("Known launch row is missing. History cannot be reset.");
@@ -437,10 +450,11 @@ export class AssignmentLedger {
     ) {
       const db = await this.open(false);
       db?.close();
-      return;
+    } else {
+      const db = await this.open(true, owned, true);
+      db?.close();
     }
-    const db = await this.open(true, owned, true);
-    db?.close();
+    await this.observations(this.owner);
   }
   async observations(
     owner: z.infer<typeof LegatusId>,
@@ -485,6 +499,10 @@ export class AssignmentLedger {
         ))
       )
         throw new Error("Known task binding is missing. Preserve assignment history and pinned resources.");
+      for (const row of db.prepare("SELECT value FROM receipts").all()) {
+        const stored = StoredReceipt.parse(JSON.parse(rowValue(row)));
+        this.confirmReservation({ db, reservation: stored.receipt.reservation });
+      }
       return { claims, byTask };
     } finally {
       db.close();

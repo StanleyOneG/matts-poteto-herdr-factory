@@ -1,3 +1,15 @@
+export function composedRuntime(cwd: string, session: string, journal: string): {
+  pi: import("@earendil-works/pi-coding-agent").ExtensionAPI;
+  ctx: import("@earendil-works/pi-coding-agent").ExtensionContext;
+  prompts: string[];
+  notices: string[];
+  emit(name: string, event?: unknown): Promise<unknown>;
+  command(text: string): Promise<unknown>;
+  start(prompt: string): Promise<boolean>;
+  call(name: string, input: unknown): Promise<{ isError?: boolean }>;
+  settle(): Promise<void>;
+  failSend(): void;
+};
 export function exerciseNativeAssignment(scenario: "context-block-launch"): Promise<{ root: string; view: import("../../src/intake.js").LegionView; created: boolean; notices: string[] }>;
 type ContextResult = { root: string; view: import("../../src/intake.js").LegionView; observations: Array<Record<string, import("../../src/context-alerts.js").ContextObservation>>; sent: Array<{ message: { content: string; details: import("../../src/context-alerts.js").ContextAlert }; options: { triggerTurn: boolean; deliverAs: string } }>; statuses: Array<{ key: string; text: string }> };
 export function exerciseNativeAssignment(scenario: "context-legatus" | "context-worker" | "context-worker-switch" | "context-worker-shutdown" | "context-worker-disposal" | "context-invalidations" | "context-low-thresholds" | "context-owner"): Promise<ContextResult>;

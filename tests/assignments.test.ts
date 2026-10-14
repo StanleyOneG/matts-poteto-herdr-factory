@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { LaunchRecord } from "../src/tribunus.js";
 import { Legion, type LegionOptions } from "../src/intake.js";
 import type { WorkspaceRepository } from "../src/git-workspace.js";
 
@@ -89,6 +91,69 @@ async function legatus({ root, git, session, fault, context = join(root, "checko
   assert.ok(task);
   return { legion, command, options, task, owner: view.snapshot?.id };
 }
+
+for (const corruption of ["attempt", "reservation", "row"] as const) {
+  test(`known launch ${corruption} mismatch stays unavailable instead of projecting another attempt`, async () => {
+    const { root, git } = await repository();
+    const a = await legatus({ root, git, session: "launch-history" });
+    try {
+      await a.command(`reserve ${a.task.id}@1 --parent refs/heads/main`, "reserve");
+      const reserved = await a.legion.command({ workspaceRequest: "reserve" });
+      if (reserved.kind !== "reserved") assert.fail("Expected retained reservation");
+      const reservation = reserved.receipt.reservation;
+      const { DatabaseSync } = await import("node:sqlite");
+      const ledger = new DatabaseSync(join(root, "repo.git", "legion", "runs", reservation.owner, "assignments.sqlite"));
+      const aggregate = new DatabaseSync(join(a.options.storagePath, `v1.${reservation.owner}.sqlite`));
+      try {
+        const launch = LaunchRecord.parse({ id: randomUUID(), reservation: corruption === "reservation" ? randomUUID() : reservation.id, revision: 0, scope: reservation.approval.scope, state: { kind: "prepared" } });
+        ledger.exec("CREATE TABLE legion_schema (singleton INTEGER PRIMARY KEY, version INTEGER); INSERT INTO legion_schema VALUES(1,2); CREATE TABLE tribuni (reservation TEXT PRIMARY KEY, id TEXT UNIQUE, revision INTEGER, value TEXT);");
+        ledger.prepare("INSERT INTO tribuni VALUES(?,?,?,?)").run(reservation.id, corruption === "row" ? randomUUID() : launch.id, launch.revision, JSON.stringify(launch));
+        const snapshot = (await a.legion.state()).snapshot;
+        assert.ok(snapshot);
+        const request = snapshot.workspaceRequests[0];
+        assert.ok(request);
+        snapshot.launchRequests.push({ id: "known-launch", task: reservation.approval.task, scope: reservation.approval.scope, evidence: request.evidence, generation: snapshot.generation, epoch: 0, repository: join(root, "repo.git"), repositoryId: reservation.repository, attempt: corruption === "attempt" ? randomUUID() : launch.id });
+        aggregate.prepare("UPDATE snapshot SET value=? WHERE singleton=1").run(JSON.stringify(snapshot));
+      } finally { ledger.close(); aggregate.close(); }
+      const view = await a.legion.state();
+      assert.equal(view.tasks[0]?.launch.kind, "unavailable");
+      if (view.tasks[0]?.launch.kind === "unavailable") {
+        const message = corruption === "attempt" ? /Known launch identity changed/ : corruption === "reservation" ? /Launch reservation history changed/ : /Launch row identity changed/;
+        assert.match(view.tasks[0].launch.message, message);
+      }
+      assert.equal((await a.command(`launch ${a.task.id}@1`, "cannot-adopt-other-attempt")).kind, "rejected");
+    } finally { await a.command("off"); }
+  });
+}
+
+test("explicit restart refuses missing initialized reservations even when their task bindings were also lost", async () => {
+  const { root, git } = await repository();
+  const a = await legatus({ root, git, session: "missing-reservation" });
+  await a.command(`reserve ${a.task.id}@1 --parent refs/heads/main`, "reserve");
+  const reserved = await a.legion.command({ workspaceRequest: "reserve" });
+  if (reserved.kind !== "reserved") assert.fail("Expected retained reservation");
+  await a.command("off");
+  const file = join(root, "repo.git", "legion", "runs", reserved.receipt.reservation.owner, "assignments.sqlite");
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(file);
+  try { db.exec("DELETE FROM claims; DELETE FROM bindings;"); }
+  finally { db.close(); }
+  const ledgerBytes = await readFile(file);
+  const aggregate = join(a.options.storagePath, `v1.${a.owner}.sqlite`);
+  const aggregateBytes = await readFile(aggregate);
+  const restarted = new Legion(a.options);
+  for (const key of ["resume-first", "resume-again"]) {
+    const result = await restarted.command({ text: `resume ${a.owner}`, requestKey: key, evidence: { origin: "host-command", transport: "source-unavailable", session: a.options.session, generation: null, presented: [] } });
+    assert.equal(result.kind, "rejected");
+    if (result.kind === "rejected") {
+      assert.equal(result.code, "assignment-recovery");
+      assert.match(result.message, /Known reservation ownership evidence is missing/);
+    }
+    assert.equal((await restarted.state()).mode, "inactive");
+    assert.deepEqual(await readFile(file), ledgerBytes);
+    assert.deepEqual(await readFile(aggregate), aggregateBytes);
+  }
+});
 
 test("unreadable storage cannot hide stopping or release an unsettled invocation", async () => {
   const { root, git } = await repository();
@@ -617,7 +682,7 @@ test("revocation at durable dispatch never starts the Git invocation", async () 
   assert.equal((await a.legion.state()).mode, "inactive");
 });
 
-test("matching resources without a success receipt remain unknown after reopening and explicit reconciliation", async () => {
+test("explicit resume preserves an unknown Git action with incomplete association without authorizing retry", async () => {
   const { root, git } = await repository();
   let branch: string | null = null;
   git.createBranch = async (plan) => {
@@ -656,29 +721,20 @@ test("matching resources without a success receipt remain unknown after reopenin
     generation: null,
     presented: [],
   };
-  await reopened.command({
-    text: `resume ${a.owner}`,
-    requestKey: "resume",
-    evidence: host,
-  });
-  await reopened.command({
-    text: `reconcile ${a.task.id}`,
-    requestKey: "inspect",
-    evidence: host,
-  });
-  git.createBranch = async () => {
-    throw new Error("Unknown completion must never retry");
-  };
-  const result = await reopened.command({ workspaceRequest: "inspect" });
-  assert.equal(result.kind, "reserved");
-  if (result.kind !== "reserved") assert.fail("Expected retained reservation");
-  assert.equal(result.workspace.kind, "held");
-  if (result.workspace.kind !== "held") assert.fail("Expected unknown hold");
-  assert.equal(result.workspace.code, "unknown-operation");
-  assert.match(result.message, /Git operation completion is unknown/);
-  assert.match(result.message, /No retry was performed/);
-  assert.match(result.workspace.message, /Preserve these resources/);
-  assert.ok(result.workspace.operation?.id);
+  const saved = (await reopened.state()).snapshot;
+  const refused = await reopened.command({ text: `resume ${a.owner}`, requestKey: "resume", evidence: host });
+  assert.equal(refused.kind, "rejected");
+  if (refused.kind !== "rejected") assert.fail("Expected explicit retained-resource blocker");
+  assert.equal(refused.code, "resume-resources");
+  assert.match(refused.message, /Git operation.*unresolved/);
+  assert.match(refused.message, /Preserve.*no retry/);
+  git.createBranch = async () => { throw new Error("Unknown completion must never retry"); };
+  assert.equal((await reopened.command({ text: `reconcile ${a.task.id}`, requestKey: "inspect", evidence: host })).kind, "rejected");
+  assert.equal((await reopened.command({ workspaceRequest: "inspect" })).kind, "rejected");
+  const retained = await reopened.state(), claim = retained.tasks[0]?.claim;
+  if (claim?.kind !== "owned" || claim.workspace.kind !== "dispatched") assert.fail("Exact unknown dispatched action must remain visible");
+  assert.ok(claim.workspace.operation.id);
+  assert.deepEqual(retained.snapshot, saved, "Refusal cannot attach, record another action, or rewrite the unknown request");
   assert.equal(branch, "a".repeat(40));
   await reopened.command({ text: "off", requestKey: "off", evidence: host });
 });
@@ -908,7 +964,7 @@ test("successful reservation verifies both stages and exact replay never creates
   await a.command("off");
 });
 
-test("unavailable assignment authority retains its exact pending request and gives explicit fresh authorization guidance", async () => {
+test("unavailable assignment authority retains its exact pending request; absent durable rollback evidence blocks fresh authorization", async () => {
   const { root, git } = await repository();
   const a = await legatus({ root, git, session: "session-busy-guidance" });
   assert.ok(a.options.assignments);
@@ -936,20 +992,17 @@ test("unavailable assignment authority retains its exact pending request and giv
   assert.deepEqual(retained?.intent, pending.intent);
   await a.command("off");
   delete a.options.assignments.fault;
-  await a.command(`resume ${a.owner}`);
-  assert.equal(
-    (await a.legion.command({ workspaceRequest: "busy-request" })).kind,
-    "rejected",
-  );
-  assert.equal(
-    (await a.command(text, "explicit-fresh-request")).kind,
-    "deferred",
-  );
-  assert.equal(
-    (await a.legion.command({ workspaceRequest: "explicit-fresh-request" }))
-      .kind,
-    "reserved",
-  );
+  // A rollback occurred in this fixture, but no durable no-effect witness survives it.
+  // Empty ledger rows cannot distinguish rollback from missing committed history after restart.
+  const saved = (await a.legion.state()).snapshot;
+  const refused = await a.command(`resume ${a.owner}`);
+  assert.equal(refused.kind, "rejected");
+  if (refused.kind !== "rejected") assert.fail("Expected preserved rollback uncertainty");
+  assert.match(refused.message, /no durable no-effect witness/);
+  assert.equal((await a.legion.command({ workspaceRequest: "busy-request" })).kind, "rejected");
+  assert.equal((await a.command(text, "explicit-fresh-request")).kind, "rejected");
+  assert.equal((await a.legion.command({ workspaceRequest: "explicit-fresh-request" })).kind, "rejected");
+  assert.deepEqual((await a.legion.state()).snapshot, saved, "No new request, input loss, or blind Git retry");
   await a.command("off");
 });
 

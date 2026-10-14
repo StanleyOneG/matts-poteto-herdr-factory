@@ -14,7 +14,10 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
+import { SnapshotSchema } from "../src/snapshot.js";
+import { Reservation, WorkspaceState } from "../src/assignments.js";
 import { promisify } from "node:util";
 import { Legion, type LegionOptions } from "../src/intake.js";
 import { GitWorkspace } from "../src/git-workspace.js";
@@ -31,7 +34,6 @@ const WorkerResult = z.object({
     .object({ kind: z.string(), code: z.string().optional() })
     .optional(),
   message: z.string().optional(),
-  child: z.number().optional(),
 });
 const PendingRequest = z.object({
   id: z.string(),
@@ -474,62 +476,62 @@ test("settled runs through linked, nested, symlink checkouts and an independent 
   );
 });
 
-test("a surviving Git child keeps its unknown reservation before and after its delayed branch appears", async () => {
+test("a surviving Git child blocks explicit resume before and after its delayed branch appears without losing its unknown reservation", async () => {
   const { root, cwd, git } = await fixture();
   const gate = join(root, "effect.fifo");
   await exec("mkfifo", [gate]);
-  const interrupted = await worker({
-    root,
-    cwd,
-    session: "interrupted",
-    mode: "interrupt",
-    gate,
-  });
-  assert.equal(interrupted.kind, "interrupted");
-  assert.ok(interrupted.child);
-  process.kill(interrupted.child, 0);
-  const absent = await worker({
-    root,
-    cwd,
-    session: "interrupted",
-    mode: "reconcile",
-  });
-  assert.equal(absent.kind, "reserved");
-  assert.equal(absent.id, interrupted.id);
-  assert.equal(absent.workspace?.code, "unknown-operation");
-  const before = await git(
-    "for-each-ref",
-    "--format=%(refname)",
-    interrupted.branch,
-  );
-  assert.equal(before, "");
-  await writeFile(gate, "release\n");
-  while (true) {
-    try {
-      await access(`${gate}.done`);
-      break;
-    } catch {
-      await new Promise((resolve) => setImmediate(resolve));
-    }
+  const controller = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./workspace-worker.ts", import.meta.url)), JSON.stringify({ root, cwd, session: "interrupted", mode: "interrupt", gate })], { stdio: ["pipe", "pipe", "pipe"] });
+  let output = "", errors = "";
+  controller.stdout.on("data", chunk => { output += chunk; }); controller.stderr.on("data", chunk => { errors += chunk; });
+  const controllerClosed = new Promise((resolve, reject) => { controller.once("error", reject); controller.once("close", (code, signal) => resolve({ code, signal })); });
+  const waitFor = async (check: () => Promise<boolean> | boolean) => {
+    const deadline = Date.now() + 30000; // Observation bound only; never signals or proves settlement.
+    while (!await check()) { if (Date.now() >= deadline) throw new Error(`Missing fixture evidence: ${errors}`); await delay(10); }
+  };
+  let effect: ChildProcess | undefined, closed: Promise<{ code: number | null; signal: NodeJS.Signals | null }> | undefined, released = false;
+  try {
+    await waitFor(() => output.includes("\n"));
+    const interrupted = WorkerResult.extend({ command: z.string() }).parse(JSON.parse(output));
+    assert.equal(interrupted.kind, "interrupted");
+    effect = spawn("bash", ["-c", `printf 'entered\\n' >> "$2"; read -r release < "$1"; ${interrupted.command}; rc=$?; printf '%s\\n' "$rc" > "$3"; exit "$rc"`, "owned-effect", gate, `${gate}.entries`, `${gate}.exit`], { cwd, stdio: "ignore" });
+    const child = effect;
+    closed = new Promise((resolve, reject) => { child.once("error", reject); child.once("close", (code, signal) => resolve({ code, signal })); });
+    await waitFor(async () => { try { return await readFile(`${gate}.entries`, "utf8") === "entered\n"; } catch { return false; } });
+    const pid = effect.pid; assert.ok(pid);
+    const identity = async () => {
+      const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+      const start = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+      assert.ok(start); assert.match(start, /^\d+$/);
+      return { pid, boot: (await readFile("/proc/sys/kernel/random/boot_id", "utf8")).trim(), start };
+    };
+    const originalIdentity = await identity();
+    controller.stdin.end("effect-started\n");
+    assert.deepEqual(await controllerClosed, { code: 0, signal: null });
+    const Resume = z.object({ result: z.object({ kind: z.literal("rejected"), message: z.string() }), view: z.object({ mode: z.literal("inactive"), snapshot: SnapshotSchema, tasks: z.array(z.object({ claim: z.object({ kind: z.literal("owned"), reservation: Reservation, workspace: WorkspaceState }) })) }) });
+    const resume = async () => Resume.parse(JSON.parse((await exec(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./workspace-worker.ts", import.meta.url)), JSON.stringify({ root, cwd, session: "interrupted", mode: "resume" })])).stdout));
+    const before = await resume();
+    assert.match(before.result.message, /Git operation.*unresolved/);
+    assert.deepEqual(await identity(), originalIdentity);
+    assert.equal(await git("for-each-ref", "--format=%(refname)", interrupted.branch), "");
+    await writeFile(gate, "release\n"); released = true;
+    const exit = await closed;
+    assert.deepEqual(exit, { code: 0, signal: null });
+    assert.equal(await readFile(`${gate}.exit`, "utf8"), "0\n");
+    assert.equal(await git("rev-parse", interrupted.branch), await git("rev-parse", "refs/heads/intended"));
+    const after = await resume();
+    assert.match(after.result.message, /Git operation.*unresolved/);
+    assert.deepEqual(after.view, before.view, "Matching ref and real process exit cannot repair missing action outcome or attach authority");
+    assert.equal(before.view.tasks[0]?.claim.reservation.id, interrupted.id);
+    assert.equal(before.view.tasks[0]?.claim.workspace.kind, "dispatched");
+    assert.equal(await readFile(`${gate}.entries`, "utf8"), "entered\n", "Only the original backend executes");
+    assert.equal(await readFile(join(cwd, "tracked"), "utf8"), "dirty original\n");
+    assert.equal(await readFile(join(cwd, "untracked"), "utf8"), "original sentinel\n");
+    await writeFile(join(root, "surviving-process.json"), JSON.stringify({ pid, originalIdentity, exit, before, after }, null, 2));
+  } finally {
+    if (!controller.stdin.writableEnded) controller.stdin.end(effect ? "effect-started\n" : undefined);
+    if (effect && closed) { if (!released && effect.exitCode === null && effect.signalCode === null) await writeFile(gate, "release\n"); await closed; }
+    await controllerClosed;
   }
-  assert.equal(
-    await git("rev-parse", interrupted.branch),
-    await git("rev-parse", "refs/heads/intended"),
-  );
-  const matching = await worker({
-    root,
-    cwd,
-    session: "interrupted",
-    mode: "reconcile",
-  });
-  assert.equal(matching.kind, "reserved");
-  assert.equal(matching.id, interrupted.id);
-  assert.equal(matching.workspace?.code, "unknown-operation");
-  assert.match(matching.message ?? "", /No retry was performed/);
-  assert.equal(
-    await readFile(join(cwd, "untracked"), "utf8"),
-    "original sentinel\n",
-  );
 });
 
 test("different assignments use distinct actual worktrees at the intended parent without touching dirty work", async () => {

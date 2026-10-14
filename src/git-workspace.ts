@@ -27,6 +27,12 @@ export type WorkspaceObservation = {
   };
   parent: string | null;
 };
+export type WorkspaceResourceObservation = {
+  disposition: "identified" | "hold";
+  association: WorkspaceObservation | null;
+  dirty: { kind: "observed"; value: boolean } | { kind: "unknown"; reason: string };
+  reasons: string[];
+};
 export type GitOutcome =
   | { kind: "succeeded" }
   | { kind: "failed"; message: string; noEffect: boolean }
@@ -196,6 +202,24 @@ export class GitWorkspace implements WorkspaceRepository {
         ? await this.text(["rev-parse", "--verify", plan.parent])
         : null;
     return { branch, path, workspace, parent };
+  }
+  /** Observe association and dirtiness without refreshing the index or changing Git resources. */
+  async observeResources({ plan, commonDir }: { plan: WorkspacePlan; commonDir: string }): Promise<WorkspaceResourceObservation> {
+    const result: WorkspaceResourceObservation = { disposition: "hold", association: null, dirty: { kind: "unknown", reason: "Owned workspace association is unresolved." }, reasons: [] };
+    try {
+      if ((await this.locate()).commonDir !== commonDir) throw new Error("Actual Git common directory differs from the retained repository.");
+      const actual = await this.inspect(plan);
+      result.association = actual;
+      if (actual.path !== "directory" || !actual.workspace?.backlink || actual.workspace.commonDir !== commonDir || actual.workspace.branch !== plan.branch || actual.branch !== actual.workspace.commit)
+        throw new Error("Retained branch/worktree association changed; preserve resources without adoption or retry.");
+      const status = await this.git(["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all"], plan.path);
+      if (status.kind !== "finished" || status.code !== 0) throw new Error("Read-only worktree dirtiness observation is unavailable.");
+      result.dirty = { kind: "observed", value: status.output.length > 0 };
+      // Dirtiness and later legitimate commits are retained facts, not cleanup or reset eligibility.
+      if (JSON.stringify(await this.inspect(plan)) !== JSON.stringify(actual)) throw new Error("Git association changed during observation; preserve uncertainty.");
+      result.disposition = "identified";
+    } catch (error) { result.reasons.push(String(error)); }
+    return result;
   }
   private async effect(args: string[]): Promise<GitOutcome> {
     const result = await this.git(args);

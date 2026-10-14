@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, watch, type FSWatcher } from "node:fs";
+import { existsSync, readFileSync, realpathSync, readdirSync, watch, type FSWatcher } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { z } from "zod";
 import type { ExtensionAPI, ExtensionContext, ToolCallEvent, ToolExecutionEndEvent, ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import { BoundedAssignment, WorkerAddress, CenturioView, CenturioObservation } from "./tribunus.js";
@@ -68,6 +68,116 @@ const ChildEvent = z.object({ type: z.string(), subagentSource: z.literal("child
 class NativeMismatch extends Error {}
 class PublicationPending extends Error {}
 type Owned = { record: { intent: z.infer<typeof OwnedNativeIntent>; digest: string }; path: string; input: ReturnType<typeof nativeChildInput>; context: ExtensionContext };
+
+type NativeRuntimeIdentity = { run: string; directory: string; runner: string | null; child: { session: string; journal: string } | null };
+function readNativeRuntime({ record, parentJournal, runtime }: { record: { intent: NativeCenturioIntent }; parentJournal: string | undefined; runtime: NativeRuntimeIdentity }) {
+  const path = join(runtime.directory, "status.json");
+  if (!existsSync(path)) throw new PublicationPending("Native status publication is missing.");
+  const status = NativeStatus.parse(JSON.parse(readFileSync(path, "utf8"))), step = status.steps[0];
+  if (!step || status.runId !== runtime.run || status.sessionId !== undefined && ![record.intent.owner.session, parentJournal].includes(status.sessionId) || status.cwd !== undefined && status.cwd !== record.intent.cwd || step.agent !== record.intent.agent) throw new NativeMismatch("Native status does not join exact owner/run/workspace.");
+  for (const process of [status.processTerminal, step.processTerminal]) {
+    if (!process) continue;
+    if (process.runId !== runtime.run || runtime.runner !== null && runtime.runner !== process.runnerProcessInstanceId) throw new NativeMismatch("Native runner instance changed.");
+    runtime.runner = process.runnerProcessInstanceId;
+    if (process.state === "unknown") throw new Error("Native process effects are unknown.");
+  }
+  const proofPath = join(runtime.directory, "process-terminal.json");
+  if (existsSync(proofPath)) {
+    const proof = ProcessProof.parse(JSON.parse(readFileSync(proofPath, "utf8")));
+    if (proof.runId !== runtime.run || runtime.runner !== null && runtime.runner !== proof.runnerProcessInstanceId) throw new NativeMismatch("Native process proof identifies another runner.");
+    if (proof.state === "observed" && (proof.instances.filter(instance => instance.kind === "runner").length !== 1 || proof.instances.find(instance => instance.kind === "runner")?.processInstanceId !== proof.runnerProcessInstanceId)) throw new NativeMismatch("Native process closure does not identify its published runner.");
+    if (proof.state === "unknown") throw new Error("Native process effects are unknown; preserve this hold.");
+  }
+  if (step.sessionFile && status.sessionFile && step.sessionFile !== status.sessionFile) throw new NativeMismatch("Native status publishes conflicting child journals.");
+  const journal = step.sessionFile ?? status.sessionFile;
+  if (!status.sessionId || !status.cwd || !journal) throw new PublicationPending("Native startup identity is not fully published; awaiting owner/workspace/child journal corroboration.");
+  return { status, journal };
+}
+function childSettlement({ directory, run, agent }: { directory: string; run: string; agent: string }) {
+  const path = join(directory, "events.jsonl");
+  if (!existsSync(path)) throw new PublicationPending("Native child event evidence is missing; no absence of effects inferred.");
+  const bytes = readFileSync(path, "utf8");
+  if (!bytes.endsWith("\n")) throw new PublicationPending("Native child event publication incomplete.");
+  const calls = new Set<string>();
+  let started = false, settled = false;
+  for (const line of bytes.trimEnd().split("\n")) {
+    const raw: unknown = JSON.parse(line), parsed = ChildEvent.safeParse(raw);
+    if (!parsed.success) {
+      if (z.object({ subagentSource: z.literal("child") }).safeParse(raw).success) throw new Error("Malformed native child event evidence.");
+      continue;
+    }
+    const event = parsed.data;
+    if (event.subagentRunId !== run || event.subagentAgent !== agent) throw new NativeMismatch("Native child event belongs to another run/agent.");
+    if (event.type === "agent_start") { started = true; settled = false; }
+    if (event.type === "agent_settled") settled = true;
+    if (event.type === "tool_execution_start") {
+      const call = z.object({ toolCallId: z.string() }).parse(event);
+      if (calls.has(call.toolCallId)) throw new Error("Duplicate native tool start is ambiguous.");
+      calls.add(call.toolCallId);
+    }
+    if (event.type === "tool_execution_end") {
+      const call = z.object({ toolCallId: z.string(), isError: z.boolean(), durationMs: z.number().optional(), result: z.unknown() }).parse(event);
+      if (!calls.delete(call.toolCallId)) throw new Error("Native tool end has no corresponding start.");
+      const exit = z.object({ structuredContent: z.object({ exit_code: z.int() }) }).safeParse(call.result);
+      if (call.isError && call.durationMs !== undefined && !exit.success) throw new Error("Native executed tool failure has unknown effect outcome.");
+    }
+  }
+  if (!started || !settled || calls.size) throw new PublicationPending("Native child settlement or tool outcomes missing. Idle/prose/cancellation is not proof.");
+  return { path, sha256: digest(bytes) };
+}
+
+export type NativeChildResourceObservation = {
+  id: string; disposition: "hold" | "settled"; reason: string; evidence: string[];
+  state: z.infer<typeof CenturioView>["state"];
+};
+/** Read only: no watchers, projection publication, owner checks or native controls. */
+export function observeNativeChild({ path, owner, command }: { path: string; owner: z.infer<typeof WorkerAddress>; command: string }): NativeChildResourceObservation {
+  const observation: NativeChildResourceObservation = { id: path, disposition: "hold", reason: "Native launch association is unavailable; preserve this child and do not resume/relaunch it.", evidence: [path], state: { kind: "unknown", reason: "Native locator unavailable." } };
+  try {
+    const record = z.strictObject({ intent: OwnedNativeIntent, digest: z.string() }).parse(privateFile(path));
+    observation.id = record.intent.id;
+    if (digest(record.intent) !== record.digest || !isDeepStrictEqual(record.intent.owner, owner) || record.intent.assignment.command !== command) throw new NativeMismatch("Native intent does not join this exact principal/assignment.");
+    verifyCenturioWorkspace(record.intent.writable.workspace, record.intent.writable.parentCwd);
+    const root = dirname(path), id = record.intent.id;
+    const projections = readdirSync(root).filter(file => file.startsWith(`${command}.`) && file.endsWith(".centuriones.json"))
+      .map(file => ({ path: join(root, file), value: CenturioObservation.parse(privateFile(join(root, file))) })).sort((a, b) => a.value.sequence - b.value.sequence);
+    for (const projection of projections) {
+      if (!isDeepStrictEqual(projection.value.address, owner) || projection.value.command !== command) throw new NativeMismatch("Native child projection identifies another assignment.");
+      const retained = projection.value.children.find(child => child.id === id);
+      if (retained && ["unknown", "mismatch"].includes(retained.state.kind)) {
+        observation.state = retained.state; observation.reason = "Retained native child uncertainty/mismatch is sticky; later ordinary evidence cannot repair it.";
+        observation.evidence.push(projection.path); return observation;
+      }
+    }
+    const launchPath = join(root, `${id}.centurio-launch.json`), launch = z.strictObject({ call: z.string(), input: z.unknown(), intent: z.uuid(), digest: z.string() }).parse(privateFile(launchPath));
+    if (launch.intent !== id || launch.digest !== record.digest || !isDeepStrictEqual(launch.input, nativeChildInput({ intent: record.intent }))) throw new NativeMismatch("Native launch provenance differs from the exact admitted intent/input.");
+    const locatorPath = join(root, `${id}.centurio-runtime.json`), locator = z.strictObject({ intent: z.uuid(), digest: z.string(), call: z.string(), run: z.string().min(1), directory: z.string(), parentJournal: z.string().nullable() }).parse(privateFile(locatorPath));
+    if (locator.intent !== id || locator.digest !== record.digest || locator.call !== launch.call || !locator.parentJournal || realpathSync(locator.directory) !== locator.directory) throw new NativeMismatch("Native result locator does not join its genuine admitted launch.");
+    const identityPath = join(root, `${id}.centurio-identity.json`), identity = z.strictObject({ intent: z.uuid(), digest: z.string(), run: z.string(), runner: z.string().min(1), child: z.strictObject({ session: z.string(), journal: z.string() }) }).parse(privateFile(identityPath));
+    if (identity.intent !== id || identity.digest !== record.digest || identity.run !== locator.run) throw new NativeMismatch("Durable native runner/child locator differs from launch result.");
+    observation.evidence.push(launchPath, locatorPath, identityPath);
+    const runtime = { run: locator.run, directory: locator.directory, runner: identity.runner, child: identity.child };
+    const { status, journal } = readNativeRuntime({ record, parentJournal: locator.parentJournal, runtime });
+    const header = z.object({ type: z.literal("session"), id: z.string(), cwd: z.string() }).parse(JSON.parse(readFileSync(journal, "utf8").split("\n")[0] ?? "null"));
+    if (header.id === owner.session || realpathSync(header.cwd) !== record.intent.cwd || header.id !== identity.child.session || realpathSync(journal) !== identity.child.journal) throw new NativeMismatch("Actual native child session/journal differs from its durable isolated identity.");
+    const child = { run: locator.run, index: 0, session: header.id };
+    observation.evidence.push(join(locator.directory, "status.json"), journal);
+    if (["running", "queued"].includes(status.state)) { observation.state = { kind: "active", ...child }; observation.reason = "Exact native child is active; preserve it without transferring controls."; return observation; }
+    if (!["complete", "failed", "stopped", "paused", "timeout"].includes(status.state)) throw new Error("Native lifecycle is not a recognized settlement.");
+    const events = childSettlement({ directory: locator.directory, run: locator.run, agent: record.intent.agent });
+    const proofPath = join(locator.directory, "process-terminal.json"), proof = ProcessProof.parse(JSON.parse(readFileSync(proofPath, "utf8")));
+    if (proof.state !== "observed") throw new Error("Logical native terminal lacks exact observed runner proof.");
+    if (proof.runId !== locator.run || proof.runnerProcessInstanceId !== identity.runner || proof.instances.filter(instance => instance.kind === "runner").length !== 1 || proof.instances.find(instance => instance.kind === "runner")?.processInstanceId !== identity.runner) throw new NativeMismatch("Native terminal proof differs from the durable exact runner.");
+    if (!isDeepStrictEqual(readNativeRuntime({ record, parentJournal: locator.parentJournal, runtime }).status, status) || !isDeepStrictEqual(ProcessProof.parse(JSON.parse(readFileSync(proofPath, "utf8"))), proof) || !isDeepStrictEqual(childSettlement({ directory: locator.directory, run: locator.run, agent: record.intent.agent }), events)) throw new Error("Native evidence changed during observation; preserve uncertainty.");
+    observation.evidence.push(events.path, proofPath);
+    observation.state = { kind: "process-terminal", ...child, outcome: status.state, proof: proofPath };
+    observation.disposition = "settled"; observation.reason = "Exact native events/tool outcomes and runner close are observed at this point; no child revival or control transfer is authorized.";
+  } catch (error) {
+    observation.reason = `Native child recovery held. Preserve intent/runtime; missing evidence is not no-effect proof. ${String(error)}`;
+    observation.state = { kind: error instanceof NativeMismatch ? "mismatch" : "unknown", reason: observation.reason };
+  }
+  return observation;
+}
 
 /** Assignment-level launch association only. Native tools and permissions are not replaced or vetoed per child call. */
 export class Centuriones {
@@ -152,7 +262,11 @@ export class Centuriones {
       if (event.isError || !isDeepStrictEqual(this.finalInputs.get(event.toolCallId), owned.input)) throw new Error("Native launch refused or final input unavailable/mismatched; preserve this intent.");
       const native = z.object({ details: z.object({ runId: z.string(), asyncDir: z.string() }) }).parse(event.result).details;
       if ([...this.runtimes.values()].some(runtime => runtime.run === native.runId)) throw new NativeMismatch("Native run already associated with another intent.");
-      const directory = realpathSync(native.asyncDir), watcher = watch(directory, () => this.reconcile(id));
+      const directory = realpathSync(native.asyncDir);
+      const locator = join(this.root, `${id}.centurio-runtime.json`);
+      publish(locator, { intent: id, digest: owned.record.digest, call: event.toolCallId, run: native.runId, directory, parentJournal: owned.context.sessionManager.getSessionFile() ?? null });
+      this.evidence.add(locator);
+      const watcher = watch(directory, () => this.reconcile(id));
       watcher.unref();
       this.runtimes.set(id, { run: native.runId, directory, watcher, runner: null, child: null, reconciling: false, dirty: false });
       this.reconcile(id);
@@ -174,59 +288,7 @@ export class Centuriones {
   private observed(id: string) {
     const owned = [...this.launched.values()].find(item => item.record.intent.id === id), runtime = this.runtimes.get(id);
     if (!owned || !runtime) throw new PublicationPending("Native launch identity is unavailable.");
-    const path = join(runtime.directory, "status.json");
-    if (!existsSync(path)) throw new PublicationPending("Native status publication is missing.");
-    const status = NativeStatus.parse(JSON.parse(readFileSync(path, "utf8"))), step = status.steps[0];
-    if (!step || status.runId !== runtime.run || status.sessionId !== undefined && ![this.owner.session, owned.context.sessionManager.getSessionFile()].includes(status.sessionId) || status.cwd !== undefined && status.cwd !== owned.record.intent.cwd || step.agent !== owned.record.intent.agent) throw new NativeMismatch("Native status does not join exact owner/run/workspace.");
-    for (const process of [status.processTerminal, step.processTerminal]) {
-      if (!process) continue;
-      if (process.runId !== runtime.run || runtime.runner !== null && runtime.runner !== process.runnerProcessInstanceId) throw new NativeMismatch("Native runner instance changed.");
-      runtime.runner = process.runnerProcessInstanceId;
-      if (process.state === "unknown") throw new Error("Native process effects are unknown.");
-    }
-    const proofPath = join(runtime.directory, "process-terminal.json");
-    if (existsSync(proofPath)) {
-      const proof = ProcessProof.parse(JSON.parse(readFileSync(proofPath, "utf8")));
-      if (proof.runId !== runtime.run || runtime.runner !== null && runtime.runner !== proof.runnerProcessInstanceId) throw new NativeMismatch("Native process proof identifies another runner.");
-      if (proof.state === "observed" && (proof.instances.filter(instance => instance.kind === "runner").length !== 1 || proof.instances.find(instance => instance.kind === "runner")?.processInstanceId !== proof.runnerProcessInstanceId)) throw new NativeMismatch("Native process closure does not identify its published runner.");
-      if (proof.state === "unknown") throw new Error("Native process effects are unknown; preserve this hold.");
-    }
-    if (step.sessionFile && status.sessionFile && step.sessionFile !== status.sessionFile) throw new NativeMismatch("Native status publishes conflicting child journals.");
-    const journal = step.sessionFile ?? status.sessionFile;
-    if (!status.sessionId || !status.cwd || !journal) throw new PublicationPending("Native startup identity is not fully published; awaiting owner/workspace/child journal corroboration.");
-    return { owned, runtime, status, journal };
-  }
-  private childSettlement({ directory, run, agent }: { directory: string; run: string; agent: string }) {
-    const path = join(directory, "events.jsonl");
-    if (!existsSync(path)) throw new PublicationPending("Native child event evidence is missing; no absence of effects inferred.");
-    const bytes = readFileSync(path, "utf8");
-    if (!bytes.endsWith("\n")) throw new PublicationPending("Native child event publication incomplete.");
-    const calls = new Set<string>();
-    let started = false, settled = false;
-    for (const line of bytes.trimEnd().split("\n")) {
-      const raw: unknown = JSON.parse(line), parsed = ChildEvent.safeParse(raw);
-      if (!parsed.success) {
-        if (z.object({ subagentSource: z.literal("child") }).safeParse(raw).success) throw new Error("Malformed native child event evidence.");
-        continue;
-      }
-      const event = parsed.data;
-      if (event.subagentRunId !== run || event.subagentAgent !== agent) throw new NativeMismatch("Native child event belongs to another run/agent.");
-      if (event.type === "agent_start") { started = true; settled = false; }
-      if (event.type === "agent_settled") settled = true;
-      if (event.type === "tool_execution_start") {
-        const call = z.object({ toolCallId: z.string() }).parse(event);
-        if (calls.has(call.toolCallId)) throw new Error("Duplicate native tool start is ambiguous.");
-        calls.add(call.toolCallId);
-      }
-      if (event.type === "tool_execution_end") {
-        const call = z.object({ toolCallId: z.string(), isError: z.boolean(), durationMs: z.number().optional(), result: z.unknown() }).parse(event);
-        if (!calls.delete(call.toolCallId)) throw new Error("Native tool end has no corresponding start.");
-        const exit = z.object({ structuredContent: z.object({ exit_code: z.int() }) }).safeParse(call.result);
-        if (call.isError && call.durationMs !== undefined && !exit.success) throw new Error("Native executed tool failure has unknown effect outcome.");
-      }
-    }
-    if (!started || !settled || calls.size) throw new PublicationPending("Native child settlement or tool outcomes missing. Idle/prose/cancellation is not proof.");
-    return { path, sha256: digest(bytes) };
+    return { owned, runtime, ...readNativeRuntime({ record: owned.record, parentJournal: owned.context.sessionManager.getSessionFile(), runtime }) };
   }
   private reconcile(id: string) {
     const runtime = this.runtimes.get(id);
@@ -250,10 +312,15 @@ export class Centuriones {
       const child = { session: header.id, journal: realpathSync(journal) };
       if (runtime.child && !isDeepStrictEqual(runtime.child, child)) throw new NativeMismatch("Native child session or journal changed within an owned run.");
       runtime.child ??= child;
+      if (runtime.runner) {
+        const locator = join(this.root, `${id}.centurio-identity.json`);
+        publish(locator, { intent: id, digest: owned.record.digest, run: runtime.run, runner: runtime.runner, child: runtime.child });
+        this.evidence.add(locator);
+      }
       const identity = { run: runtime.run, index: 0, session: header.id };
       if (["running", "queued"].includes(status.state)) { this.change(id, { kind: "active", ...identity }); return; }
       if (!["complete", "failed", "stopped", "paused", "timeout"].includes(status.state)) throw new Error("Unrecognized native lifecycle state.");
-      const events = this.childSettlement({ directory: runtime.directory, run: runtime.run, agent: owned.record.intent.agent });
+      const events = childSettlement({ directory: runtime.directory, run: runtime.run, agent: owned.record.intent.agent });
       const path = join(runtime.directory, "process-terminal.json");
       if (!existsSync(path)) { this.change(id, { kind: "logical-terminal", ...identity, outcome: status.state }); return; }
       const proof = ProcessProof.parse(JSON.parse(readFileSync(path, "utf8")));
@@ -263,7 +330,7 @@ export class Centuriones {
       if (proof.instances.filter(instance => instance.kind === "runner").length !== 1 || proof.instances.find(instance => instance.kind === "runner")?.processInstanceId !== runtime.runner) throw new NativeMismatch("Native process closure does not identify the observed runner.");
       await this.checkOwner(owned.record.intent, "read", owned.context);
       if (this.disposed || ["unknown", "mismatch"].includes(view.state.kind)) return;
-      if (!isDeepStrictEqual(this.observed(id).status, status) || !isDeepStrictEqual(ProcessProof.parse(JSON.parse(readFileSync(path, "utf8"))), proof) || !isDeepStrictEqual(this.childSettlement({ directory: runtime.directory, run: runtime.run, agent: owned.record.intent.agent }), events)) { runtime.dirty = true; return; }
+      if (!isDeepStrictEqual(this.observed(id).status, status) || !isDeepStrictEqual(ProcessProof.parse(JSON.parse(readFileSync(path, "utf8"))), proof) || !isDeepStrictEqual(childSettlement({ directory: runtime.directory, run: runtime.run, agent: owned.record.intent.agent }), events)) { runtime.dirty = true; return; }
       const evidence = join(this.root, `${id}.centurio-process-terminal.json`);
       publish(evidence, { ...proof, childEvents: events, nativeStatus: status });
       view.evidence.push(evidence);
