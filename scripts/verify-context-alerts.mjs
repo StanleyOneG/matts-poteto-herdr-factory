@@ -74,7 +74,7 @@ const observedLegion = pi => legion({ ...pi,
   sendMessage: (message, options) => { deliveries.push({ message, options }); timeline.push(`advisory:${message.details?.level}`); pi.sendMessage(message, options); },
 });
 async function state() {
-  await session.prompt("/legion status");
+  await session.prompt("/legion status --details");
   const text = notices.at(-1)?.message;
   assert.ok(text?.includes("State\n"), JSON.stringify({ notices, errors }));
   return JSON.parse(text.split("State\n")[1].split("\n")[0]);

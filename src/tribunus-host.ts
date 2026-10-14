@@ -1,5 +1,5 @@
 import { sampleContext } from "./context-alerts.js";
-import { Centuriones, CenturioRequest, observeNativeChild, type NativeCenturioIntent } from "./centuriones.js";
+import { Centuriones, CenturioRequest, CenturioRecord, observeNativeChild, type NativeCenturioIntent } from "./centuriones.js";
 import { LocalProcessIdentity, WorkerActivity, type ResumeResourceReader, type WorkerResourceObservation } from "./resume.js";
 import { privateFile, publish } from "./private-evidence.js";
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from "node:crypto";
@@ -15,7 +15,7 @@ import { Type } from "typebox";
 import { EffectIntent, EffectMessage, EffectReply, EffectRecord, EffectOutcome, CenturioOwnerCheck, HandoffRequest } from "./snapshot.js";
 import { StartupSelectionSchema, WorkflowChoiceSchema } from "./legion-settings.js";
 import { preflight } from "./preflight.js";
-import { handoffSkillPrompt, successorReadFirstInstruction, RetiredHandoffControl, HandoffStageObservation, mattInitializationPrompt, ContextAuthority, TribunusContextEnvelope, TribunusContextObservation, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, WorkerStop, type TribunusHost } from "./tribunus.js";
+import { CorrectionDelivery, CorrectionControl, CorrectionObservation, handoffSkillPrompt, successorReadFirstInstruction, RetiredHandoffControl, HandoffStageObservation, mattInitializationPrompt, ContextAuthority, TribunusContextEnvelope, TribunusContextObservation, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, WorkerStop, type TribunusHost } from "./tribunus.js";
 import type { GuardedCommand } from "./git-workspace.js";
 import { prepareCenturioWorkspace, CenturioAllocationHeld } from "./centurio-workspace.js";
 const exec = promisify(execFile);
@@ -51,6 +51,41 @@ const Envelope = z.discriminatedUnion("kind", [z.object({
   }), z.object({
     kind: z.literal("held"), message: z.string()
   })]);
+const correctionPrompt = (request: z.infer<typeof CorrectionDelivery>) => `Legion correction ${request.id} ${request.digest}
+${JSON.stringify(request)}
+This is a Legatus-routed correction for this exact assignment. Receipt is not verified performance. Preserve the assignment's existing effect/child authority; this message does not refresh scope, authorize acceptance, integration, publication or cleanup.`;
+const CorrectionTransition = z.strictObject({ request: CorrectionDelivery, state: z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("dispatch"), safePoint: z.string() }),
+  z.strictObject({ kind: z.literal("not-delivered"), reason: z.string().min(1) }),
+]) });
+const CorrectionSafePoint = z.strictObject({ request: CorrectionDelivery, report: z.string(), entry: z.string(),
+  data: z.strictObject({ correction: z.string(), digest: z.string(), assignment: z.string(), report: z.string(), children: z.array(z.string()), effects: z.array(z.string()) }) });
+const correctionPath = ({ root, request, suffix }: { root: string; request: z.infer<typeof CorrectionDelivery>; suffix: string }) => join(root, `${request.id}.correction-${suffix}.json`);
+function readCorrection({ root, journal, request, queuedKnown = false }: { root: string; journal: string; request: z.infer<typeof CorrectionDelivery>; queuedKnown?: boolean }): z.infer<typeof CorrectionObservation> {
+  const at = (suffix: string) => correctionPath({ root, request, suffix });
+  const unknown = (message: string) => CorrectionObservation.parse({ request, state: { kind: "unknown", message } });
+  if (!existsSync(at("intent"))) return unknown("No exact retained correction intent. Missing evidence is not proof of non-delivery; do not replay.");
+  const intent = CorrectionDelivery.parse(privateFile(at("intent")));
+  if (!isDeepStrictEqual(intent, request)) throw new Error("Correction ID conflicts with the immutable retained request.");
+  if (!existsSync(at("transition"))) return queuedKnown ? CorrectionObservation.parse({ request, state: { kind: "queued" } }) : unknown("Retained intent has no verifiable live queue or transition evidence. Absence cannot prove never dispatched; no replay.");
+  const transition = CorrectionTransition.parse(privateFile(at("transition")));
+  if (!isDeepStrictEqual(transition.request, request)) throw new Error("Correction transition changed its immutable request.");
+  if (transition.state.kind === "not-delivered") return existsSync(at("receipt")) ? unknown("Non-delivery transition conflicts with receipt evidence. Preserve both; no replay.") : CorrectionObservation.parse({ request, state: { kind: "not-delivered", evidence: [at("intent"), at("transition")] } });
+  if (!existsSync(at("receipt"))) return unknown("Exact correction dispatch retained, but no durable native user-entry receipt. Observe this ID; never dispatch it again.");
+  try {
+    const observed = CorrectionObservation.parse(privateFile(at("receipt")));
+    const safe = CorrectionSafePoint.parse(privateFile(transition.state.safePoint));
+    const report = WorkerReport.parse(privateFile(safe.report));
+    const entries: unknown[] = readFileSync(journal, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+    const native = z.object({ id: z.string(), type: z.literal("message"), message: z.object({ role: z.literal("user"), content: z.array(z.object({ type: z.literal("text"), text: z.string() })) }) });
+    const users = entries.flatMap(raw => { const entry = native.safeParse(raw); return entry.success && entry.data.message.content.length === 1 && entry.data.message.content[0]?.text === correctionPrompt(request) ? [entry.data] : []; });
+    const settled = entries.flatMap(raw => { const entry = z.object({ id: z.string(), type: z.literal("custom"), customType: z.literal("legion-correction-safe-point"), data: z.unknown() }).safeParse(raw); return entry.success && entry.data.id === safe.entry && isDeepStrictEqual(entry.data.data, safe.data) ? [entry.data] : []; });
+    const user = users[0];
+    const evidence = [at("intent"), at("transition"), transition.state.safePoint, `${journal}#${safe.entry}`, `${journal}#${user?.id}`];
+    if (!isDeepStrictEqual(observed.request, request) || observed.state.kind !== "delivered" || !isDeepStrictEqual(safe.request, request) || safe.data.correction !== request.id || safe.data.digest !== request.digest || safe.data.assignment !== request.binding.pin.assignment || safe.data.report !== safe.report || report.command !== request.binding.pin.assignment || !isDeepStrictEqual(report.address, request.binding.address) || settled.length !== 1 || users.length !== 1 || !user || observed.state.receipt.journal !== journal || observed.state.receipt.entry !== user.id || !isDeepStrictEqual(observed.state.receipt.evidence, evidence)) throw new Error("Exact native receipt/safe-point provenance is unavailable or changed.");
+    return observed;
+  } catch (error) { return unknown(`Retained correction receipt cannot be verified. Preserve the journal and exact request; no repair or replay. ${String(error)}`); }
+}
 async function localIdentity() {
   if (process.env.HERDR_ENV !== "1")
     throw new Error("Launch requires the current local Herdr environment.");
@@ -182,6 +217,48 @@ export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
       throw new Error(response.message);
     return response.value;
   }
+  private async correctionControl({ request: raw, kind, continuation }: Parameters<NonNullable<TribunusHost["observeCorrection"]>>[0] & { kind: "correct" | "observe-correction" }) {
+    const request = CorrectionDelivery.parse(raw), pin = request.binding.pin;
+    const descriptor = Descriptor.parse(privateFile(this.descriptor(pin.launch)));
+    const original = { owner: pin.owner, session: pin.session, generation: pin.generation, epoch: pin.epoch };
+    const root = join(this.root, pin.launch, pin.workerGeneration);
+    const unknown = (message: string) => CorrectionObservation.parse({ request, state: { kind: "unknown", message } });
+    if (!isDeepStrictEqual(descriptor.authority, original) || descriptor.launch.id !== pin.launch || descriptor.launch.reservation !== pin.reservation || descriptor.launch.scope !== pin.scope) throw new Error("Correction must retain the original assignment/controller/launch authority.");
+    if (!isDeepStrictEqual(this.authority, original)) {
+      if (kind === "correct") throw new Error("Correction dispatch requires the exact original current controller; observation cannot refresh authority.");
+      try {
+        const adopted = Authority.parse(privateFile(join(root, `${this.authority.generation}.controller.json`)));
+        if (this.authority.owner !== original.owner || this.authority.generation <= original.generation || !isDeepStrictEqual(adopted, this.authority)) throw new Error("No matching authenticated controller adoption.");
+      } catch { return unknown("Resumed correction observation requires retained authenticated same-owner controller adoption. Resume alone does not adopt or repair this worker; resolve the existing control binding first."); }
+    }
+    const assignment = z.strictObject({ assignment: BoundedAssignment }).parse(privateFile(join(root, `${pin.assignment}.assignment.json`))).assignment;
+    if (!isDeepStrictEqual(assignment.task, pin.task) || assignment.scope !== pin.scope) throw new Error("Correction pin does not join the retained immutable assignment.");
+    const hello = await this.hello(pin.launch);
+    if (!isDeepStrictEqual(hello.address, request.binding.address)) return unknown("Retained hello addresses another generation. Preserve the old request; never retarget or deliver to a successor.");
+    if (hello.endpoint !== join(this.root, `s-${createHash("sha256").update(JSON.stringify(hello.address)).digest("hex").slice(0, 32)}.sock`)) throw new Error("Correction requires the retained exact generation-specific native endpoint.");
+    const header = z.object({ type: z.literal("session"), id: z.string(), cwd: z.string() }).parse(JSON.parse(readFileSync(hello.journal, "utf8").split("\n")[0] ?? ""));
+    if (header.id !== pin.workerSession || header.cwd !== descriptor.cwd) throw new Error("Correction journal does not join the exact worker session/workspace.");
+    const frame = CorrectionControl.parse({ kind, capability: descriptor.capability, request, continuation });
+    let line: string;
+    try {
+      line = await new Promise<string>((resolve, reject) => {
+        const socket = connect(hello.endpoint); let buffer = "";
+        socket.once("connect", () => socket.write(JSON.stringify(frame) + "\n"));
+        socket.on("data", chunk => { buffer += chunk; const end = buffer.indexOf("\n"); if (end < 0) return; resolve(buffer.slice(0, end)); socket.destroy(); });
+        socket.once("error", reject); socket.once("close", () => reject(new Error("Correction control closed without a complete receipt. Observe the same immutable request; no retry.")));
+      });
+    } catch (error) {
+      if (kind === "correct" || continuation) throw error;
+      return readCorrection({ root, journal: hello.journal, request });
+    }
+    const response = Envelope.parse(JSON.parse(line));
+    if (response.kind === "held") throw new Error(response.message);
+    const observed = CorrectionObservation.parse(response.value);
+    if (!isDeepStrictEqual(observed.request, request)) throw new Error("Correction observation identifies another immutable request.");
+    return observed;
+  }
+  correct(input: Parameters<NonNullable<TribunusHost["correct"]>>[0]) { return this.correctionControl({ ...input, kind: "correct" }); }
+  observeCorrection(input: Parameters<NonNullable<TribunusHost["observeCorrection"]>>[0]) { return this.correctionControl({ ...input, kind: "observe-correction" }); }
   private stopWatchers = new Map<string, ReturnType<typeof watch>>();
   async stop({ worker, shutdown, command, instruction }: Parameters<NonNullable<TribunusHost["stop"]>>[0], onObservation: Parameters<NonNullable<TribunusHost["stop"]>>[1]) {
     const hello = await this.hello(worker.address.launch);
@@ -519,6 +596,112 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   let handoff: { request: z.infer<typeof HandoffRequest>; prompt: string; expanded: string | null; tempRoot: string; state: z.infer<typeof HandoffStageObservation>["state"] } | null = null;
   let handoffApplication: string | null = null;
   let artifactEffect: { call: string; path: string; inputDigest: string; origin: string; state: "admitted" | "completed" | "refused" | "unknown"; resultSeen: boolean; evidence: string } | null = null;
+  const corrections = new Map<string, { request: z.infer<typeof CorrectionDelivery>; phase: "queued" | "dispatched" | "terminal" }>();
+  let correctionTurn: string | null = null;
+  let drainingCorrections = false, correctionDrainDirty = false;
+  function correctionAt({ request, suffix }: { request: z.infer<typeof CorrectionDelivery>; suffix: string }) { return correctionPath({ root: generationRoot, request, suffix }); }
+  function correctionCurrent({ request, ctx }: { request: z.infer<typeof CorrectionDelivery>; ctx: ExtensionContext }) {
+    const pin = request.binding.pin;
+    return incarnation(ctx) && isDeepStrictEqual(request.binding.address, address) && pin.assignment === assignmentCommand &&
+      isDeepStrictEqual({ owner: pin.owner, session: pin.session, generation: pin.generation, epoch: pin.epoch }, controller) && isDeepStrictEqual(controller, descriptor.authority);
+  }
+  function terminateQueuedCorrections(reason: string) {
+    for (const pending of corrections.values()) {
+      if (pending.phase !== "queued") continue;
+      // One immutable transition slot serializes positive non-delivery against dispatch.
+      // Never terminalize a missing/lost intent or an already attempted send.
+      try {
+        const intent = CorrectionDelivery.parse(privateFile(correctionAt({ request: pending.request, suffix: "intent" })));
+        if (!isDeepStrictEqual(intent, pending.request)) throw new Error("Queued correction intent changed; preserve uncertainty.");
+        publish(correctionAt({ request: pending.request, suffix: "transition" }), CorrectionTransition.parse({ request: pending.request, state: { kind: "not-delivered", reason } }));
+        pending.phase = "terminal";
+      } catch (error) { context?.ui.setStatus("legion-intake", `Correction non-delivery proof unresolved. Retirement/controller guards remain latched. Preserve the exact evidence. ${String(error)}`); }
+    }
+  }
+  function correctionReceiptsKnown() {
+    return [...corrections.values()].every(pending => pending.phase === "queued" || readCorrection({ root: generationRoot, journal, request: pending.request }).state.kind !== "unknown");
+  }
+  function correctionSafe(ctx: ExtensionContext) {
+    return correctionReceiptsKnown() && !!assignmentCommand && !!initialized && !!centuriones && principalActivity === "settled" && !retirement && !handoff && !active && !pendingSettlement && !correctionTurn &&
+      incarnation(ctx) && ctx.isIdle() && !ctx.hasPendingMessages() && !admissionHold && !workspacePreparation && !centuriones.outstanding && !centuriones.held &&
+      [...effects.values()].every(effect => effect.execution === "observed" && effect.record.state.kind !== "unknown") && existsSync(receipt(assignmentCommand, "report"));
+  }
+  function drainCorrections(ctx: ExtensionContext) {
+    if (![...corrections.values()].some(pending => pending.phase === "queued")) return;
+    if (drainingCorrections) { correctionDrainDirty = true; return; }
+    drainingCorrections = true;
+    correctionDrainDirty = false;
+    // agent_settled is notification-only. Start a separate normal turn after its stack exits.
+    setImmediate(() => { void (async () => {
+      try {
+        if (!incarnation(ctx)) return;
+        await observeOwner(ctx);
+        if (retirement) { terminateQueuedCorrections("Exact worker is irreversibly retired before correction dispatch."); return; }
+        for (const pending of corrections.values()) {
+          if (pending.phase !== "queued") continue;
+          if (!correctionCurrent({ request: pending.request, ctx })) { terminateQueuedCorrections("Original correction assignment/controller is no longer current; no retarget or scope adoption."); return; }
+          if (!correctionReceiptsKnown()) { ctx.ui.setStatus("legion-intake", "Correction queue held for this worker: an earlier dispatch has no verifiable native receipt. Observe the exact ID; do not reissue or retarget uncertainty."); return; }
+          if (!correctionSafe(ctx) || !centuriones) return;
+          const request = pending.request;
+          const terminal = await centuriones.terminalReport(request.binding.pin.assignment);
+          if (!terminal || !correctionCurrent({ request, ctx }) || !correctionSafe(ctx)) return;
+          if (terminal.children.some(child => observeNativeChild({ path: join(generationRoot, `${child.id}.centurio-intent.json`), owner: request.binding.address, command: request.binding.pin.assignment }).disposition !== "settled")) throw new Error("Exact native child settlement evidence is unavailable; preserve correction queue.");
+          for (const effect of effects.values()) {
+            if (effect.record.state.kind === "outstanding") return;
+            privateFile(effect.record.state.evidence);
+          }
+          const intent = CorrectionDelivery.parse(privateFile(correctionAt({ request, suffix: "intent" })));
+          if (!isDeepStrictEqual(intent, request) || existsSync(correctionAt({ request, suffix: "transition" }))) throw new Error("Correction intent/transition is unresolved; no dispatch.");
+          const reportPath = receipt(request.binding.pin.assignment, "report"), report = WorkerReport.parse(privateFile(reportPath));
+          if (report.command !== request.binding.pin.assignment || !isDeepStrictEqual(report.address, address) || report.outcome === "blocked") return;
+          const data = { correction: request.id, digest: request.digest, assignment: request.binding.pin.assignment, report: reportPath, children: [...(centuriones?.evidence ?? [])], effects: [...effects.values()].flatMap(effect => effect.record.state.kind === "outstanding" ? [] : [effect.record.state.evidence]) };
+          pi.appendEntry("legion-correction-safe-point", data);
+          const entry = ctx.sessionManager.getLeafId();
+          const native = ctx.sessionManager.getBranch().find(value => value.id === entry);
+          if (!entry || !native || !readFileSync(journal, "utf8").split("\n").some(line => line && isDeepStrictEqual(JSON.parse(line), native)) || !correctionCurrent({ request, ctx }) || !correctionSafe(ctx)) throw new Error("Durable native safe-point evidence is unavailable; correction held.");
+          const fd = openSync(journal, "r"); try { fsyncSync(fd); } finally { closeSync(fd); }
+          const safePoint = correctionAt({ request, suffix: "safe-point" });
+          publish(safePoint, CorrectionSafePoint.parse({ request, report: reportPath, entry, data }));
+          // No await between final guards, immutable transition and native enqueue.
+          publish(correctionAt({ request, suffix: "transition" }), CorrectionTransition.parse({ request, state: { kind: "dispatch", safePoint } }));
+          pending.phase = "dispatched"; correctionTurn = request.id; principalActivity = "active";
+          pi.sendUserMessage(correctionPrompt(request), { expandPromptTemplates: false });
+          return;
+        }
+      } catch (error) { ctx.ui.setStatus("legion-intake", `Correction delivery held. Preserve the same intent/journal; no replay. ${String(error)}`); }
+      finally { drainingCorrections = false; if (correctionDrainDirty) drainCorrections(ctx); }
+    })(); });
+  }
+  function receiptCorrections(ctx: ExtensionContext) {
+    if (!incarnation(ctx)) return;
+    for (const pending of corrections.values()) {
+      if (pending.phase !== "dispatched" || existsSync(correctionAt({ request: pending.request, suffix: "receipt" }))) continue;
+      const request = pending.request;
+      const transition = CorrectionTransition.parse(privateFile(correctionAt({ request, suffix: "transition" })));
+      if (!isDeepStrictEqual(transition.request, request) || transition.state.kind !== "dispatch") throw new Error("Exact correction dispatch proof lost; no receipt repair.");
+      const safe = CorrectionSafePoint.parse(privateFile(transition.state.safePoint));
+      const users = ctx.sessionManager.getBranch().filter(entry => entry.type === "message" && entry.message.role === "user" && Array.isArray(entry.message.content) && entry.message.content.length === 1 && entry.message.content[0]?.type === "text" && entry.message.content[0].text === correctionPrompt(request));
+      const user = users[0];
+      if (!user || users.length !== 1 || !readFileSync(journal, "utf8").split("\n").some(line => line && isDeepStrictEqual(JSON.parse(line), user))) continue;
+      const fd = openSync(journal, "r"); try { fsyncSync(fd); } finally { closeSync(fd); }
+      // Receipt publication is attempted once; a lost/uncertain acknowledgement is not repair authority.
+      pending.phase = "terminal";
+      publish(correctionAt({ request, suffix: "receipt" }), CorrectionObservation.parse({ request, state: { kind: "delivered", receipt: { journal, entry: user.id, evidence: [correctionAt({ request, suffix: "intent" }), correctionAt({ request, suffix: "transition" }), transition.state.safePoint, `${journal}#${safe.entry}`, `${journal}#${user.id}`] } } }));
+    }
+  }
+  // A reported assignment may continue only in its genuine, currently active correction turn.
+  function currentCorrectionTurn(ctx: ExtensionContext) {
+    const pending = correctionTurn ? corrections.get(correctionTurn) : null;
+    if (!pending || !correctionCurrent({ request: pending.request, ctx }) || retirement || handoff || principalActivity !== "active") return null;
+    const observed = readCorrection({ root: generationRoot, journal, request: pending.request });
+    const user = ctx.sessionManager.getBranch().slice().reverse().find(entry => entry.type === "message" && entry.message.role === "user");
+    if (observed.state.kind !== "delivered" || user?.id !== observed.state.receipt.entry) return null;
+    return { id: pending.request.id, digest: pending.request.digest };
+  }
+  function captureCorrectionReceipts(ctx: ExtensionContext) {
+    try { receiptCorrections(ctx); }
+    catch (error) { ctx.ui.setStatus("legion-intake", `Correction receipt unresolved. Preserve the native journal; no replay. ${String(error)}`); }
+  }
   function holdHandoff(message: string) {
     if (handoff && handoff.state.kind === "pending") {
       handoff.state = { kind: "held", message };
@@ -581,6 +764,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     retirement = WorkerStop.parse({ shutdown, authority: controller, address, command, state: { kind: "draining" } });
     publish(retirementPath, { stop: retirement, reason, message });
     publish(receipt(shutdown, "park-intent"), retirement);
+    terminateQueuedCorrections(`Exact worker retirement before dispatch: ${reason}. ${message}`);
     context?.ui.setStatus("legion-intake", `Tribunus stopping. ${message} Progress preserved; no new work or resume.`);
   }
   async function observeOwner(ctx: ExtensionContext) {
@@ -667,7 +851,10 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     // Centuriones still requires status, journal/tool settlement and runner process-terminal evidence.
     if (stage === "read" && retirementReason === "owner-lost" && retirement?.command === intent.assignment.command && isDeepStrictEqual(retirement.address, address)) return;
     const command = intent.assignment.command;
-    const message = CenturioOwnerCheck.parse({ kind: "centurio-owner-check", id: randomUUID(), child: { id: intent.id, digest: createHash("sha256").update(JSON.stringify(intent)).digest("hex") }, stage,
+    const parentPath = receipt(intent.id, "correction-parent");
+    const parent = existsSync(parentPath) ? z.strictObject({ intent: z.string(), correction: CenturioOwnerCheck.shape.correction.unwrap() }).parse(privateFile(parentPath)) : null;
+    if (parent && (parent.intent !== createHash("sha256").update(JSON.stringify(intent)).digest("hex") || stage !== "read" && !isDeepStrictEqual(parent.correction, currentCorrectionTurn(ctx)))) throw new Error("Native child correction parent is no longer current; observation only.");
+    const message = CenturioOwnerCheck.parse({ kind: "centurio-owner-check", id: randomUUID(), ...(parent ? { correction: parent.correction } : {}), child: { id: intent.id, digest: createHash("sha256").update(JSON.stringify(intent)).digest("hex") }, stage,
       pin: { ...intent.authority, task: intent.assignment.value.task, scope: intent.assignment.value.scope, reservation: descriptor.launch.reservation, assignment: command,
         launch: address.launch, workerSession: address.session, workerGeneration: address.generation, addressDigest: createHash("sha256").update(JSON.stringify(address)).digest("hex") } });
     const responsePath = join(generationRoot, `${command}.${message.id}.effect-response.json`);
@@ -705,6 +892,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           publish(receipt(command, "report"), WorkerReport.parse({ ...pending.report, outcome, assistantText,
             evidence: [...new Set([...pending.report.evidence, receipt(command, "settlement-pending"), ...unknownChildEvidence, ...centuriones.evidence, ...children.flatMap(child => [...child.evidence, ...(child.result ? [child.result.evidence, child.result.source] : [])]), ...assignmentEffects.flatMap(effect => effect.record.state.kind === "outstanding" ? [] : [effect.record.state.evidence])])] }));
           pendingSettlement = null;
+          drainCorrections(pending.ctx);
           parkIfSettled(pending.ctx);
           if (!retirement) pending.ctx.ui.setStatus("legion-intake", `Tribunus ${outcome}. Waiting. Not accepted.`);
         }
@@ -817,6 +1005,32 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
             socket.end(JSON.stringify({ kind: "ok", value }) + "\n");
             return;
           }
+          const correction = CorrectionControl.safeParse(raw);
+          if (correction.success) {
+            const frame = correction.data, request = frame.request, pin = request.binding.pin;
+            const received = Buffer.from(frame.capability), expected = Buffer.from(descriptor.capability);
+            if (received.length !== expected.length || !timingSafeEqual(received, expected) || !context || !incarnation(context) || !isDeepStrictEqual(request.binding.address, address) || pin.launch !== descriptor.launch.id || pin.reservation !== descriptor.launch.reservation || pin.scope !== descriptor.launch.scope || pin.assignment !== assignmentCommand || !isDeepStrictEqual({ owner: pin.owner, session: pin.session, generation: pin.generation, epoch: pin.epoch }, descriptor.authority)) throw new Error("Correction requires the exact original assignment/controller/task/worker generation.");
+            const assignment = z.strictObject({ assignment: BoundedAssignment }).parse(privateFile(receipt(pin.assignment, "assignment"))).assignment;
+            if (!isDeepStrictEqual(assignment.task, pin.task) || assignment.scope !== pin.scope || !existsSync(receipt(pin.assignment, "applied"))) throw new Error("Correction does not join the durable applied assignment.");
+            if (frame.continuation && (!isDeepStrictEqual(frame.continuation, { id: request.id, digest: request.digest }) || !isDeepStrictEqual(frame.continuation, currentCorrectionTurn(context)))) throw new Error("No exact current native correction turn for reported assignment continuation.");
+            const retained = corrections.get(request.id);
+            if (retained && !isDeepStrictEqual(retained.request, request)) throw new Error("Correction ID conflicts with the retained immutable request.");
+            if (frame.kind === "observe-correction" || retained || existsSync(correctionAt({ request, suffix: "intent" }))) {
+              const observed = readCorrection({ root: generationRoot, journal, request, queuedKnown: retained?.phase === "queued" });
+              const lostTransition = retained?.phase === "dispatched" && !existsSync(correctionAt({ request, suffix: "transition" }));
+              socket.end(JSON.stringify({ kind: "ok", value: lostTransition ? CorrectionObservation.parse({ request, state: { kind: "unknown", message: "Known correction dispatch lost its transition evidence. Preserve the journal; no replay." } }) : observed }) + "\n"); return;
+            }
+            if (!correctionCurrent({ request, ctx: context })) throw new Error("Correction cannot adopt a new controller or assignment scope.");
+            await observeOwner(context);
+            // Concurrent duplicates may have queued while owner observation awaited.
+            if (existsSync(correctionAt({ request, suffix: "intent" }))) { socket.end(JSON.stringify({ kind: "ok", value: readCorrection({ root: generationRoot, journal, request, queuedKnown: corrections.get(request.id)?.phase === "queued" }) }) + "\n"); return; }
+            if (!correctionCurrent({ request, ctx: context })) throw new Error("Correction controller changed before queue publication.");
+            publish(correctionAt({ request, suffix: "intent" }), request);
+            corrections.set(request.id, { request, phase: "queued" });
+            if (retirement) terminateQueuedCorrections("Exact worker is already retired. This correction has never been dispatched.");
+            else drainCorrections(context);
+            socket.end(JSON.stringify({ kind: "ok", value: readCorrection({ root: generationRoot, journal, request, queuedKnown: corrections.get(request.id)?.phase === "queued" }) }) + "\n"); return;
+          }
           const limited = RetiredHandoffControl.safeParse(raw);
           if (limited.success) {
             const frame = limited.data, received = Buffer.from(frame.capability), expected = Buffer.from(descriptor.capability);
@@ -881,6 +1095,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           if (!retirement && frame.authority.generation > controller.generation) {
             publish(join(generationRoot, `${frame.authority.generation}.controller.json`), frame.authority);
             controller = frame.authority;
+            terminateQueuedCorrections("Authenticated controller replacement before correction dispatch; no implicit transfer.");
           }
           if (frame.kind === "inspect") {
             const value = {
@@ -1047,6 +1262,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     return true;
   }
   pi.on("message_end", (event, ctx) => {
+    if (event.message.role === "user") setImmediate(() => captureCorrectionReceipts(ctx));
     if (handoff && event.message.role === "user") {
       setImmediate(() => { try { appliedHandoff(ctx); } catch { holdHandoff("Native handoff application receipt is unresolved; no replay."); } });
       return;
@@ -1105,11 +1321,14 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
         } finally { workspacePreparation = null; }
       }
       const prepared = centuriones.prepare(request, { command, value }, controller, ctx, writable, id);
+      const correction = currentCorrectionTurn(ctx);
+      if (correction) publish(receipt(id, "correction-parent"), { intent: CenturioRecord.parse(privateFile(prepared.evidence)).digest, correction });
       return { content: [{ type: "text", text: JSON.stringify(prepared) }], details: prepared };
     }
   });
   pi.on("tool_call", async (event, ctx) => {
     await observeOwner(ctx);
+    captureCorrectionReceipts(ctx);
     if (handoff) {
       if (handoff.state.kind !== "pending" || retirementReason !== "safe-stop" || !incarnation(ctx) || !isDeepStrictEqual(controller, descriptor.authority) || event.parentToolCallId || !appliedHandoff(ctx)) return { block: true, reason: "Limited handoff authority/application is not current. Ordinary retirement remains permanent." };
       if (["read", "grep", "find", "ls", "write"].includes(event.toolName) && pi.getAllTools().find(tool => tool.name === event.toolName)?.sourceInfo.path !== `builtin:${event.toolName}`) return { block: true, reason: "Limited handoff requires the ordinary native filesystem tool, not a replacement extension tool." };
@@ -1170,7 +1389,8 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
         if (allocation && !branch.some(entry => entry.id === call.entry && entry.type === "message" && entry.message.role === "assistant" && entry.message.content.some(part => part.type === "toolCall" && part.id === allocation.rootCall && part.name === "legion_centurio"))) throw new Error("Workspace preparation origin changed.");
         const fd = openSync(journal, "r");
         try { fsyncSync(fd); } finally { closeSync(fd); }
-        const intent = EffectIntent.parse({ id: randomUUID(), pin, call: { id: event.toolCallId, name: event.toolName, rawInput: call.rawInput, input, journal: `${journal}#${call.entry}` }, ...(allocation ? { origin: { kind: "workspace-preparation", child: allocation.child, rootCall: allocation.rootCall, journal: allocation.journal } } : {}) });
+        const correction = currentCorrectionTurn(ctx);
+        const intent = EffectIntent.parse({ id: randomUUID(), pin, ...(correction ? { correction } : {}), call: { id: event.toolCallId, name: event.toolName, rawInput: call.rawInput, input, journal: `${journal}#${call.entry}` }, ...(allocation ? { origin: { kind: "workspace-preparation", child: allocation.child, rootCall: allocation.rootCall, journal: allocation.journal } } : {}) });
         const requestPath = join(generationRoot, `${intent.pin.assignment}.${intent.id}.effect-request.json`);
         const responsePath = join(generationRoot, `${intent.pin.assignment}.${intent.id}.effect-response.json`);
         requested = intent.id;
@@ -1235,7 +1455,10 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   });
   pi.on("agent_settled", async (_event, ctx) => {
     principalActivity = "settled";
+    captureCorrectionReceipts(ctx);
+    correctionTurn = null;
     await observeOwner(ctx);
+    drainCorrections(ctx);
     if (safeStop && retirement && !safeStop.settled) {
       const user = ctx.sessionManager.getBranch().find(entry => entry.type === "message" && entry.message.role === "user" && Array.isArray(entry.message.content) && entry.message.content.some(part => part.type === "text" && part.text === safeStop?.prompt));
       if (user && incarnation(ctx) && !ctx.hasPendingMessages() && ctx.isIdle() && readFileSync(journal, "utf8").split("\n").some(line => line && isDeepStrictEqual(JSON.parse(line), user))) {

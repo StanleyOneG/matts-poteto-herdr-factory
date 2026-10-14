@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ContextAuthority, Initialization, LaunchRecord, WorkerAddress, WorkerReport, WorkerStop, HandoffStageObservation, VerifiedWorker } from "./tribunus.js";
+import { ContextAuthority, Initialization, LaunchRecord, WorkerAddress, WorkerReport, WorkerStop, HandoffStageObservation, VerifiedWorker, CorrectionDelivery, CorrectionObservation } from "./tribunus.js";
 import { EffectMessage, HandoffRequest } from "./snapshot.js";
 import type { NativeChildResourceObservation } from "./centuriones.js";
 
@@ -24,6 +24,7 @@ export type WorkerResourceObservation = {
 };
 /** Point-in-time evidence only. Even settled resources confer no admission, adoption or reuse authority. */
 export interface ResumeResourceReader {
+  observeCorrection?(input: { request: z.infer<typeof CorrectionDelivery> }): Promise<z.infer<typeof CorrectionObservation>>;
   observeHandoff?(input: { worker: z.infer<typeof VerifiedWorker>; request: z.infer<typeof HandoffRequest> }): Promise<z.infer<typeof HandoffStageObservation>>;
   observeResources(input: { launch: LaunchRecord; cwd: string; signal: AbortSignal }): Promise<WorkerResourceObservation>;
 }

@@ -15,9 +15,19 @@ process.on("message", async raw => {
     return;
   }
   if (input.kind === "release") {
-    if (subject) await subject.command({ text: "off", requestKey: "off", evidence: evidence() });
+    if (subject) {
+      const result = await subject.command({ text: "off", requestKey: "off", evidence: evidence() });
+      if (result.kind !== "observed" || result.view.mode !== "inactive" || result.view.unavailable !== null) {
+        process.send?.({ kind: "unsettled", result });
+        return;
+      }
+    }
     subject = null;
     process.send?.({ kind: "released" });
+    return;
+  }
+  if (subject) {
+    process.send?.({ kind: "unsettled", result: { kind: "observed", view: await subject.state() } });
     return;
   }
   session = input.session;

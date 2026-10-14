@@ -296,7 +296,7 @@ const rpc = (type, fields = {}) =>
 const prompt = (message) => rpc("prompt", { message });
 async function state() {
   const start = records.length;
-  await prompt("/legion status");
+  await prompt("/legion status --details");
   const notification = records
     .slice(start)
     .find(

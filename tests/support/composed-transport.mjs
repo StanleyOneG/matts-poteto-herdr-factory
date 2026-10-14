@@ -322,7 +322,7 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
   extension(controller.pi);
   async function state() {
     const before = controller.notices.length;
-    await controller.command("status");
+    await controller.command("status --details");
     const text = controller.notices.slice(before).find(value => value.includes("\nState\n"));
     if (!text && controller.notices.slice(before).some(notice => notice === "Legion is inactive.")) return { mode: "inactive", snapshot: null, tasks: [] };
     assert.ok(text, "Fixture setup must expose public status");
@@ -1292,7 +1292,7 @@ export async function exerciseOrdinaryLegatusResearch(legacyHold = false) {
   extension(principal.pi);
   principal.pi.on("tool_call", event => deny && event.toolName === "subagent" ? { block: true, reason: "Ordinary native permission denial" } : undefined);
   const state = async () => {
-    await principal.command("status");
+    await principal.command("status --details");
     const notice = principal.notices.at(-1);
     return notice === "Legion is inactive." ? { mode: "inactive", snapshot: null } : JSON.parse(notice.split("State\n")[1].split("\n")[0]);
   };

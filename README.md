@@ -47,6 +47,37 @@ If a stage/start/application acknowledgement is missing, explicitly continue the
 
 See [bounded native verification and controlled boundaries](docs/verification/issue36-handoff.md). This is not #41 installed-journey or full #36 acceptance; final integrated checks and independent review remain separate gates.
 
+## Corrections and operator status (#37)
+
+```text
+/legion help
+/legion status [run-id]
+/legion status [run-id] --details
+/legion doctor
+/legion correction <task-id>@<revision> <text>
+/legion correction deliver <correction-id>
+/legion correction observe <correction-id>
+```
+
+Help/completion includes correction and handoff commands. Use `/legion task <text>` for literal text colliding with reserved words, including `help` and `correction`. Ordinary startup stays inactive. Status/doctor/help do not activate, acquire ownership, repair, dispatch or wake a model. Status shows affected tasks, persistent questions/recommendations, stopping/unknown states and available context/freshness. `--details` adds saved evidence/resource references and full state; native Herdr and pi-subagents inspection remain native. Routine updates use only Legion's small status entries, never replacement editor/footer/widgets, focus changes or modals.
+
+A targeted correction saves input for Legatus interpretation, not worker delivery. Ambiguous ordinary chat must first receive a presented Emperor routing question; it cannot silently become a correction or new task. Protected requirements, acceptance changes, mandatory-verification waivers, access, financial commitments and irreversible actions require an exact presented Emperor-approved amendment. A technical choice remains a separate implementation decision, not correction delivery or permission approval.
+
+The interpreter's `legion_intake` correction proposal binds a fresh ID to the saved original source, current task revision, authorization and exact assigned worker. Its returned correction stage shows persisted state, never the generic `applied` **intake** receipt as correction compliance:
+
+- **queued**: saved intent; a sent marker is not a receipt. Delivery waits for an evidenced native safe point without steering/interruption.
+- **delivered**: the exact worker's durable native user entry, not assistant prose, report, tool completion or settlement.
+- **applied**: only explicit Legatus verification of the performed change, with a nonblank summary and evidence references. This is not result acceptance or integration.
+- **unknown / not-delivered**: preserve the exact original worker/evidence. Unknown is not proof of absence.
+
+The current correlated native Matt Legatus can call `legion_correction({correction: {id, digest}, action: {kind: "deliver" | "observe"}})`. After checking the performed change and obtaining genuine delivered evidence, it can use `action: {kind: "verify", summary, evidence: ["check/review reference"]}`. Current authority is adapter-derived, never model-supplied or worker permission. Native `legion_status({command: "status" | "doctor", details: true})` is passive. Raw reconcile observations are not exposed as model parameters: receipt facts come from the production host. The targeted command uses intake-only interpretation; verification requires a current selected native Legatus continuation, not that intake turn.
+
+Explicit `correction deliver` and `correction observe` commands are **controls**, unlike passive status: they require the active owning Legatus and may reconcile durable correction state. Repeat only the same saved ID; a sent/unknown continuation observes rather than resends. A missing addressed worker never authorizes launch. Handoff/replacement never automatically transfers a correction. Explicit reissue uses a new `legion_intake` correction ID with `previous` naming a reconciled predecessor and a different actual current worker; unresolved predecessors and same-worker reissues are refused.
+
+Receiving or verifying a protected correction does **not** renew an old assignment's changed scope. The affected-task authority-mismatch hold remains visible while independent approved work continues. There is currently no supported same-assignment scope refresh. Resume may also hold exact old-worker observation pending independently authorized controller adoption; observation never performs adoption. Preserve these blockers and ask for the missing authorization rather than bypassing them. Native Trust/permission prompts remain human/platform decisions; Legion never answers them automatically.
+
+Focused UI/tool tests use controlled Pi/Herdr adapters and real public storage/transport. Actual installed-SDK safe-delivery/root-UI verification, final integration and independent review remain separate gates; this section is not whole-issue or #41 acceptance.
+
 ## Safe stopping (#34)
 
 `/legion off` immediately withholds new assignments/effects and persists one shutdown identity. Repeated off observes that shutdown. Already-admitted effects and registered native children may settle; only corroborated native settlement and the addressed worker's parked receipt release the live owner's observation lock. Unknown effects/activity preserve resources and show stopping/blockers. Restart never schedules saved work or erases an unresolved shutdown; parked/report receipts are not acceptance, resume or cleanup authority.
@@ -68,7 +99,7 @@ This is the approved **example**, not a mandatory model. Defaults are absolute 1
 
 Only missing files mean defaults. Read/JSON/container/unsupported-field/effective-value errors identify the file and corrective action; there is no silent fallback. Leaf validation follows precedence, but malformed JSON, invalid containers and unknown fields fail even in a lower layer. Null is not a clearing/tombstone mechanism. Poteto preferences do not belong in these files.
 
-Accepted settings are cached and exposed in `/legion status` state (`settings`, new-assignment `tribuniModel`, and each task's `tribunusModel` intent). Ordinary tasks, status and doctor do not reload JSON. Startup/restart remain inactive. Resume rereads prospective defaults without changing existing assignment pins; failed task-bearing activation preserves the exact input inactive and does not wake a model. Failed activation diagnostics remain visible in status/doctor until another explicit activation check.
+Accepted settings are cached and exposed in `/legion status --details` state (`settings`, new-assignment `tribuniModel`, and each task's `tribunusModel` intent). Ordinary tasks, status and doctor do not reload JSON. Startup/restart remain inactive. Resume rereads prospective defaults without changing existing assignment pins; failed task-bearing activation preserves the exact input inactive and does not wake a model. Failed activation diagnostics remain visible in status/doctor until another explicit activation check.
 
 Before managed work, Legion observes the actual Legatus model/thinking without setters and checks only principal chat models: exact native registry model, registered native provider, configured-auth metadata, native available-model snapshot, supported native thinking, and a window of at least **272000** tokens. Unknown or smaller actual principal windows fail too. Tribunus inspection records actual model/thinking/window, and incompatible or unknown observations withhold new assignment while preserving the worker. No model substitution, fuzzy matching, thinking clamp, provider request, credential acquisition/refresh, native child minimum or classifier routing is added.
 

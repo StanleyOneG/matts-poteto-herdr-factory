@@ -19,6 +19,11 @@ import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "no
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 
+export const LaunchId = z.uuid().brand<"LaunchId">();
+export const WindowIdentity = z.object({
+  endpoint: z.string(), server: z.string(), workspace: z.string(), tab: z.string(), pane: z.string(), terminal: z.string(),
+});
+export const WorkerAddress = z.object({ launch: LaunchId, window: WindowIdentity, session: z.string(), generation: z.uuid() });
 export const LegatusId = z.uuid().brand<"LegatusId">();
 export const SubmissionId = z.uuid().brand<"SubmissionId">();
 export const TaskId = z.uuid().brand<"TaskId">();
@@ -153,6 +158,46 @@ export const AssignmentPin = z.strictObject({
   task: TaskRef.strict(), scope: z.string(), reservation: z.uuid(), assignment: z.uuid(),
   launch: z.uuid(), workerSession: z.string(), workerGeneration: z.uuid(), addressDigest: z.string(),
 });
+export const CorrectionId = z.uuid().brand<"CorrectionId">();
+export const CorrectionAuthorization = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("technical") }),
+  z.strictObject({ kind: z.literal("amendment"), amendment: AmendmentId }),
+]);
+export const CorrectionBinding = z.strictObject({ pin: AssignmentPin, address: WorkerAddress.strict().extend({ window: WindowIdentity.strict() }) }).refine(binding =>
+  binding.address.launch === binding.pin.launch && binding.address.session === binding.pin.workerSession &&
+  binding.address.generation === binding.pin.workerGeneration &&
+  createHash("sha256").update(JSON.stringify(binding.address)).digest("hex") === binding.pin.addressDigest,
+"Correction binding must identify the exact assignment and worker generation.");
+const CorrectionContent = z.strictObject({
+  id: CorrectionId, source: SubmissionRef, task: TaskRef, instruction: z.string().min(1),
+  authorization: CorrectionAuthorization, previous: CorrectionId.nullable(), binding: CorrectionBinding.nullable(),
+}).refine(request => !request.binding || request.binding.pin.task.id === request.task.id && request.binding.pin.task.revision <= request.task.revision,
+"Correction targets the same task; an approved amendment may advance beyond the assignment revision.");
+function correctionContent(request: z.infer<typeof CorrectionContent>) {
+  const { id, source, task, instruction, authorization, previous, binding } = request;
+  return { id, source, task, instruction, authorization, previous, binding };
+}
+export function correctionDigest(request: z.infer<typeof CorrectionContent>): string {
+  return createHash("sha256").update(JSON.stringify(CorrectionContent.parse(correctionContent(request)))).digest("hex");
+}
+export const CorrectionRequest = CorrectionContent.safeExtend({ digest: z.string().min(1) }).refine(request => {
+  const content = CorrectionContent.safeParse(correctionContent(request));
+  return content.success && request.digest === createHash("sha256").update(JSON.stringify(content.data)).digest("hex");
+}, "Correction ID, content and binding must match the immutable digest.");
+export const CorrectionReceipt = z.strictObject({ journal: z.string().min(1), entry: z.string().min(1), evidence: z.array(z.string().min(1)).min(1) });
+/** queued is saved intent; sent is a write-ahead dispatch marker, not worker receipt. */
+export const CorrectionRecord = CorrectionRequest.safeExtend({ state: z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("queued"), dispatch: z.enum(["not-sent", "sent"]) }),
+  z.strictObject({ kind: z.literal("unknown"), message: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("not-delivered"), evidence: z.array(z.string().min(1)).min(1) }),
+  z.strictObject({ kind: z.literal("delivered"), receipt: CorrectionReceipt }),
+  z.strictObject({ kind: z.literal("applied"), receipt: CorrectionReceipt, verification: z.strictObject({
+    summary: z.string().min(1), evidence: z.array(z.string().min(1)).min(1),
+    by: z.strictObject({ session: z.string(), generation: z.int().positive(), run: z.string().min(1) }),
+  }) }),
+]) }).refine(record => record.binding !== null || record.state.kind === "not-delivered" || record.state.kind === "queued" && record.state.dispatch === "not-sent",
+"An unaddressed intent cannot have a dispatch, unknown outcome or worker receipt.");
+export type CorrectionRecord = z.infer<typeof CorrectionRecord>;
 export const EngineeringRecord = z.strictObject({
   id: z.uuid(),
   pin: AssignmentPin,
@@ -170,9 +215,11 @@ export const EngineeringRecord = z.strictObject({
   ]),
 });
 const EffectCall = z.strictObject({ id: z.string().min(1), name: z.enum(["bash", "write", "edit", "subagent"]), rawInput: z.json().optional(), input: z.json(), journal: z.string().min(1) });
+export const CorrectionTurn = z.strictObject({ id: CorrectionId, digest: z.string() });
 const AssignmentEffectIntent = z.strictObject({
   id: z.uuid(), pin: AssignmentPin,
   call: EffectCall,
+  correction: CorrectionTurn.optional(),
   origin: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("workspace-preparation"), child: z.uuid(), rootCall: z.string(), journal: z.string() }),
     z.strictObject({ kind: z.literal("centurio"), child: EngineeringRef, intent: z.string(), run: z.string(), session: z.string(), journal: z.string(), cwd: z.string(), branch: z.string(), base: z.string() }),
@@ -207,6 +254,7 @@ export const EngineeringResult = EngineeringEvidence.extend({ priorExceptions: z
 export const CenturioOwnerCheck = z.strictObject({
   kind: z.literal("centurio-owner-check"), id: z.uuid(), pin: AssignmentPin,
   child: EngineeringRef, stage: z.enum(["launch", "control", "read"]),
+  correction: CorrectionTurn.optional(),
 });
 export const EffectMessage = z.discriminatedUnion("kind", [
   CenturioOwnerCheck,
@@ -312,6 +360,8 @@ export const SnapshotSchema = z.object({
   researchRequests: z.array(ResearchStage).default([]),
   research: z.array(ResearchRecord).default([]),
   researchHold: z.string().nullable().default(null),
+  corrections: z.array(CorrectionRecord).refine(records => new Set(records.map(record => record.id)).size === records.length,
+    "Correction IDs are immutable and unique.").default([]),
   engineering: z.array(EngineeringRecord).default([]),
   effects: z.array(EffectRecord).default([]),
   submissions: z.array(
@@ -391,7 +441,7 @@ export const SnapshotSchema = z.object({
       id: AmendmentId,
       decision: Ref,
       affected: z.array(TaskRef).min(1),
-      category: z.enum(["requirements", "financial", "access", "irreversible"]),
+      category: z.enum(["requirements", "acceptance", "verification", "financial", "access", "irreversible"]),
       change: z.string().min(1),
     }),
   ),

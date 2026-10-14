@@ -61,9 +61,9 @@ const controlledLegion = pi => legion({ ...pi,
 });
 let session;
 async function state() {
-  await session.prompt("/legion status");
+  await session.prompt("/legion status --details");
   const notice = notices.at(-1);
-  return notice === "Legion is inactive." ? { mode: "inactive", snapshot: null } : JSON.parse(notice.split("State\n")[1].split("\n")[0]);
+  return JSON.parse(notice.split("\nState\n")[1]);
 }
 try {
   const settings = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });

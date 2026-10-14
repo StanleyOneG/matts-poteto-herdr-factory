@@ -5,7 +5,7 @@ import { loadLegionSettings, selectTribunusModel, type LegionSettings, type Trib
 import { existsSync, readFileSync, realpathSync, lstatSync, accessSync, constants } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { join, dirname, relative, isAbsolute, sep } from "node:path";
-import { mattInitializationPrompt, requiredWorkflowSkills, successorStartupSelection, HandoffStageObservation, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, WorkerStop, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
+import { CorrectionDelivery, CorrectionObservation, mattInitializationPrompt, requiredWorkflowSkills, successorStartupSelection, HandoffStageObservation, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, WorkerStop, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
 import {
   AssignmentLedger,
   AssignmentConflict,
@@ -27,6 +27,7 @@ import type {
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
+  CorrectionId, CorrectionAuthorization, CorrectionRecord, CorrectionTurn, AssignmentPin, correctionDigest,
   HandoffRequest, HandoffRecord, SettledHandoff,
   SnapshotStore,
   createSnapshot,
@@ -66,6 +67,8 @@ const Question = z.object({
   recommendation: z.string().min(1),
 });
 export const ProposalSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("correction"), id: CorrectionId, source: SubmissionRef, target: TaskRef,
+    authorization: CorrectionAuthorization, previous: CorrectionId.optional() }),
   z.object({
     kind: z.literal("new-task"),
     source: SubmissionRef,
@@ -95,7 +98,7 @@ export const ProposalSchema = z.discriminatedUnion("kind", [
     kind: z.literal("propose-amendment"),
     source: SubmissionRef,
     affected: z.array(TaskRef).min(1),
-    category: z.enum(["requirements", "financial", "access", "irreversible"]),
+    category: z.enum(["requirements", "acceptance", "verification", "financial", "access", "irreversible"]),
     change: z.string().min(1),
     question: z.string().min(1),
     recommendation: z.string().min(1),
@@ -134,6 +137,16 @@ const Message = z.object({
   requestKey: z.string().min(1),
   evidence: InputEvidence,
 });
+export const CorrectionAction = z.strictObject({
+  kind: z.literal("correction-control"), correction: z.strictObject({ id: CorrectionId, digest: z.string().min(1) }),
+  action: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("deliver") }),
+    z.strictObject({ kind: z.literal("observe") }),
+    z.strictObject({ kind: z.literal("reconcile"), observation: CorrectionObservation }),
+    z.strictObject({ kind: z.literal("verify"), summary: z.string().trim().min(1), evidence: z.array(z.string().trim().min(1)).min(1) }),
+  ]),
+  evidence: z.strictObject({ session: z.string(), generation: z.int().positive(), legatus: LegatusId, run: z.string().min(1) }),
+});
 export type LegionView = {
   mode: "inactive" | "active" | "stopping";
   snapshot: LegatusSnapshot | null;
@@ -146,6 +159,7 @@ export type LegionView = {
       workflowChoice: WorkflowChoice | null;
       workflowHold: string | null;
       resumeHold: string | null;
+      correctionHold: string | null;
     }
   >;
   settings: LegionSettings | null;
@@ -172,6 +186,7 @@ export type OperationResult =
     }
   | { kind: "ownership-blocked"; reservation: Reservation; message: string }
   | { kind: "workspace-stage"; requestId: string; message: string }
+  | { kind: "correction-stage"; correction: z.infer<typeof CorrectionId>; state: CorrectionRecord["state"]; message: string }
   | { kind: "handoff-stage"; requestId: string; message: string }
   | { kind: "launch-stage"; requestId: string; message: string }
   | { kind: "launched"; launch: LaunchResult; message: string }
@@ -181,6 +196,7 @@ type CommandIntent =
   | { kind: "doctor" | "on" | "off" }
   | { kind: "resume"; id: string }
   | { kind: "task"; text: string }
+  | { kind: "correction"; target: z.infer<typeof TaskRef>; text: string }
   | { kind: "profile-on"; text: string }
   | { kind: "profile-off" }
   | { kind: "workflow"; text: string }
@@ -238,6 +254,11 @@ function commandIntent(text: string): CommandIntent {
         return { kind: "handoff", task: task.data, purpose, continuation };
       } catch { return { kind: "invalid" }; }
     }
+    case "correction": {
+      const parsed = /^(\S+)@(\d+)\s+([\s\S]+)$/.exec(payload.trim());
+      const target = TaskRef.safeParse({ id: parsed?.[1], revision: Number(parsed?.[2]) });
+      return parsed && target.success && parsed[3]?.trim() ? { kind: "correction", target: target.data, text: parsed[3] } : { kind: "invalid" };
+    }
     case "launch": {
       const parsed = /^(\S+)@(\d+)$/.exec(payload.trim());
       const task = TaskRef.safeParse({ id: parsed?.[1], revision: Number(parsed?.[2]) });
@@ -281,6 +302,23 @@ function commandIntent(text: string): CommandIntent {
 function hasLegacyResearchHold(snapshot: LegatusSnapshot | null) {
   return !!snapshot && (!!snapshot.researchHold || snapshot.researchRequests.some(request => request.state.kind !== "settled") ||
     snapshot.research.some(record => !["prepared", "process-terminal"].includes(record.child.state.kind)));
+}
+function taskApprovalScope({ snapshot, task }: { snapshot: LegatusSnapshot; task: LegatusSnapshot["tasks"][number] }): string {
+  const resolutions = snapshot.resolutions.filter(resolution => snapshot.decisions.some(decision =>
+    decision.id === resolution.decision.id && decision.history.at(-1)?.affected.some(affected => affected.id === task.id)));
+  return createHash("sha256").update(JSON.stringify({ history: task.history.at(-1), scope: task.scope, resolutions })).digest("hex");
+}
+function correctionHold({ snapshot, taskId }: { snapshot: LegatusSnapshot; taskId: string }): string | null {
+  const records = snapshot.corrections.filter(record => record.task.id === taskId && !snapshot.corrections.some(next => next.previous === record.id));
+  const unknown = records.find(record => record.state.kind === "unknown");
+  if (unknown?.state.kind === "unknown") return `Correction ${unknown.id} outcome is unknown. ${unknown.state.message} Observe the exact pinned delivery before retry or replacement.`;
+  const task = snapshot.tasks.find(task => task.id === taskId);
+  const mismatch = task && records.find(record => record.binding && (record.binding.pin.task.revision !== task.history.at(-1)?.revision ||
+    record.binding.pin.scope !== taskApprovalScope({ snapshot, task })));
+  if (mismatch) return `Correction ${mismatch.id} targets changed task scope, but its assignment authority still pins revision ${mismatch.binding?.pin.task.revision}. Receipt and performed-correction verification never refresh execution authority. Preserve the worker; explicit reauthorization is required.`;
+  const unaddressed = records.find(record => !record.binding && record.state.kind === "queued");
+  if (unaddressed) return `Correction ${unaddressed.id} is saved without a matching assigned worker. No worker was launched. Create a linked request when a current assignment is available.`;
+  return null;
 }
 function hasUnsettledWork(snapshot: LegatusSnapshot | null, launches: Map<string, LaunchView>) {
   const shutdown = snapshot?.shutdown;
@@ -483,6 +521,8 @@ export class Legion {
     state: LegatusSnapshot,
     ref: z.infer<typeof TaskRef>,
   ): string {
+    if (state.corrections.some(record => record.task.id === ref.id && record.state.kind === "unknown"))
+      throw new Error("Affected task has an unknown correction delivery. Reconcile the exact pinned outcome before further authority or handoff.");
     const hold = state.resumeState?.holds.find(hold => hold.task === ref.id);
     if (hold) throw new Error(`Retained assignment is observation-only after resume. ${hold.message}`);
     const task = state.tasks.find((t) => t.id === ref.id);
@@ -496,22 +536,7 @@ export class Legion {
       )
     )
       throw new Error("Affected work awaits an Emperor decision.");
-    const resolutions = state.resolutions.filter((r) =>
-      state.decisions.some(
-        (d) =>
-          d.id === r.decision.id &&
-          d.history.at(-1)?.affected.some((t) => t.id === ref.id),
-      ),
-    );
-    return createHash("sha256")
-      .update(
-        JSON.stringify({
-          history: task.history.at(-1),
-          scope: task.scope,
-          resolutions,
-        }),
-      )
-      .digest("hex");
+    return taskApprovalScope({ snapshot: state, task });
   }
   private workspaceAuthority(
     request: z.infer<typeof WorkspaceRequest> | z.infer<typeof LaunchRequest>,
@@ -1144,6 +1169,8 @@ export class Legion {
           await this.handoffAuthority({ record: prior, epoch });
           return { kind: "handoff-stage", requestId: prior.id, message: "Same immutable handoff retained; explicit continuation observes its saved attempt." };
         }
+        if (snapshot.corrections.some(record => record.task.id === intent.task.id && record.state.kind === "queued" && record.state.dispatch === "sent"))
+          throw new Error("Correction delivery is still pending. Reconcile the exact old delivery before handoff; never transfer it automatically.");
         const scope = this.approval(snapshot, intent.task);
         const task = view.tasks.find(task => task.id === intent.task.id);
         if (task?.claim.kind !== "owned" || task.claim.workspace.kind !== "ready") throw new Error("Exact owned ready reservation required.");
@@ -1804,10 +1831,11 @@ export class Legion {
             tribunusModel: this.assignmentModelIntent({ launch: launches.get(t.id), handoff: snapshot?.handoffs.find(record => record.pin.task.id === t.id) }),
             ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
             resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
+            correctionHold: correctionHold({ snapshot, taskId: t.id }),
             eligibility:
               !this.binding || this.stopping
                 ? "inactive"
-                : snapshot.resumeState?.holds.some(hold => hold.task === t.id) || snapshot.decisions.some(
+                : correctionHold({ snapshot, taskId: t.id }) || snapshot.resumeState?.holds.some(hold => hold.task === t.id) || snapshot.decisions.some(
                       (d) =>
                         d.state.kind === "open" &&
                         d.history.at(-1)?.affected.some((a) => a.id === t.id),
@@ -1978,6 +2006,7 @@ export class Legion {
       off: "off",
       resume: "resume",
       task: "submit",
+      correction: "submit",
       "profile-on": "submit",
       "profile-off": "activate",
       workflow: "submit",
@@ -2006,7 +2035,7 @@ export class Legion {
       return Promise.resolve(
         reject(
           "usage",
-          "Use on, task <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>, handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string>, or handoff <handoff-id>. Use task to escape reserved arguments.",
+          "Use on, task <text>, correction <task-id>@<revision> <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>, handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string>, or handoff <handoff-id>. Use task to escape reserved arguments.",
         ),
       );
     if (
@@ -2034,6 +2063,8 @@ export class Legion {
       });
     }
     const epoch = this.epoch;
+    if (intent.kind === "correction" && (!this.binding || this.stopping))
+      return Promise.resolve(reject("inactive", "Activate or explicitly resume the current Legatus before saving a targeted correction."));
     if (intent.kind === "handoff" || intent.kind === "continue-handoff")
       return this.recordHandoff({ input, intent });
     if (intent.kind === "launch")
@@ -2130,6 +2161,7 @@ export class Legion {
                 tribunusModel: this.assignmentModelIntent({ launch: launches.get(t.id), handoff: snapshot?.handoffs.find(record => record.pin.task.id === t.id) }),
                 ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
                 resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
+                correctionHold: correctionHold({ snapshot, taskId: t.id }),
               })) ?? [],
             ...this.settingsView(),
             diagnostics: this.activationDiagnostics,
@@ -2180,7 +2212,7 @@ export class Legion {
       if (explicitActivation) this.activationDiagnostics = diagnostics;
       const resume = intent.kind === "resume" ? intent.id : null;
       const isActivation = intent.kind === "on" || intent.kind === "resume" || intent.kind === "profile-off";
-      const taskText = intent.kind === "task" || intent.kind === "profile-on" || intent.kind === "workflow" ? intent.text : "";
+      const taskText = intent.kind === "task" || intent.kind === "correction" || intent.kind === "profile-on" || intent.kind === "workflow" ? intent.text : "";
       const workflowInvocation = intent.kind === "workflow"
         ? WorkflowInvocation.parse({ kind: "legion-command", command: "implement-spec=on" })
         : intent.kind === "profile-on"
@@ -2262,6 +2294,12 @@ export class Legion {
         }
         if (resume && !state)
           return reject("not-found", "Legatus records were not found.");
+        if (intent.kind === "correction") {
+          if (input.evidence.generation !== null && input.evidence.generation !== this.binding?.generation)
+            return reject("provenance", "Correction host association generation is stale.");
+          if (!state?.tasks.some(task => task.id === intent.target.id && task.history.at(-1)?.revision === intent.target.revision))
+            return reject("stale-task", "Correction target is not current. No correction was saved.");
+        }
         let resumeClaims: Awaited<ReturnType<Legion["resumeHistory"]>> | null = null;
         const noWorkInitialization = new Set<string>();
         if (resume && state) {
@@ -2416,11 +2454,11 @@ export class Legion {
             sequence: snapshot.submissions.length + 1,
             timestamp: new Date().toISOString(),
             evidence: input.evidence,
-            originIntent: { kind: "new-task" },
+            originIntent: { kind: intent.kind === "correction" ? "unclassified" : "new-task" },
             workflowChoice: { ...snapshot.workflowChoice },
             ...(workflowInvocation ? { workflowInvocation } : {}),
             ...(intent.kind === "workflow" || input.workflowInvocation ? { workflowDispatch: { kind: "pending-native" } } : {}),
-            state: { kind: "pending", routing: { kind: "new-task" } },
+            state: { kind: "pending", routing: intent.kind === "correction" ? { kind: "correction", target: intent.target } : { kind: "new-task" } },
           });
         const result: CommittedResult = {
           kind: isActivation ? "applied" : "saved",
@@ -2565,6 +2603,25 @@ export class Legion {
       });
     }
   }
+  private async assignmentContinues({ snapshot, launch, pin, correction }: {
+    snapshot: LegatusSnapshot; launch: LaunchView | undefined; pin: z.infer<typeof AssignmentPin>; correction: z.infer<typeof CorrectionTurn> | undefined;
+  }) {
+    if (launch?.kind === "assigned") return true;
+    if (launch?.kind !== "reported" || !correction) return false;
+    const record = snapshot.corrections.find(record => record.id === correction.id && record.digest === correction.digest);
+    if (!record?.binding || !isDeepStrictEqual(record.binding.pin, pin) || !isDeepStrictEqual(record.binding.address, launch.worker.address) ||
+        !isDeepStrictEqual(record.task, pin.task) || snapshot.corrections.some(next => next.previous === record.id) ||
+        !(record.state.kind === "delivered" || record.state.kind === "queued" && record.state.dispatch === "sent")) return false;
+    const host = this.options.tribuni?.host();
+    if (!host?.observeCorrection) return false;
+    const binding = this.binding, epoch = this.epoch;
+    try {
+      const observation = CorrectionObservation.parse(await host.observeCorrection({ request: CorrectionDelivery.parse(this.correctionRequest(record)), continuation: correction }));
+      return binding === this.binding && epoch === this.epoch && !this.stopping &&
+        isDeepStrictEqual(observation.request, this.correctionRequest(record)) && observation.state.kind === "delivered" &&
+        (record.state.kind !== "delivered" || isDeepStrictEqual(record.state.receipt, observation.state.receipt));
+    } catch { return false; }
+  }
   private submitEffect(message: z.infer<typeof EffectMessage>): Promise<OperationResult> {
     const epoch = this.epoch;
     return this.serialize(async () => {
@@ -2576,7 +2633,7 @@ export class Legion {
         const settlementRead = message.stage === "read" && !!state.shutdown && pin.generation === state.shutdown.generation && pin.epoch === state.shutdown.epoch;
         if ((!settlementRead && (view.mode !== "active" || epoch !== this.epoch || this.stopping)) || pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || (!settlementRead && pin.epoch !== epoch))
           return reject("centurio-controller", "The child owner is no longer the current controller. No child work admitted.");
-        if ((!settlementRead && task?.eligibility !== "admitted") || !task || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || (launch?.kind !== "assigned" && !(message.stage === "read" && launch?.kind === "reported")))
+        if ((!settlementRead && task?.eligibility !== "admitted") || !task || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || (launch?.kind !== "assigned" && launch?.kind !== "reported") || (!(message.stage === "read" && launch?.kind === "reported") && !await this.assignmentContinues({ snapshot: state, launch, pin, correction: message.correction })))
           return reject("centurio-assignment", "The child no longer has the current owned assignment.");
         try {
           if ((!settlementRead && this.approval(state, pin.task) !== pin.scope) || !isDeepStrictEqual(launch.assignment.task, pin.task) || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || launch.worker.address.launch !== pin.launch || launch.worker.address.session !== pin.workerSession || launch.worker.address.generation !== pin.workerGeneration || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
@@ -2611,7 +2668,7 @@ export class Legion {
       if (state.effects.some(effect => effect.intent.pin.workerSession === pin.workerSession && effect.intent.pin.workerGeneration === pin.workerGeneration && effect.state.kind === "unknown"))
         return reject("effect-unresolved", "A prior native effect outcome is unknown. Reconcile the same identity before new work.");
       const task = view.tasks.find(task => task.id === pin.task.id), launch = task?.launch;
-      if (pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || pin.epoch !== epoch || task?.eligibility !== "admitted" || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || launch?.kind !== "assigned")
+      if (pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || pin.epoch !== epoch || task?.eligibility !== "admitted" || task.claim.kind !== "owned" || task.claim.reservation.id !== pin.reservation || task.claim.workspace.kind !== "ready" || (launch?.kind !== "assigned" && launch?.kind !== "reported") || !await this.assignmentContinues({ snapshot: state, launch, pin, correction: "correction" in intent ? intent.correction : undefined }))
         return reject("effect-authority", "Principal, task, reservation, or controller authority changed.");
       try {
         if (this.approval(state, pin.task) !== pin.scope || launch.assignment.scope !== pin.scope || launch.command !== pin.assignment || launch.worker.address.launch !== pin.launch || launch.worker.address.session !== pin.workerSession || launch.worker.address.generation !== pin.workerGeneration || createHash("sha256").update(JSON.stringify(launch.worker.address)).digest("hex") !== pin.addressDigest)
@@ -2632,7 +2689,148 @@ export class Legion {
       }
     });
   }
+  private async currentCorrectionBinding({ state, task }: { state: LegatusSnapshot; task: z.infer<typeof TaskRef> }) {
+    const claims = await this.claims(state);
+    const claim = claims.byTask.get(task.id);
+    if (!claim || claim.kind === "unreserved") return null;
+    if (claim.kind !== "owned" || claim.workspace.kind !== "ready") throw new Error("Exact owned ready assignment history is required for correction binding.");
+    const repository = state.workspaceRequests.find(request => request.repositoryId === claim.reservation.repository);
+    if (!repository?.repository) throw new Error("Correction repository history unavailable.");
+    const launch = await new AssignmentLedger({ commonDir: repository.repository, owner: state.id, expectedRepository: claim.reservation.repository, historyRequired: true })
+      .readLaunch({ reservation: claim.reservation, known: this.currentLaunchId({ snapshot: state, task: task.id }) });
+    if (!launch || launch.state.kind === "prepared") return null;
+    const progress = launch.state;
+    if (progress.kind !== "assigned" && progress.kind !== "reported") throw new Error("Correction requires a confirmed applied assignment; uncertain launch is not a worker.");
+    const origin = this.launchOrigin({ snapshot: state, launch });
+    if (!origin || progress.assignment.task.id !== task.id || launch.scope !== progress.assignment.scope ||
+        origin.scope !== launch.scope || !isDeepStrictEqual(origin.task, progress.assignment.task) || origin.repositoryId !== claim.reservation.repository)
+      throw new Error("Exact correction assignment origin unavailable.");
+    return { address: progress.worker.address, pin: {
+      owner: state.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch,
+      task: progress.assignment.task, scope: progress.assignment.scope, reservation: launch.reservation,
+      assignment: progress.command, launch: launch.id, workerSession: progress.worker.address.session,
+      workerGeneration: progress.worker.address.generation, addressDigest: createHash("sha256").update(JSON.stringify(progress.worker.address)).digest("hex"),
+    } };
+  }
+  private correctionRequest(record: CorrectionRecord) {
+    const { state: _state, ...request } = record;
+    return request;
+  }
+  private reconcileCorrection({ record, observation }: { record: CorrectionRecord; observation: z.infer<typeof CorrectionObservation> }) {
+    if (!isDeepStrictEqual(this.correctionRequest(record), observation.request)) throw new Error("Correction observation does not match the immutable ID, content, task, authority and worker pin.");
+    const next = observation.state, previous = record.state;
+    if (previous.kind === "applied" || previous.kind === "delivered") {
+      if (next.kind === "not-delivered" || next.kind === "delivered" && !isDeepStrictEqual(previous.receipt, next.receipt))
+        throw new Error("Conflicting confirmed correction receipt; preserve the original evidence.");
+      return;
+    }
+    if (previous.kind === "not-delivered") {
+      if (next.kind === "delivered") throw new Error("Conflicting reconciled correction outcome; preserve the original evidence.");
+      return;
+    }
+    record.state = next.kind === "queued" ? { kind: "queued", dispatch: "sent" } : next;
+  }
+  private async observeResumedCorrection({ snapshot, request, epoch }: { snapshot: LegatusSnapshot; request: z.infer<typeof CorrectionDelivery>; epoch: number }) {
+    const pin = request.binding.pin;
+    const resume = snapshot.resumeState;
+    const hold = resume && resume.generation === this.binding?.generation
+      ? resume.holds.find(hold => hold.task === request.task.id && hold.reservation === pin.reservation) : null;
+    if (!hold || snapshot.context !== this.options.context || pin.owner !== snapshot.id ||
+        !isDeepStrictEqual(await this.currentCorrectionBinding({ state: snapshot, task: request.task }), request.binding))
+      throw new Error("No exact explicitly resumed ownership/assignment for correction observation.");
+    const claims = await this.claims(snapshot), claim = claims.byTask.get(request.task.id);
+    if (claim?.kind !== "owned" || claim.workspace.kind !== "ready" || claim.reservation.id !== pin.reservation) throw new Error("Retained correction reservation is unresolved.");
+    const repository = snapshot.workspaceRequests.find(record => record.repositoryId === claim.reservation.repository);
+    if (!repository?.repository) throw new Error("Retained correction repository history is unavailable.");
+    const git = this.options.resume?.repository(repository.repository);
+    const observedGit = await git?.observeResources({ plan: claim.reservation.plan, commonDir: repository.repository });
+    if (observedGit?.disposition !== "identified" || observedGit.dirty.kind !== "observed") throw new Error("Fresh retained checkout observation is unresolved.");
+    const launch = await new AssignmentLedger({ commonDir: repository.repository, owner: snapshot.id, expectedRepository: claim.reservation.repository, historyRequired: true })
+      .readLaunch({ reservation: claim.reservation, known: pin.launch });
+    const reader = this.options.resume?.worker({ owner: pin.owner, session: pin.session, generation: pin.generation, epoch: pin.epoch });
+    if (!launch || !reader?.observeCorrection) throw new Error("Original-authority read-only correction evidence reader is unavailable.");
+    const observed = await reader.observeResources({ launch, cwd: claim.reservation.plan.path, signal: this.resumeSignal.signal });
+    if (epoch !== this.epoch || this.stopping || !this.workerObservationMatches({ snapshot, launch, observation: observed }))
+      throw new Error("Fresh retained worker/assignment identity is unresolved; no adoption or execution authority.");
+    return reader.observeCorrection({ request });
+  }
+  private controlCorrection(input: z.infer<typeof CorrectionAction>): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const binding = this.binding;
+      if (!binding || !this.selected || this.stopping || epoch !== this.epoch) return reject("inactive", "Explicit current Legatus authority is required for correction control.");
+      if (input.evidence.session !== this.options.session || input.evidence.generation !== binding.generation || input.evidence.legatus !== this.selected)
+        return reject("provenance", "Correction control requires the exact current Legatus session and generation.");
+      const snapshot = await this.store.read(this.selected);
+      if (!snapshot) return reject("unavailable", "Correction state is unavailable.");
+      const record = snapshot.corrections.find(record => record.id === input.correction.id);
+      if (!record || record.digest !== input.correction.digest) return reject("correction-conflict", "Exact saved correction ID and digest required.");
+      const result = (): OperationResult => ({ kind: "correction-stage", correction: record.id, state: record.state,
+        message: record.state.kind === "applied" ? "Legatus verified performed correction with evidence. This is not result acceptance or integration." : "Correction state retained. Queued is saved intent; delivered is receipt only, not verified compliance." });
+      let storageFailed = false;
+      const save = async () => {
+        const revision = snapshot.revision++;
+        try { await this.store.save(snapshot, revision, () => binding === this.binding && !this.stopping && epoch === this.epoch); }
+        catch (error) { storageFailed = true; this.revoke(); throw error; }
+      };
+      try {
+        if (input.action.kind === "verify") {
+          if (record.state.kind === "applied") {
+            if (record.state.verification.summary !== input.action.summary || !isDeepStrictEqual(record.state.verification.evidence, input.action.evidence))
+              return reject("correction-conflict", "Performed-correction verification is already saved with different evidence. Preserve the original decision.");
+            return result();
+          }
+          if (record.state.kind !== "delivered") return reject("correction-receipt", "Confirm the exact addressed worker receipt before verifying performed correction.");
+          record.state = { kind: "applied", receipt: record.state.receipt, verification: {
+            summary: input.action.summary, evidence: input.action.evidence,
+            by: { session: input.evidence.session, generation: input.evidence.generation, run: input.evidence.run },
+          } };
+          await save();
+          return result();
+        }
+        if (input.action.kind === "reconcile") {
+          this.reconcileCorrection({ record, observation: input.action.observation });
+          await save();
+          return result();
+        }
+        if (record.state.kind === "applied" || record.state.kind === "delivered" || record.state.kind === "not-delivered") return result();
+        if (!record.binding) return reject("correction-worker", "Saved intent has no addressed worker. No launch or automatic retarget is authorized.");
+        const request = CorrectionDelivery.parse(this.correctionRequest(record));
+        const deliver = input.action.kind === "deliver" && record.state.kind === "queued" && record.state.dispatch === "not-sent";
+        const host = this.options.tribuni?.host();
+        if (deliver) {
+          const current = await this.currentCorrectionBinding({ state: snapshot, task: record.task });
+          if (!isDeepStrictEqual(current, record.binding) || record.binding.pin.session !== this.options.session ||
+              record.binding.pin.generation !== binding.generation || record.binding.pin.epoch !== epoch ||
+              snapshot.resumeState?.holds.some(hold => hold.task === record.task.id) ||
+              snapshot.decisions.some(decision => decision.state.kind === "open" && decision.history.at(-1)?.affected.some(task => task.id === record.task.id)) ||
+              snapshot.handoffs.some(handoff => handoff.pin.launch === record.binding?.pin.launch) ||
+              !snapshot.tasks.some(task => task.id === record.task.id && task.history.at(-1)?.revision === record.task.revision))
+            return reject("correction-authority", "Task/current assignment or Legatus authority changed. Reconcile the original delivery; never transfer automatically.");
+          if (!host?.correct) return reject("correction-transport", "Safe correction transport is unavailable. Saved intent is retained; no worker launched.");
+          record.state = { kind: "queued", dispatch: "sent" };
+          await save();
+        } else if (!snapshot.resumeState && !host?.observeCorrection) return reject("correction-transport", "Exact correction observation transport is unavailable. Do not resend an uncertain delivery.");
+        try {
+          if (binding !== this.binding || this.stopping || epoch !== this.epoch) throw new Error("Correction transport authority was revoked before dispatch.");
+          const raw = deliver ? await host?.correct?.({ request }) : snapshot.resumeState
+            ? await this.observeResumedCorrection({ snapshot, request, epoch }) : await host?.observeCorrection?.({ request });
+          const observation = CorrectionObservation.parse(raw);
+          this.reconcileCorrection({ record, observation });
+        } catch (error) {
+          record.state = { kind: "unknown", message: String(error) };
+        }
+        await save();
+        return result();
+      } catch (error) {
+        if (storageFailed) return { kind: "uncertain", requestKey: record.id, message: `Correction publication outcome is uncertain. Read status, explicitly resume and observe this exact ID before further action. ${String(error)}` };
+        return reject("correction-authority", `Preserve the saved correction and reconcile its exact ID. ${String(error)}`);
+      }
+    });
+  }
   submit(raw: unknown): Promise<OperationResult> {
+    const correction = CorrectionAction.safeParse(raw);
+    if (correction.success) return this.controlCorrection(correction.data);
     const effect = EffectMessage.safeParse(raw);
     if (effect.success) return this.submitEffect(effect.data);
     const input = z.union([Message, Interpretation]).safeParse(raw);
@@ -2732,33 +2930,44 @@ export class Legion {
           try { native = this.nativeAuthority(state, message.evidence.nativeDispatch, message.evidence.session, message.evidence.generation); }
           catch (error) { return reject("native-authority", String(error)); }
         }
+        if (proposal.kind === "correction") {
+          const existing = state.corrections.find(record => record.id === proposal.id);
+          if (existing) {
+            if (!isDeepStrictEqual(existing.source, proposal.source) || !isDeepStrictEqual(existing.task, proposal.target) ||
+                !isDeepStrictEqual(existing.authorization, proposal.authorization) || existing.previous !== (proposal.previous ?? null))
+              return reject("correction-conflict", "Correction ID is already bound to different content, source or target. Never overwrite or rebind it.");
+            return { kind: "correction-stage", correction: existing.id, state: existing.state, message: "Same immutable correction retained. Replay does not redeliver or rebind it." };
+          }
+        }
+        const linkedCorrection = proposal.kind === "correction" && !!proposal.previous;
+        const amendmentCorrection = proposal.kind === "correction" && proposal.authorization.kind === "amendment";
         const repeatedSpec = native?.dispatch.workflow === "implement-spec" && proposal.kind === "new-task" && proposal.source.id === native.dispatch.root.id;
         const source = state.submissions.find(
           (s) =>
             s.id === proposal.source.id &&
             s.revision === proposal.source.revision &&
-            (s.state.kind === "pending" || repeatedSpec && s.state.kind === "applied"),
+            (s.state.kind === "pending" || (repeatedSpec || amendmentCorrection || linkedCorrection) && s.state.kind === "applied"),
         );
         if (
           !source ||
           !message.evidence.sources.some(
             (s) => s.id === source.id && s.revision === source.revision,
           ) ||
-          (source.state.kind !== "pending" && !repeatedSpec)
+          (source.state.kind !== "pending" && !repeatedSpec && !amendmentCorrection && !linkedCorrection)
         )
           return reject(
             "stale-source",
             "Source is not pending in this interpretation run.",
           );
         const routing = source.state.kind === "pending" ? source.state.routing : { kind: "new-task" } as const;
-        if (routing.kind === "new-task" && proposal.kind !== "new-task")
+        if (routing.kind === "new-task" && proposal.kind !== "new-task" && !amendmentCorrection && !linkedCorrection)
           return reject(
             "routing",
             "Explicit new-task intent cannot change another assignment. Attach questions to the new task.",
           );
         if (routing.kind === "correction") {
           const targets =
-            proposal.kind === "technical-choice"
+            proposal.kind === "technical-choice" || proposal.kind === "correction"
               ? [proposal.target]
               : proposal.kind === "propose-amendment" ||
                   (proposal.kind === "clarify" &&
@@ -2856,6 +3065,48 @@ export class Legion {
               kind: "awaiting-clarification",
               decision: { id, revision: 1 },
             };
+            break;
+          }
+          case "correction": {
+            let instruction = source.text;
+            if (proposal.authorization.kind === "technical") {
+              if (routing.kind !== "correction" && !linkedCorrection) return reject("routing", "Technical correction requires explicit saved correction routing.");
+            } else {
+              const amendmentId = proposal.authorization.amendment;
+              const amendment = state.amendments.find(amendment => amendment.id === amendmentId);
+              const decision = amendment && state.decisions.find(decision => decision.id === amendment.decision.id);
+              const approved = state.resolutions.some(resolution => resolution.decision.id === decision?.id &&
+                resolution.decision.revision === amendment?.decision.revision && resolution.effect.kind === "approve-amendment" && resolution.effect.amendment === amendmentId);
+              if (!approved || decision?.state.kind !== "resolved" || !amendment ||
+                  !decision.history.some(history => history.revision === amendment.decision.revision && isDeepStrictEqual(history.original, proposal.source)) ||
+                  !amendment.affected.some(target => target.id === proposal.target.id && target.revision + 1 === proposal.target.revision) ||
+                  !state.tasks.some(task => task.id === proposal.target.id && task.scope.amendments.includes(amendmentId)))
+                return reject("correction-approval", "Protected correction requires the exact presented approved amendment, original source and resulting task revision.");
+              instruction = amendment.change;
+            }
+            if (!state.tasks.some(task => task.id === proposal.target.id && task.history.at(-1)?.revision === proposal.target.revision))
+              return reject("stale-task", "Correction target is not current.");
+            if (state.decisions.some(decision => decision.state.kind === "open" && decision.history.at(-1)?.affected.some(task => task.id === proposal.target.id)))
+              return reject("decision", "Affected work awaits an Emperor decision.");
+            let correctionBinding;
+            try { correctionBinding = await this.currentCorrectionBinding({ state, task: proposal.target }); }
+            catch (error) { return reject("correction-authority", String(error)); }
+            if (proposal.previous) {
+              const previous = state.corrections.find(record => record.id === proposal.previous);
+              if (!previous || !isDeepStrictEqual(previous.source, proposal.source) || previous.task.id !== proposal.target.id ||
+                  !isDeepStrictEqual(previous.authorization, proposal.authorization) || previous.instruction !== instruction ||
+                  state.corrections.some(record => record.previous === previous.id) ||
+                  !(previous.state.kind === "delivered" || previous.state.kind === "not-delivered" || previous.state.kind === "queued" && previous.state.dispatch === "not-sent") ||
+                  !correctionBinding || isDeepStrictEqual(correctionBinding, previous.binding))
+                return reject("correction-replacement", "Reconcile the old outcome first, then create one linked fresh request for the exact different current worker. No automatic transfer.");
+              if (previous.state.kind === "queued") previous.state = { kind: "not-delivered", evidence: [`Legatus saved dispatch marker for ${previous.id} is not-sent; transport was never invoked.`] };
+            } else if (state.corrections.some(record => record.source.id === proposal.source.id && record.source.revision === proposal.source.revision && record.task.id === proposal.target.id)) {
+              return reject("correction-conflict", "This source already has a correction. Replay its ID, or explicitly link a reconciled replacement.");
+            }
+            const content = { id: proposal.id, source: proposal.source, task: proposal.target, instruction,
+              authorization: proposal.authorization, previous: proposal.previous ?? null, binding: correctionBinding };
+            state.corrections.push(CorrectionRecord.parse({ ...content, digest: correctionDigest(content), state: { kind: "queued", dispatch: "not-sent" } }));
+            source.state = { kind: "applied", resolution: message.evidence.run };
             break;
           }
           case "technical-choice": {

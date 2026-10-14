@@ -80,7 +80,7 @@ async function rpc(type, fields = {}) {
 }
 async function view() {
   const start = records.length;
-  await rpc("prompt", { message: "/legion status" });
+  await rpc("prompt", { message: "/legion status --details" });
   const notice = records.slice(start).find((r) => r.type === "extension_ui_request" && r.message?.includes("\nState\n"));
   assert.ok(notice, "Public status must expose saved records.");
   return JSON.parse(notice.message.split("\nState\n")[1]);

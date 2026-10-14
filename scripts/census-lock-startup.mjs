@@ -76,11 +76,19 @@ export async function census(rounds = 100, scenario = "fresh") {
           initializedRoot = storage;
         }
       }
-      await Promise.all(peers.map(p => {
-        const released = once(p.child, "message").then(([raw]) => z.object({ kind: z.literal("released") }).parse(raw));
+      // An inactive peer's off reads the snapshot; do not overlap it with the owner's shutdown publication.
+      for (const [actor, p] of peers.entries()) {
+        const released = once(p.child, "message").then(([raw]) => z.discriminatedUnion("kind", [
+          z.object({ kind: z.literal("released") }),
+          z.object({ kind: z.literal("unsettled"), result: z.unknown() }),
+        ]).parse(raw));
         p.child.send({ kind: "release" });
-        return released;
-      }));
+        const release = await released;
+        if (release.kind === "unsettled") {
+          await writeFile(join(root, `release-failure-${round}.json`), JSON.stringify({ round, actor, release }, null, 2));
+          assert.fail(`Fixture release did not settle: ${JSON.stringify({ root, round, actor, release })}`);
+        }
+      }
     }
   } finally {
     await Promise.all(peers.map(async p => {

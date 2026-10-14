@@ -3,14 +3,8 @@ import { z } from "zod";
 import { AssignmentModelPinSchema, ThinkingSchema, WorkflowChoiceSchema, type StartupSelection, type WorkflowChoice } from "./legion-settings.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import { createHash } from "node:crypto";
-import { TaskRef, EngineeringResult, EffectMessage, EffectReply, ParkState, HandoffRequest, HandoffStageReceipt, SuccessorLaunch } from "./snapshot.js";
-export const LaunchId = z.uuid().brand<"LaunchId">();
-export const WindowIdentity = z.object({
-  endpoint: z.string(), server: z.string(), workspace: z.string(), tab: z.string(), pane: z.string(), terminal: z.string(),
-});
-export const WorkerAddress = z.object({
-  launch: LaunchId, window: WindowIdentity, session: z.string(), generation: z.uuid(),
-});
+import { TaskRef, EngineeringResult, EffectMessage, EffectReply, ParkState, HandoffRequest, HandoffStageReceipt, SuccessorLaunch, LaunchId, WindowIdentity, WorkerAddress, CorrectionRequest, CorrectionBinding, CorrectionReceipt, CorrectionTurn } from "./snapshot.js";
+export { LaunchId, WindowIdentity, WorkerAddress } from "./snapshot.js";
 import { CenturioView } from "./owned-children.js";
 export { CenturioView } from "./owned-children.js";
 export const ContextAuthority = z.strictObject({ owner: z.uuid(), session: z.string(), generation: z.int().positive(), epoch: z.int().nonnegative() });
@@ -198,7 +192,24 @@ export function successorStartupSelection(successor: z.infer<typeof SuccessorLau
 export function successorReadFirstInstruction(successor: z.infer<typeof SuccessorLaunch>): string {
   return `Read the handoff file at exactly ${JSON.stringify(successor.artifact.path)} before continuing any work. If it is unavailable, stop and report the blocker; do not reconstruct it. Then continue: ${successor.continuation}`;
 }
+/** Receipt is persisted native user input, never performed correction or result acceptance. */
+export const CorrectionDelivery = CorrectionRequest.safeExtend({ binding: CorrectionBinding });
+export const CorrectionControl = z.strictObject({
+  kind: z.enum(["correct", "observe-correction"]), capability: z.string().min(1), request: CorrectionDelivery,
+  continuation: CorrectionTurn.optional(),
+});
+export const CorrectionObservation = z.strictObject({
+  request: CorrectionDelivery,
+  state: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("queued") }),
+    z.strictObject({ kind: z.literal("delivered"), receipt: CorrectionReceipt }),
+    z.strictObject({ kind: z.literal("not-delivered"), evidence: z.array(z.string().min(1)).min(1) }),
+    z.strictObject({ kind: z.literal("unknown"), message: z.string().min(1) }),
+  ]),
+});
 export type TribunusHost = {
+  correct?(input: { request: z.infer<typeof CorrectionDelivery> }): Promise<z.infer<typeof CorrectionObservation>>;
+  observeCorrection?(input: { request: z.infer<typeof CorrectionDelivery>; continuation?: z.infer<typeof CorrectionTurn> }): Promise<z.infer<typeof CorrectionObservation>>;
   stop?(input: { worker: z.infer<typeof VerifiedWorker>; shutdown: string; command: string | null; instruction?: string }, onObservation: (observation: z.infer<typeof WorkerStop>) => Promise<void>): Promise<void>;
   handoff?(input: { worker: z.infer<typeof VerifiedWorker>; request: z.infer<typeof HandoffRequest> }): Promise<z.infer<typeof HandoffStageObservation>>;
   observeHandoff?(input: { worker: z.infer<typeof VerifiedWorker>; request: z.infer<typeof HandoffRequest> }): Promise<z.infer<typeof HandoffStageObservation>>;

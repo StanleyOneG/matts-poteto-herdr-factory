@@ -109,7 +109,7 @@ function client(extra = [], overrides = {}) {
     },
     async state() {
       const start = records.length;
-      await this.prompt("/legion status");
+      await this.prompt("/legion status --details");
       const record = records
         .slice(start)
         .find(
@@ -231,7 +231,7 @@ try {
   const start = c.records.length;
   assert.equal((await c.prompt("/legion status")).disposition, "handled");
   assert.ok(
-    c.records.slice(start).some((r) => r.message === "Legion is inactive."),
+    c.records.slice(start).some((r) => r.message === "Legion inactive.\nUse /legion status --details for evidence and resource references; /legion help for commands."),
   );
   await c.prompt("/legion doctor");
   assert.ok(c.records.some((r) => r.message?.includes("Skill herdr missing.")));
