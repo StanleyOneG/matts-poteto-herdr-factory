@@ -1,5 +1,5 @@
 import { checkoutIdentity } from "./checkout-identity.js";
-import { StartupSelectionSchema, WorkflowChoiceSchema } from "./legion-settings.js";
+import { StartupSelectionSchema, WorkflowChoiceSchema, AssignmentModelPinSchema } from "./legion-settings.js";
 import { ResearchRecord, ResearchStage } from "./owned-children.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import {
@@ -15,7 +15,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 
@@ -232,6 +232,60 @@ export const ParkState = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("parked"), evidence: z.array(z.string()).min(1) }),
   z.object({ kind: z.literal("held"), message: z.string() }),
 ]);
+const ExactTemporaryPath = z.string().min(1).refine(path => isAbsolute(path) && normalize(path) === path, "Use the exact absolute temporary path.");
+// Metadata only. Artifact bytes and write/edit inputs never belong in durable run state.
+export const HandoffArtifact = z.strictObject({
+  path: ExactTemporaryPath, tempRoot: ExactTemporaryPath, evidence: z.string().min(1),
+}).refine(artifact => {
+  const delta = relative(artifact.tempRoot, artifact.path);
+  return delta !== "" && delta !== ".." && !delta.startsWith(`..${sep}`) && !isAbsolute(delta);
+}, "Handoff artifact must be inside the worker's actual OS temporary directory.");
+const HandoffWorkflowChoice = WorkflowChoiceSchema.strict().refine(choice =>
+  choice.profile === "matt" ? choice.requestedWorkflow !== "unknown" : choice.requestedWorkflow === "unknown",
+"Retain an explicit nonconflicting predecessor workflow.");
+const HandoffModelPin = AssignmentModelPinSchema.strict().extend({
+  model: z.string().min(1), profile: z.enum(["matt", "poteto-mode"]),
+}).refine(pin => StartupSelectionSchema.safeParse({ kind: "exact", selection: { model: pin.model, thinking: pin.thinking } }).success,
+  "An exact predecessor provider/model and thinking selection is required; no fallback.");
+export const HandoffRequest = z.strictObject({
+  id: z.uuid(), pin: AssignmentPin, stop: z.uuid(), command: z.uuid(),
+  purpose: z.string().trim().min(1), continuation: z.string().trim().min(1),
+  modelPin: HandoffModelPin, workflowChoice: HandoffWorkflowChoice,
+}).refine(request => request.modelPin.profile === request.workflowChoice.profile && request.stop !== request.command,
+  "Handoff must retain the predecessor profile and use distinct stop/stage commands.");
+export const HandoffStageReceipt = z.strictObject({
+  handoff: z.uuid(), command: z.uuid(), application: z.string().min(1), settledEntry: z.string().min(1),
+  effectEvidence: z.array(z.string().min(1)).min(1), artifact: HandoffArtifact,
+});
+const RetirementEvidence = z.array(z.string().min(1)).min(1);
+const SettledHandoffState = z.strictObject({
+  kind: z.literal("handoff-settled"), retirementEvidence: RetirementEvidence, receipt: HandoffStageReceipt,
+});
+const HandoffProgress = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("stopping") }),
+  z.strictObject({ kind: z.literal("retired"), retirementEvidence: RetirementEvidence }),
+  z.strictObject({ kind: z.literal("handoff-dispatched"), retirementEvidence: RetirementEvidence }),
+  SettledHandoffState,
+  SettledHandoffState.extend({ kind: z.literal("successor-reserved"), launch: z.uuid() }),
+]);
+const HandoffState = z.union([
+  HandoffProgress,
+  z.strictObject({ kind: z.literal("held"), last: HandoffProgress, message: z.string().min(1) }),
+]);
+function handoffReceiptMatches(request: z.infer<typeof HandoffRequest> & { state: z.infer<typeof HandoffState> }) {
+  const state = request.state.kind === "held" ? request.state.last : request.state;
+  return !("receipt" in state) || state.receipt.handoff === request.id && state.receipt.command === request.command;
+}
+export const SettledHandoff = HandoffRequest.safeExtend({ state: SettledHandoffState }).refine(handoffReceiptMatches,
+  "Handoff settlement must address the same request and stage command.");
+export type SettledHandoff = z.infer<typeof SettledHandoff>;
+export const HandoffRecord = HandoffRequest.safeExtend({ state: HandoffState }).refine(handoffReceiptMatches,
+  "Handoff settlement must address the same request and stage command.");
+export type HandoffRecord = z.infer<typeof HandoffRecord>;
+export const SuccessorLaunch = z.strictObject({
+  handoff: z.uuid(), predecessor: z.uuid(), assignment: z.uuid(), artifact: HandoffArtifact,
+  modelPin: HandoffModelPin, workflowChoice: HandoffWorkflowChoice, continuation: z.string().min(1),
+}).refine(successor => successor.modelPin.profile === successor.workflowChoice.profile, "Successor profile must match its predecessor pin.");
 export const SnapshotSchema = z.object({
   version: z.literal(1),
   id: LegatusId,
@@ -251,6 +305,9 @@ export const SnapshotSchema = z.object({
   attachments: z.array(z.object({ session: z.string(), generation: z.int() })),
   workspaceRequests: z.array(WorkspaceRequest).default([]),
   launchRequests: z.array(LaunchRequest).default([]),
+  handoffs: z.array(HandoffRecord).refine(records =>
+    new Set(records.map(record => record.id)).size === records.length && new Set(records.map(record => record.pin.launch)).size === records.length,
+  "Retain one handoff request per predecessor; duplicate requests require reconciliation.").default([]),
   // Historical research records are retained without adoption or automatic settlement.
   researchRequests: z.array(ResearchStage).default([]),
   research: z.array(ResearchRecord).default([]),

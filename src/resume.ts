@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ContextAuthority, Initialization, LaunchRecord, WorkerAddress, WorkerReport, WorkerStop } from "./tribunus.js";
-import { EffectMessage } from "./snapshot.js";
+import { ContextAuthority, Initialization, LaunchRecord, WorkerAddress, WorkerReport, WorkerStop, HandoffStageObservation, VerifiedWorker } from "./tribunus.js";
+import { EffectMessage, HandoffRequest } from "./snapshot.js";
 import type { NativeChildResourceObservation } from "./centuriones.js";
 
 export const LocalProcessIdentity = z.strictObject({ pid: z.int().positive(), boot: z.string().min(1), start: z.string().regex(/^\d+$/) });
@@ -24,5 +24,6 @@ export type WorkerResourceObservation = {
 };
 /** Point-in-time evidence only. Even settled resources confer no admission, adoption or reuse authority. */
 export interface ResumeResourceReader {
+  observeHandoff?(input: { worker: z.infer<typeof VerifiedWorker>; request: z.infer<typeof HandoffRequest> }): Promise<z.infer<typeof HandoffStageObservation>>;
   observeResources(input: { launch: LaunchRecord; cwd: string; signal: AbortSignal }): Promise<WorkerResourceObservation>;
 }

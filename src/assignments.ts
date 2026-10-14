@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { LaunchRecord, projectLaunch, type LaunchView } from "./tribunus.js";
 import {
   mkdirSync,
@@ -15,7 +16,7 @@ import {
 import { join, dirname, basename, relative, isAbsolute, sep } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { LegatusId, TaskId, TaskRef } from "./snapshot.js";
+import { LegatusId, TaskId, TaskRef, SettledHandoff, SuccessorLaunch } from "./snapshot.js";
 import { WorkspacePlan, type RepositoryLocation } from "./git-workspace.js";
 
 const ReservationId = z.uuid().brand<"ReservationId">();
@@ -349,18 +350,20 @@ export class AssignmentLedger {
       throw error;
     }
   }
-  private launchSchema(db: DatabaseSync, known = false): "legacy" | "current" {
+  private launchSchema(db: DatabaseSync, known = false): "legacy" | "current" | "successors" {
     const tables = z.array(z.object({ name: z.string() })).parse(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all());
     const marker = tables.some((t) => t.name === "legion_schema");
     const launches = tables.some((t) => t.name === "tribuni");
+    const successors = tables.some(t => t.name === "tribuni_successors");
     if (!marker && !launches) {
+      if (successors) throw new Error("Successor history has lost its original launch schema. Preserve assignment history.");
       if (known) throw new Error("Known launch history is missing. History cannot be reset.");
       return "legacy";
     }
     if (!marker || !launches) throw new Error("Launch schema history is incomplete. Preserve assignment history.");
-    const version = z.object({ version: z.literal(2) }).parse(db.prepare("SELECT version FROM legion_schema WHERE singleton=1").get());
-    if (version.version !== 2) throw new Error("Unsupported launch history.");
-    return "current";
+    const version = z.object({ version: z.union([z.literal(2), z.literal(3)]) }).parse(db.prepare("SELECT version FROM legion_schema WHERE singleton=1").get());
+    if (successors !== (version.version === 3)) throw new Error("Successor schema history is incomplete. Preserve assignment history.");
+    return version.version === 3 ? "successors" : "current";
   }
   private retainedLaunch({ row, reservation, known }: { row: unknown; reservation: Reservation; known: string | null }): LaunchRecord {
     const stored = LaunchRecord.pick({ id: true, reservation: true, revision: true }).extend({ value: z.string() }).parse(row);
@@ -383,11 +386,110 @@ export class AssignmentLedger {
     if (!db) throw new Error("Known assignment history unavailable.");
     try {
       this.confirmReservation({ db, reservation });
-      if (this.launchSchema(db, known !== null) === "legacy") return null;
+      const schema = this.launchSchema(db, known !== null);
+      if (schema === "legacy") return null;
+      if (known && schema === "successors") {
+        const successor = db.prepare("SELECT * FROM tribuni_successors WHERE reservation=? AND id=?").get(reservation.id, known);
+        if (successor) return this.retainedSuccessor({ db, row: successor, reservation, known });
+      }
       const row = db.prepare("SELECT reservation,id,revision,value FROM tribuni WHERE reservation=?").get(reservation.id);
       if (known && !row) throw new Error("Known launch row is missing. History cannot be reset.");
       return row ? this.retainedLaunch({ row, reservation, known }) : null;
     } finally { db.close(); }
+  }
+  private successorMetadata(handoff: SettledHandoff): z.infer<typeof SuccessorLaunch> {
+    return SuccessorLaunch.parse({ handoff: handoff.id, predecessor: handoff.pin.launch, assignment: handoff.pin.assignment,
+      artifact: handoff.state.receipt.artifact, modelPin: handoff.modelPin, workflowChoice: handoff.workflowChoice, continuation: handoff.continuation });
+  }
+  private confirmHandoffPredecessor({ reservation, predecessor, handoff }: { reservation: Reservation; predecessor: LaunchRecord; handoff: SettledHandoff }) {
+    const progress = predecessor.state;
+    if (progress.kind !== "reported" || predecessor.startEvidence.kind !== "completed")
+      throw new Error("A reported predecessor with confirmed startup is required; unknown or held history blocks handoff.");
+    const pin = handoff.pin;
+    if (pin.owner !== reservation.owner || pin.reservation !== reservation.id || pin.scope !== reservation.approval.scope || pin.task.id !== reservation.task ||
+      !isDeepStrictEqual(pin.task, progress.assignment.task) || pin.launch !== predecessor.id || pin.assignment !== progress.command ||
+      progress.worker.address.launch !== predecessor.id || pin.workerSession !== progress.worker.address.session || pin.workerGeneration !== progress.worker.address.generation ||
+      pin.addressDigest !== createHash("sha256").update(JSON.stringify(progress.worker.address)).digest("hex") ||
+      !isDeepStrictEqual(handoff.modelPin, progress.assignment.modelPin) || !isDeepStrictEqual(handoff.workflowChoice, progress.assignment.workflowChoice))
+      throw new Error("Handoff must retain the exact predecessor assignment, address, selected model/thinking and workflow profile.");
+  }
+  private retainedSuccessor({ db, row, reservation, known = null }: { db: DatabaseSync; row: unknown; reservation: Reservation; known?: string | null }): LaunchRecord {
+    const stored = z.object({ predecessor: z.uuid(), handoff: z.uuid(), receipt: z.string() }).parse(row);
+    const receipt = SettledHandoff.parse(JSON.parse(stored.receipt));
+    const launch = this.retainedLaunch({ row, reservation, known });
+    if (stored.predecessor !== receipt.pin.launch || stored.handoff !== receipt.id || receipt.pin.reservation !== reservation.id || receipt.pin.owner !== reservation.owner ||
+      !isDeepStrictEqual(launch.successor, this.successorMetadata(receipt)))
+      throw new Error("Successor receipt or predecessor identity changed. Preserve launch history.");
+    const parents = db.prepare(`SELECT reservation,id,revision,value FROM tribuni WHERE id=?
+      UNION ALL SELECT reservation,id,revision,value FROM tribuni_successors WHERE id=?`).all(stored.predecessor, stored.predecessor);
+    if (parents.length !== 1) throw new Error("Exact predecessor history is missing or ambiguous. Preserve successor history.");
+    const predecessor = this.retainedLaunch({ row: parents[0], reservation, known: stored.predecessor });
+    this.confirmHandoffPredecessor({ reservation, predecessor, handoff: receipt });
+    return launch;
+  }
+  /** Reconcile the one attempt without migration, admission or allocation. */
+  async readSuccessor({ reservation, predecessor, handoff }: { reservation: Reservation; predecessor: string; handoff: string }): Promise<LaunchRecord | null> {
+    const db = await this.open(false);
+    if (!db) throw new Error("Known assignment history unavailable.");
+    try {
+      this.confirmReservation({ db, reservation });
+      if (this.launchSchema(db, true) !== "successors") return null;
+      const row = db.prepare("SELECT * FROM tribuni_successors WHERE predecessor=?").get(predecessor);
+      if (!row) return null;
+      const launch = this.retainedSuccessor({ db, row, reservation });
+      if (launch.successor?.handoff !== handoff) throw new Error("Predecessor already has a different successor reservation. No retry.");
+      return launch;
+    } finally { db.close(); }
+  }
+  /** Allocates an attempt, never launches it. A committed attempt is never replaced, even after failure. */
+  async beginSuccessor({ reservation, predecessor, handoff: input, owned }: {
+    reservation: Reservation; predecessor: LaunchRecord; handoff: SettledHandoff; owned: () => boolean;
+  }): Promise<LaunchRecord> {
+    const handoff = SettledHandoff.parse(input);
+    const db = await this.open(true, owned);
+    if (!db) throw new Error("Known assignment history unavailable.");
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      this.confirmReservation({ db, reservation });
+      const schema = this.launchSchema(db, true);
+      if (schema === "legacy") throw new Error("Known predecessor launch history is missing.");
+      if (schema === "current") {
+        // Add history; never rebuild tribuni or rewrite its original value/address/receipts.
+        db.exec(`CREATE TABLE tribuni_successors (
+          reservation TEXT NOT NULL, id TEXT PRIMARY KEY, predecessor TEXT UNIQUE NOT NULL,
+          handoff TEXT UNIQUE NOT NULL, revision INTEGER NOT NULL, value TEXT NOT NULL, receipt TEXT NOT NULL);
+          CREATE INDEX tribuni_successors_reservation ON tribuni_successors(reservation);
+          UPDATE legion_schema SET version=3 WHERE singleton=1;`);
+        this.fault?.("before-launch-migration-commit");
+      }
+      const existing = db.prepare("SELECT * FROM tribuni_successors WHERE predecessor=?").get(predecessor.id);
+      if (existing) {
+        const launch = this.retainedSuccessor({ db, row: existing, reservation });
+        const receipt = z.object({ receipt: z.string() }).parse(existing).receipt;
+        if (!isDeepStrictEqual(SettledHandoff.parse(JSON.parse(receipt)), handoff))
+          throw new Error("Predecessor already has an immutable successor receipt. Reconcile that attempt; no retry.");
+        db.exec("ROLLBACK");
+        return launch;
+      }
+      const table = predecessor.successor ? "tribuni_successors" : "tribuni";
+      const row = db.prepare(`SELECT * FROM ${table} WHERE reservation=? AND id=?`).get(reservation.id, predecessor.id);
+      const retained = row ? predecessor.successor
+        ? this.retainedSuccessor({ db, row, reservation, known: predecessor.id })
+        : this.retainedLaunch({ row, reservation, known: predecessor.id }) : null;
+      if (!retained || !isDeepStrictEqual(retained, predecessor)) throw new Error("Exact predecessor history required before successor reservation.");
+      this.confirmHandoffPredecessor({ reservation, predecessor: retained, handoff });
+      if (this.workspace(db, reservation).kind !== "ready" || contains(reservation.plan.path, handoff.state.receipt.artifact.path))
+        throw new Error("Successor requires its unchanged ready worktree and a temporary artifact outside that worktree.");
+      const successor = this.successorMetadata(handoff);
+      const launch = LaunchRecord.parse({ id: randomUUID(), reservation: reservation.id, revision: 0, scope: reservation.approval.scope,
+        successor, state: { kind: "prepared" } });
+      db.prepare("INSERT INTO tribuni_successors VALUES(?,?,?,?,?,?,?)").run(reservation.id, launch.id, predecessor.id, handoff.id, launch.revision, JSON.stringify(launch), JSON.stringify(handoff));
+      if (!owned()) throw new Error("Successor reservation authority revoked.");
+      db.exec("COMMIT");
+      if (schema === "current") this.fault?.("after-launch-migration-commit");
+      this.fault?.("after-launch-commit");
+      return launch;
+    } finally { try { db.exec("ROLLBACK"); } catch {} db.close(); }
   }
   async beginLaunch(reservation: Reservation, owned: () => boolean, known: string | null = null): Promise<LaunchRecord> {
     if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
@@ -429,13 +531,25 @@ export class AssignmentLedger {
     if (!db) throw new Error("Launch history unavailable.");
     try {
       db.exec("BEGIN IMMEDIATE");
-      if (this.launchSchema(db) !== "current") throw new Error("Known launch history missing.");
-      const claim = db.prepare("SELECT value FROM claims WHERE id=?").get(reservation.id);
-      if (!claim || rowValue(claim) !== JSON.stringify(reservation)) throw new Error("Launch reservation changed.");
-      const retained = db.prepare("SELECT value FROM tribuni WHERE reservation=? AND id=? AND revision=?").get(reservation.id, prior.id, prior.revision);
-      if (!retained || JSON.stringify(LaunchRecord.parse(JSON.parse(rowValue(retained)))) !== JSON.stringify(prior)) throw new Error("Launch history changed before publication.");
+      const schema = this.launchSchema(db, true);
+      if (schema === "legacy") throw new Error("Known launch history missing.");
+      this.confirmReservation({ db, reservation });
+      if (schema === "successors" && db.prepare("SELECT id FROM tribuni_successors WHERE predecessor=?").get(prior.id))
+        throw new Error("Retired predecessor launch is immutable after successor reservation.");
+      if (prior.successor && schema !== "successors") throw new Error("Known successor history is missing.");
+      const table = prior.successor ? "tribuni_successors" : "tribuni";
+      const retained = db.prepare(`SELECT * FROM ${table} WHERE reservation=? AND id=? AND revision=?`).get(reservation.id, prior.id, prior.revision);
+      const current = retained ? prior.successor ? this.retainedSuccessor({ db, row: retained, reservation, known: prior.id }) : this.retainedLaunch({ row: retained, reservation, known: prior.id }) : null;
+      if (!retained || !isDeepStrictEqual(current, prior)) throw new Error("Launch history changed before publication.");
       const next = LaunchRecord.parse({ ...prior, revision: prior.revision + 1, state, startEvidence });
-      const changed = db.prepare("UPDATE tribuni SET revision=?,value=? WHERE reservation=? AND id=? AND revision=? AND value=?").run(next.revision, JSON.stringify(next), reservation.id, prior.id, prior.revision, rowValue(retained));
+      if (next.successor) {
+        const progress = next.state.kind === "held" ? next.state.last : next.state;
+        if ("assignment" in progress && (!isDeepStrictEqual(progress.assignment.modelPin, next.successor.modelPin) ||
+          !isDeepStrictEqual(progress.assignment.workflowChoice, next.successor.workflowChoice) ||
+          !("handoff" in progress.assignment) || !isDeepStrictEqual(progress.assignment.handoff, next.successor)))
+          throw new Error("Successor assignment must retain its exact predecessor pins and read-first handoff.");
+      }
+      const changed = db.prepare(`UPDATE ${table} SET revision=?,value=? WHERE reservation=? AND id=? AND revision=? AND value=?`).run(next.revision, JSON.stringify(next), reservation.id, prior.id, prior.revision, rowValue(retained));
       if (changed.changes !== 1) throw new Error("Launch history changed before publication.");
       if (!owned()) throw new Error("Launch authority revoked before publication.");
       db.exec("COMMIT");

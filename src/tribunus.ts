@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AssignmentModelPinSchema, ThinkingSchema, WorkflowChoiceSchema, type StartupSelection, type WorkflowChoice } from "./legion-settings.js";
 import { ContractEvidence } from "./engineering-contract.js";
 import { createHash } from "node:crypto";
-import { TaskRef, EngineeringResult, EffectMessage, EffectReply, ParkState } from "./snapshot.js";
+import { TaskRef, EngineeringResult, EffectMessage, EffectReply, ParkState, HandoffRequest, HandoffStageReceipt, SuccessorLaunch } from "./snapshot.js";
 export const LaunchId = z.uuid().brand<"LaunchId">();
 export const WindowIdentity = z.object({
   endpoint: z.string(), server: z.string(), workspace: z.string(), tab: z.string(), pane: z.string(), terminal: z.string(),
@@ -54,6 +54,7 @@ export const BoundedAssignment = z.object({
   task: TaskRef, scope: z.string(), goal: z.string(), acceptance: z.array(z.string()),
   workflow: z.enum(["implement", "implement-spec", "poteto-mode"]),
   authority: z.literal("bounded-implementation-only"),
+  handoff: SuccessorLaunch.optional(),
 });
 // Retain historical assignment bytes without making methodology effect authority.
 export const LegacyBoundedAssignment = z.object({
@@ -100,6 +101,7 @@ const Progress = z.discriminatedUnion("kind", [
 ]);
 export const LaunchRecord = z.object({
   id: LaunchId, reservation: z.uuid(), revision: z.int().nonnegative(), scope: z.string(),
+  successor: SuccessorLaunch.optional(),
   startEvidence: z.discriminatedUnion("kind", [z.object({
       kind: z.literal("unobserved")
     }), z.object({
@@ -164,8 +166,42 @@ export const WorkerReport = z.object({
   address: WorkerAddress, command: z.uuid(), engineering: EngineeringResult.optional(), contract: ContractEvidence.optional(), outcome: z.enum(["reported-result", "blocked", "failed"]), assistantText: z.string().max(4000), evidence: z.array(z.string())
 });
 export const WorkerStop = z.strictObject({ shutdown: z.uuid(), authority: ContextAuthority, address: WorkerAddress, command: z.uuid().nullable(), state: ParkState });
+const HandoffAddress = WorkerAddress.strict().extend({ window: WindowIdentity.strict() });
+/** Separate from ordinary assign/initialize controls: retirement remains irreversible. */
+export const RetiredHandoffControl = z.strictObject({
+  kind: z.enum(["handoff", "observe-handoff"]), capability: z.string().min(1), authority: ContextAuthority,
+  reservation: z.uuid(), scope: z.string(), address: HandoffAddress, command: z.uuid(), request: HandoffRequest,
+}).refine(frame => {
+  const pin = frame.request.pin;
+  return frame.command === frame.request.command && frame.reservation === pin.reservation && frame.scope === pin.scope &&
+    frame.authority.owner === pin.owner && frame.authority.session === pin.session && frame.authority.generation === pin.generation && frame.authority.epoch === pin.epoch &&
+    frame.address.launch === pin.launch && frame.address.session === pin.workerSession && frame.address.generation === pin.workerGeneration &&
+    createHash("sha256").update(JSON.stringify(frame.address)).digest("hex") === pin.addressDigest;
+}, "Handoff must address the exact original authority, assignment and retired incarnation.");
+export const HandoffStageObservation = z.strictObject({
+  authority: ContextAuthority, address: HandoffAddress, handoff: z.uuid(), command: z.uuid(),
+  state: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("pending") }),
+    z.strictObject({ kind: z.literal("settled"), receipt: HandoffStageReceipt }),
+    z.strictObject({ kind: z.literal("held"), message: z.string().min(1) }),
+    z.strictObject({ kind: z.literal("unknown"), message: z.string().min(1) }),
+  ]),
+}).refine(observation => observation.state.kind !== "settled" ||
+  observation.state.receipt.handoff === observation.handoff && observation.state.receipt.command === observation.command,
+"Handoff receipt must address the observed request and stage command.");
+export function handoffSkillPrompt(request: z.infer<typeof HandoffRequest>): string {
+  return `/skill:handoff ${request.purpose}\nThe successor will continue: ${request.continuation}\nYou are retired from ordinary work. Only create the temporary handoff artifact using the unchanged skill; report its exact absolute path. Do not resume implementation or delegate.`;
+}
+export function successorStartupSelection(successor: z.infer<typeof SuccessorLaunch>): Extract<StartupSelection, { kind: "exact" }> {
+  return { kind: "exact", selection: { model: successor.modelPin.model, thinking: successor.modelPin.thinking } };
+}
+export function successorReadFirstInstruction(successor: z.infer<typeof SuccessorLaunch>): string {
+  return `Read the handoff file at exactly ${JSON.stringify(successor.artifact.path)} before continuing any work. If it is unavailable, stop and report the blocker; do not reconstruct it. Then continue: ${successor.continuation}`;
+}
 export type TribunusHost = {
-  stop?(input: { worker: z.infer<typeof VerifiedWorker>; shutdown: string; command: string | null }, onObservation: (observation: z.infer<typeof WorkerStop>) => Promise<void>): Promise<void>;
+  stop?(input: { worker: z.infer<typeof VerifiedWorker>; shutdown: string; command: string | null; instruction?: string }, onObservation: (observation: z.infer<typeof WorkerStop>) => Promise<void>): Promise<void>;
+  handoff?(input: { worker: z.infer<typeof VerifiedWorker>; request: z.infer<typeof HandoffRequest> }): Promise<z.infer<typeof HandoffStageObservation>>;
+  observeHandoff?(input: { worker: z.infer<typeof VerifiedWorker>; request: z.infer<typeof HandoffRequest> }): Promise<z.infer<typeof HandoffStageObservation>>;
   watchContext?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onObservation: (observation: z.infer<typeof TribunusContextObservation>) => Promise<void>, onUnavailable: (message: string, observation?: z.infer<typeof TribunusContextObservation>) => void): () => void;
   watchEffects?(input: { worker: z.infer<typeof VerifiedWorker>; command: string }, onMessage: (message: z.infer<typeof EffectMessage>) => Promise<z.infer<typeof EffectReply>>, onUnavailable: (message: string) => void): void;
   watchReports?(input: {

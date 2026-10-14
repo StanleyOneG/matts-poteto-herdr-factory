@@ -7,20 +7,20 @@ import { connect, createServer, type Server } from "node:net";
 import { execFile } from "node:child_process";
 import { isDeepStrictEqual, promisify } from "node:util";
 import { mkdirSync, openSync, readFileSync, closeSync, fsyncSync, existsSync, lstatSync, realpathSync, readdirSync, watch } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute, normalize, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { getAgentDir, stripFrontmatter, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { EffectIntent, EffectMessage, EffectReply, EffectRecord, EffectOutcome, CenturioOwnerCheck } from "./snapshot.js";
+import { EffectIntent, EffectMessage, EffectReply, EffectRecord, EffectOutcome, CenturioOwnerCheck, HandoffRequest } from "./snapshot.js";
 import { StartupSelectionSchema, WorkflowChoiceSchema } from "./legion-settings.js";
 import { preflight } from "./preflight.js";
-import { mattInitializationPrompt, ContextAuthority, TribunusContextEnvelope, TribunusContextObservation, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, WorkerStop, type TribunusHost } from "./tribunus.js";
+import { handoffSkillPrompt, successorReadFirstInstruction, RetiredHandoffControl, HandoffStageObservation, mattInitializationPrompt, ContextAuthority, TribunusContextEnvelope, TribunusContextObservation, CenturioObservation, BoundedAssignment, Initialization, LaunchRecord, VerifiedWorker, WindowIdentity, WorkerAddress, WorkerReport, WorkerStop, type TribunusHost } from "./tribunus.js";
 import type { GuardedCommand } from "./git-workspace.js";
 import { prepareCenturioWorkspace, CenturioAllocationHeld } from "./centurio-workspace.js";
 const exec = promisify(execFile);
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-const boundedAssignmentPrompt = (command: string, assignment: unknown) => `Legion bounded assignment ${command}\n${JSON.stringify(assignment)}\nYou own only this bounded assignment. Use the requested skills, meaningful tests and independent review for methodology. Ordinary native child tools, model resolution and permissions remain unchanged. Each concurrent writer needs its own branch/worktree: legion_centurio prepares one owned native launch using an ordinary configured agent. Do not schedule the spec, integrate, accept, clean up, publish, or close issues. A result is not acceptance.`;
+const boundedAssignmentPrompt = (command: string, assignment: z.infer<typeof BoundedAssignment> | null) => `${assignment?.handoff ? successorReadFirstInstruction(assignment.handoff) + "\n" : ""}Legion bounded assignment ${command}\n${JSON.stringify(assignment)}\nYou own only this bounded assignment. Use the requested skills, meaningful tests and independent review for methodology. Ordinary native child tools, model resolution and permissions remain unchanged. Each concurrent writer needs its own branch/worktree: legion_centurio prepares one owned native launch using an ordinary configured agent. Do not schedule the spec, integrate, accept, clean up, publish, or close issues. A result is not acceptance.`;
 const Authority = ContextAuthority;
 const OwnerProcess = z.strictObject({ pid: z.int().positive(), boot: z.string().min(1), start: z.string().regex(/^\d+$/), window: WindowIdentity });
 function processIdentity(pid: number) {
@@ -43,7 +43,7 @@ const ControlFrame = z.object({
   capability: z.string(), authority: Authority, reservation: z.uuid(), scope: z.string(), address: WorkerAddress, command: z.uuid(), kind: z.enum(["inspect", "initialize", "assign"]), assignment: BoundedAssignment.nullable()
 }).strict();
 const ContextCheckFrame = ControlFrame.extend({ kind: z.literal("context-current"), nonce: z.uuid(), assignment: z.null() });
-const StopFrame = ControlFrame.extend({ kind: z.literal("stop"), command: z.uuid(), assignment: z.null(), currentCommand: z.uuid().nullable() });
+const StopFrame = ControlFrame.extend({ kind: z.literal("stop"), command: z.uuid(), assignment: z.null(), currentCommand: z.uuid().nullable(), instruction: z.string().regex(/\S/).optional() });
 const Frame = z.union([ControlFrame, ContextCheckFrame, StopFrame]);
 const CurrentAssignment = z.strictObject({ nonce: z.uuid(), authority: Authority, address: WorkerAddress, command: z.uuid() });
 const Envelope = z.discriminatedUnion("kind", [z.object({
@@ -101,6 +101,7 @@ export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
     return JSON.parse(result.output);
   }
   async createWindow({ launch, cwd, workflowChoice, startupSelection }: Parameters<TribunusHost["createWindow"]>[0]) {
+    if (launch.successor && (!isDeepStrictEqual(workflowChoice, launch.successor.workflowChoice) || startupSelection.kind !== "exact" || !isDeepStrictEqual(startupSelection.selection, { model: launch.successor.modelPin.model, thinking: launch.successor.modelPin.thinking }))) throw new Error("Successor launch must preserve the predecessor's exact model/thinking/profile. No defaults or fallback.");
     const local = await localIdentity();
     const callerId = process.env.HERDR_PANE_ID;
     if (!callerId) throw new Error("The owning Legatus has no Herdr caller identity. No tab created.");
@@ -182,7 +183,7 @@ export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
     return response.value;
   }
   private stopWatchers = new Map<string, ReturnType<typeof watch>>();
-  async stop({ worker, shutdown, command }: Parameters<NonNullable<TribunusHost["stop"]>>[0], onObservation: Parameters<NonNullable<TribunusHost["stop"]>>[1]) {
+  async stop({ worker, shutdown, command, instruction }: Parameters<NonNullable<TribunusHost["stop"]>>[0], onObservation: Parameters<NonNullable<TribunusHost["stop"]>>[1]) {
     const hello = await this.hello(worker.address.launch);
     if (!isDeepStrictEqual(hello.address, worker.address)) throw new Error("Stop addresses another worker incarnation. Preserve the worker.");
     const descriptor = Descriptor.parse(privateFile(this.descriptor(hello.address.launch)));
@@ -201,7 +202,7 @@ export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
       const watcher = watch(root, () => { collecting = collecting.then(collect).catch(error => this.notify(`Park observation unresolved. Preserve worker. ${String(error)}`)); });
       watcher.unref(); this.stopWatchers.set(path, watcher);
     }
-    const frame = StopFrame.parse({ capability: descriptor.capability, authority: this.authority, reservation: descriptor.launch.reservation, scope: descriptor.launch.scope, address: worker.address, command: shutdown, kind: "stop", assignment: null, currentCommand: command });
+    const frame = StopFrame.parse({ capability: descriptor.capability, authority: this.authority, reservation: descriptor.launch.reservation, scope: descriptor.launch.scope, address: worker.address, command: shutdown, kind: "stop", assignment: null, currentCommand: command, instruction });
     const reply = await new Promise<string>((resolve, reject) => {
       const socket = connect(hello.endpoint); let buffer = "";
       socket.once("connect", () => socket.write(JSON.stringify(frame) + "\n"));
@@ -213,6 +214,25 @@ export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
     if (response.kind === "held") throw new Error(response.message);
     await collect();
   }
+  private async handoffControl({ worker, request, kind }: Parameters<NonNullable<TribunusHost["handoff"]>>[0] & { kind: "handoff" | "observe-handoff" }) {
+    const hello = await this.hello(worker.address.launch);
+    if (!isDeepStrictEqual(hello.address, worker.address)) throw new Error("Handoff addresses another worker incarnation.");
+    const descriptor = Descriptor.parse(privateFile(this.descriptor(worker.address.launch)));
+    const frame = RetiredHandoffControl.parse({ kind, capability: descriptor.capability, authority: this.authority, reservation: descriptor.launch.reservation, scope: descriptor.launch.scope, address: worker.address, command: request.command, request });
+    const line = await new Promise<string>((resolve, reject) => {
+      const socket = connect(hello.endpoint); let buffer = "";
+      socket.once("connect", () => socket.write(JSON.stringify(frame) + "\n"));
+      socket.on("data", chunk => { buffer += chunk; const end = buffer.indexOf("\n"); if (end < 0) return; resolve(buffer.slice(0, end)); socket.destroy(); });
+      socket.once("error", reject); socket.once("close", () => reject(new Error("Handoff control closed without a complete receipt. Observe the same request; do not relaunch.")));
+    });
+    const response = Envelope.parse(JSON.parse(line));
+    if (response.kind === "held") throw new Error(response.message);
+    const value = HandoffStageObservation.parse(response.value);
+    if (!isDeepStrictEqual(value.authority, this.authority) || !isDeepStrictEqual(value.address, worker.address) || value.handoff !== request.id || value.command !== request.command) throw new Error("Handoff observation identifies another stage.");
+    return value;
+  }
+  handoff(input: Parameters<NonNullable<TribunusHost["handoff"]>>[0]) { return this.handoffControl({ ...input, kind: "handoff" }); }
+  observeHandoff(input: Parameters<NonNullable<TribunusHost["observeHandoff"]>>[0]) { return this.handoffControl({ ...input, kind: "observe-handoff" }); }
   async observeResources({ launch, cwd, signal }: Parameters<ResumeResourceReader["observeResources"]>[0]): Promise<WorkerResourceObservation> {
     const result: WorkerResourceObservation = { launch: launch.id, reservation: launch.reservation, scope: launch.scope, disposition: "hold", reasons: [],
       recommendation: "Preserve this launch and its resources; resolve the exact retained identity/outcome before dependent work. Do not retry or revive the worker.", evidence: [],
@@ -495,6 +515,58 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   let principalActivity: "not-started" | "active" | "settled" = "not-started";
   let retirement: z.infer<typeof WorkerStop> | null = null;
   let retirementReason: z.infer<typeof Retirement>["reason"] | null = null;
+  let safeStop: { instruction: string; prompt: string; dispatched: boolean; applied: string | null; settled: string | null } | null = null;
+  let handoff: { request: z.infer<typeof HandoffRequest>; prompt: string; expanded: string | null; tempRoot: string; state: z.infer<typeof HandoffStageObservation>["state"] } | null = null;
+  let handoffApplication: string | null = null;
+  let artifactEffect: { call: string; path: string; inputDigest: string; origin: string; state: "admitted" | "completed" | "refused" | "unknown"; resultSeen: boolean; evidence: string } | null = null;
+  function holdHandoff(message: string) {
+    if (handoff && handoff.state.kind === "pending") {
+      handoff.state = { kind: "held", message };
+      publish(handoffObservation(), handoffView({ request: handoff.request, state: handoff.state }));
+    }
+  }
+  function appliedHandoff(ctx: ExtensionContext) {
+    if (!handoff?.expanded || !incarnation(ctx)) return null;
+    const user = ctx.sessionManager.getBranch().find(entry => entry.type === "message" && entry.message.role === "user" && Array.isArray(entry.message.content) && entry.message.content.some(part => part.type === "text" && part.text === handoff?.expanded));
+    if (!user || !readFileSync(journal, "utf8").split("\n").some(line => line && isDeepStrictEqual(JSON.parse(line), user))) return null;
+    const application = `${journal}#${user.id}`;
+    if (handoffApplication && !existsSync(receipt(handoff.request.command, "handoff-applied"))) { holdHandoff("Retained native handoff application receipt was lost. Preserve the journal; no automatic repair or replay."); return null; }
+    publish(receipt(handoff.request.command, "handoff-applied"), { application });
+    handoffApplication = application;
+    return user;
+  }
+  const handoffIntent = () => join(generationRoot, "handoff-intent.json");
+  const handoffObservation = () => join(generationRoot, "handoff-observation.json");
+  function handoffView({ request, state }: { request: z.infer<typeof HandoffRequest>; state: z.infer<typeof HandoffStageObservation>["state"] }) {
+    return HandoffStageObservation.parse({ authority: controller, address, handoff: request.id, command: request.command, state });
+  }
+  function readHandoff(request: z.infer<typeof HandoffRequest>) {
+    if (!existsSync(handoffIntent())) return handoffView({ request, state: { kind: "unknown", message: "No retained stage intent. Observation cannot dispatch or repair." } });
+    const retained = z.strictObject({ request: HandoffRequest, tempRoot: z.string() }).parse(privateFile(handoffIntent()));
+    if (!isDeepStrictEqual(retained.request, request)) throw new Error("Handoff conflicts with the one retained stage.");
+    if (!existsSync(handoffObservation()) && handoff && handoff.state.kind === "pending" && isDeepStrictEqual(handoff.request, request)) return handoffView({ request, state: handoff.state });
+    if (!existsSync(handoffObservation())) return handoffView({ request, state: { kind: "unknown", message: "Stage intent retained but application/outcome receipt is missing. Preserve it; no replay." } });
+    const observed = HandoffStageObservation.parse(privateFile(handoffObservation()));
+    if (!isDeepStrictEqual(observed.authority, controller) || !isDeepStrictEqual(observed.address, address) || observed.handoff !== request.id || observed.command !== request.command) throw new Error("Retained handoff observation changed identity.");
+    if (observed.state.kind === "settled") {
+      if (!context || principalActivity !== "settled" || !context.isIdle() || context.hasPendingMessages() || active || pendingSettlement || admissionHold || centuriones?.outstanding || centuriones?.held || artifactEffect?.state !== "completed" || [...effects.values()].some(effect => effect.execution !== "observed" || effect.record.state.kind === "unknown")) return handoffView({ request, state: { kind: "held", message: "Current native principal/child/effect settlement is unresolved. Retained receipt is not current dispatch authority." } });
+      const proof = observed.state.receipt;
+      try {
+        const applied = z.strictObject({ application: z.string() }).parse(privateFile(receipt(request.command, "handoff-applied")));
+        const outcomePath = receipt(request.command, "handoff-artifact-outcome");
+        const outcome = z.strictObject({ kind: z.literal("completed"), call: z.string(), path: z.string(), tempRoot: z.string(), origin: z.string() }).parse(privateFile(outcomePath));
+        const settlement = z.strictObject({ settledEntry: z.string(), assistant: z.string() }).parse(privateFile(receipt(request.command, "handoff-settled")));
+        const entries = readFileSync(journal, "utf8").split("\n").filter(Boolean).map(line => z.object({ id: z.string().optional(), type: z.string(), customType: z.string().optional(), data: z.unknown().optional(), message: z.unknown().optional() }).parse(JSON.parse(line)));
+        const entryAt = (locator: string) => locator.startsWith(`${journal}#`) ? entries.find(entry => entry.id === locator.slice(journal.length + 1)) : undefined;
+        const user = entryAt(proof.application), settled = entryAt(proof.settledEntry), assistant = entryAt(settlement.assistant);
+        const origin = NativeMessage.parse(entryAt(outcome.origin));
+        const write = origin.message.content.flatMap(part => { const call = NativeCall.safeParse(part); return call.success && call.data.id === outcome.call && call.data.name === "write" ? [call.data] : []; });
+        if (applied.application !== proof.application || settlement.settledEntry !== proof.settledEntry || !isDeepStrictEqual(proof.effectEvidence, [outcomePath]) || proof.artifact.evidence !== outcomePath || outcome.path !== proof.artifact.path || outcome.tempRoot !== retained.tempRoot || write.length !== 1 || !z.object({ path: z.literal(outcome.path), content: z.string() }).safeParse(write[0]?.arguments).success || user?.type !== "message" || !z.object({ role: z.literal("user") }).safeParse(user.message).success || assistant?.type !== "message" || !z.object({ role: z.literal("assistant"), stopReason: z.literal("stop") }).safeParse(assistant.message).success || settled?.type !== "custom" || settled.customType !== "legion-handoff-settled" || !isDeepStrictEqual(settled.data, { handoff: request.id, command: request.command, application: proof.application, effectEvidence: outcomePath, path: outcome.path })) throw new Error("Exact native application/effect/settlement joins are missing or changed.");
+        if (proof.artifact.tempRoot !== retained.tempRoot || realpathSync(proof.artifact.path) !== proof.artifact.path || !lstatSync(proof.artifact.path).isFile()) throw new Error("Exact temporary artifact is unavailable or changed path.");
+      } catch { return handoffView({ request, state: { kind: "unknown", message: "Retained settled handoff has lost exact artifact/application/effect/settlement evidence. Observation cannot repair or replay." } }); }
+    }
+    return observed;
+  }
   const retirementPath = join(dirname(path), "retirement.json");
   function retire(reason: z.infer<typeof Retirement>["reason"], message: string, shutdown: string = randomUUID(), command = assignmentCommand ?? (active?.frame.kind === "assign" ? active.frame.command : null)) {
     if (!address) return;
@@ -532,11 +604,11 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     if (!incarnation(ctx)) retire("owner-unresolved", "Worker incarnation is unresolved; preserve resources.");
   }
   function parkIfSettled(ctx: ExtensionContext) {
-    if (!retirement || retirement.state.kind === "parked" || active || pendingSettlement || principalActivity === "active" || !incarnation(ctx) || !isDeepStrictEqual(retirement.address, address)) return;
+    if (!retirement || retirement.state.kind === "parked" || safeStop && !safeStop.settled || handoff || active || pendingSettlement || principalActivity === "active" || !incarnation(ctx) || !isDeepStrictEqual(retirement.address, address)) return;
     if (retirementReason === "owner-unresolved" || admissionHold || centuriones?.outstanding || centuriones?.held || [...effects.values()].some(effect => effect.execution !== "observed" || effect.record.state.kind === "unknown") || ctx.hasPendingMessages()) {
       retirement.state = { kind: "held", message: "Native owner/child/effect activity is not known settled. Preserve worker and continuation." };
     } else if (assignmentCommand && !existsSync(receipt(assignmentCommand, "report"))) return;
-    else retirement.state = { kind: "parked", evidence: [assignmentCommand ? receipt(assignmentCommand, "report") : initialized?.settledEntry ?? receipt(retirement.shutdown, "park-intent")] };
+    else retirement.state = { kind: "parked", evidence: [assignmentCommand ? receipt(assignmentCommand, "report") : initialized?.settledEntry ?? receipt(retirement.shutdown, "park-intent"), ...(safeStop?.settled ? [safeStop.settled] : [])] };
     publish(receipt(retirement.shutdown, retirement.state.kind === "parked" ? "park" : "park-held"), retirement);
     ctx.ui.setStatus("legion-intake", retirement.state.kind === "parked" ? "Tribunus parked. Progress preserved. No resume authorized." : "Tribunus stopping. Native settlement unresolved; preserve resources.");
   }
@@ -681,6 +753,10 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     }
     if (ctx.mode !== "tui" || realpathSync(ctx.cwd) !== descriptor.cwd || !ctx.isProjectTrusted())
       throw new Error("Managed Tribunus requires trusted target cwd and ordinary interactive Pi. No assignment authorized.");
+    if (descriptor.launch.successor) {
+      const successor = descriptor.launch.successor;
+      if (!isDeepStrictEqual(descriptor.workflowChoice, successor.workflowChoice) || descriptor.startupSelection?.kind !== "exact" || !isDeepStrictEqual(descriptor.startupSelection.selection, { model: successor.modelPin.model, thinking: successor.modelPin.thinking }) || `${ctx.model?.provider}/${ctx.model?.id}` !== successor.modelPin.model || (ctx.thinkingLevel ?? pi.getThinkingLevel()) !== successor.modelPin.thinking) throw new Error("Actual successor startup differs from the retained predecessor model/thinking/profile. Preserve the launch; no fallback.");
+    }
     context = ctx;
     const paneId = process.env.HERDR_PANE_ID;
     if (!paneId)
@@ -722,6 +798,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
       let buffer = "";
       socket.on("data", async (chunk) => {
         let accepted: string | null = null;
+        let acceptedHandoff = false;
         buffer += chunk;
         if (!buffer.includes("\n"))
           return;
@@ -734,11 +811,35 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
             if (received.length !== expected.length || !timingSafeEqual(received, expected) || !address || !isDeepStrictEqual(request.address, address) || request.reservation !== descriptor.launch.reservation || request.scope !== descriptor.launch.scope || !context || !incarnation(context)) throw new Error("Observation does not address this exact worker incarnation.");
             // Deliberately before observeOwner/control: reading cannot latch retirement, adopt a controller or admit work.
             const value = WorkerActivity.parse({ nonce: request.nonce, address, controller, command: assignmentCommand, principal: principalActivity,
-              busy: !!active || !!pendingSettlement || !context.isIdle(), pendingMessages: context.hasPendingMessages(), admissionHold,
+              busy: !!active || !!pendingSettlement || handoff?.state.kind === "pending" || !context.isIdle(), pendingMessages: context.hasPendingMessages(), admissionHold,
               childrenOutstanding: centuriones?.outstanding ?? false, childrenHeld: centuriones?.held ?? false,
-              effectsOutstanding: [...effects.values()].some(effect => effect.execution !== "observed" || effect.record.state.kind === "unknown"), retirement });
+              effectsOutstanding: artifactEffect?.state === "admitted" || artifactEffect?.state === "unknown" || [...effects.values()].some(effect => effect.execution !== "observed" || effect.record.state.kind === "unknown"), retirement });
             socket.end(JSON.stringify({ kind: "ok", value }) + "\n");
             return;
+          }
+          const limited = RetiredHandoffControl.safeParse(raw);
+          if (limited.success) {
+            const frame = limited.data, received = Buffer.from(frame.capability), expected = Buffer.from(descriptor.capability);
+            if (received.length !== expected.length || !timingSafeEqual(received, expected) || !isDeepStrictEqual(frame.authority, descriptor.authority) || !isDeepStrictEqual(frame.authority, controller) || !isDeepStrictEqual(frame.address, address) || frame.reservation !== descriptor.launch.reservation || frame.scope !== descriptor.launch.scope || frame.request.pin.assignment !== assignmentCommand || !context || !incarnation(context)) throw new Error("Handoff requires the exact original controller, incarnation and assignment.");
+            if (frame.command === assignmentCommand || frame.command === initialized?.command) throw new Error("Handoff must use a distinct limited-stage command.");
+            if (!retirement || retirement.shutdown !== frame.request.stop || retirement.command !== assignmentCommand || retirementReason !== "safe-stop") throw new Error("Handoff requires the same task-scoped safe-stop retirement, never owner-loss or resumed authority.");
+            if (frame.kind === "observe-handoff" || existsSync(handoffIntent())) {
+              socket.end(JSON.stringify({ kind: "ok", value: readHandoff(frame.request) }) + "\n"); return;
+            }
+            await observeOwner(context);
+            if (existsSync(handoffIntent())) { socket.end(JSON.stringify({ kind: "ok", value: readHandoff(frame.request) }) + "\n"); return; }
+            if (handoff || retirementReason !== "safe-stop" || retirement.state.kind !== "parked" || !safeStop?.settled || !existsSync(receipt(retirement.shutdown, "stop-instruction-intent")) || !existsSync(receipt(retirement.shutdown, "stop-instruction-dispatched")) || !existsSync(receipt(retirement.shutdown, "stop-instruction-applied")) || !existsSync(receipt(retirement.shutdown, "stop-instruction-settled")) || !existsSync(receipt(retirement.shutdown, "park")) || !assignmentCommand || !existsSync(receipt(assignmentCommand, "report")) || active || pendingSettlement || principalActivity !== "settled" || !context.isIdle() || context.hasPendingMessages() || admissionHold || !centuriones || centuriones.outstanding || centuriones.held || [...effects.values()].some(effect => effect.execution !== "observed" || effect.record.state.kind === "unknown")) throw new Error("Safe-stop instruction, principal, children and effects must actually settle before handoff.");
+            const assignment = z.strictObject({ assignment: BoundedAssignment }).parse(privateFile(receipt(frame.request.pin.assignment, "assignment"))).assignment;
+            if (!isDeepStrictEqual(assignment.task, frame.request.pin.task) || !isDeepStrictEqual(assignment.modelPin, frame.request.modelPin) || !isDeepStrictEqual(assignment.workflowChoice, frame.request.workflowChoice) || !isDeepStrictEqual(descriptor.workflowChoice, frame.request.workflowChoice)) throw new Error("Handoff must retain the applied predecessor task/model/thinking/profile.");
+            const tempRoot = process.env.TMPDIR || "/tmp";
+            if (!isAbsolute(tempRoot) || normalize(tempRoot) !== tempRoot || realpathSync(tempRoot) !== tempRoot || !lstatSync(tempRoot).isDirectory() || relative(context.cwd, tempRoot) === "" || !relative(context.cwd, tempRoot).startsWith("..")) throw new Error("Actual worker TMPDIR must be canonical, available and outside its workspace.");
+            handoff = { request: frame.request, prompt: `${handoffSkillPrompt(frame.request)}\nThe actual worker OS temporary directory is ${JSON.stringify(tempRoot)}. Create one new file directly in that directory with native write; no overwrites, edits, shell commands or children are authorized. Native read-only filesystem tools may consult existing artifacts.`, expanded: null, tempRoot, state: { kind: "pending" } };
+            acceptedHandoff = true;
+            publish(handoffIntent(), { request: frame.request, tempRoot });
+            const observed = await resources(context);
+            if (retirementReason !== "safe-stop" || !incarnation(context) || !isDeepStrictEqual(controller, frame.authority) || observed.diagnostics.some(d => d.status !== "ready") || observed.principal.model !== frame.request.modelPin.model || observed.principal.thinking !== frame.request.modelPin.thinking || modeObservation(context).enabled !== (frame.request.workflowChoice.profile === "poteto-mode")) throw new Error("Actual retained selection/profile/resources changed before handoff. No fallback.");
+            pi.sendUserMessage(handoff.prompt, { expandPromptTemplates: true });
+            socket.end(JSON.stringify({ kind: "ok", value: handoffView({ request: frame.request, state: { kind: "pending" } }) }) + "\n"); return;
           }
           const frame = Frame.parse(raw);
           const received = Buffer.from(frame.capability), expected = Buffer.from(descriptor.capability);
@@ -754,8 +855,22 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           if (frame.kind === "stop") {
             if (!isDeepStrictEqual(frame.authority, controller) || frame.currentCommand !== assignmentCommand && !(active?.frame.kind === "assign" && active.frame.command === frame.currentCommand)) throw new Error("Stop does not address the current authorized stage.");
             if (retirement && (retirement.shutdown !== frame.command || retirement.command !== frame.currentCommand)) throw new Error("Worker already has a retained retirement. No competing shutdown.");
+            if (safeStop && frame.instruction !== safeStop.instruction) throw new Error("Stop instruction conflicts with retained retirement.");
             if (!retirement) {
+              if (frame.instruction) {
+                const prompt = `Legion task-scoped safe stop ${frame.command}\n${frame.instruction}\nStop ordinary work safely. Preserve all committed and uncommitted work. Settle already-admitted children/effects; do not start implementation, new effects or children. This is irreversible ordinary retirement, not a handoff turn.`;
+                safeStop = { instruction: frame.instruction, prompt, dispatched: false, applied: null, settled: null };
+              }
               retire("safe-stop", "Legatus requested safe stopping before any continuation.", frame.command, frame.currentCommand);
+              if (safeStop) publish(receipt(frame.command, "stop-instruction-intent"), { instruction: safeStop.instruction, command: frame.currentCommand, authority: controller, address });
+            }
+            if (safeStop && !existsSync(receipt(frame.command, "stop-instruction-intent"))) throw new Error("Safe-stop instruction intent is unresolved. Ordinary retirement remains latched; no automatic replay or repair.");
+            if (safeStop?.dispatched && !existsSync(receipt(frame.command, "stop-instruction-dispatched"))) throw new Error("Safe-stop dispatch receipt was lost. Preserve the same instruction; no replay.");
+            if (safeStop && !safeStop.dispatched) {
+              // Intent survives uncertain enqueue. Never send a second instruction on a duplicate stop.
+              safeStop.dispatched = true;
+              publish(receipt(frame.command, "stop-instruction-dispatched"), { shutdown: frame.command });
+              pi.sendUserMessage(safeStop.prompt, { deliverAs: "steer", expandPromptTemplates: false });
             }
             parkIfSettled(context);
             socket.end(JSON.stringify({ kind: "ok", value: retirement }) + "\n");
@@ -807,6 +922,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           const mode = modeObservation(context);
           if (frame.kind === "assign" && (!initialized || initialized.profile !== choice.profile || mode.enabled !== (choice.profile === "poteto-mode") || !existsSync(receipt(initialized.command, "applied")) || !frame.assignment || !isDeepStrictEqual(frame.assignment.workflowChoice, choice) || frame.assignment.workflow !== (choice.profile === "poteto-mode" ? "poteto-mode" : choice.requestedWorkflow) || frame.assignment.scope !== descriptor.launch.scope))
             throw new Error("Worker has no same-generation applied initialization or matching bounded assignment.");
+          if (frame.kind === "assign" && (!isDeepStrictEqual(frame.assignment?.handoff, descriptor.launch.successor) || descriptor.launch.successor && (!isDeepStrictEqual(frame.assignment?.modelPin, descriptor.launch.successor.modelPin) || !isDeepStrictEqual(frame.assignment?.workflowChoice, descriptor.launch.successor.workflowChoice)))) throw new Error("Successor assignment must retain its exact allocation and predecessor selection/profile.");
           if (frame.kind === "assign" && frame.assignment?.modelPin && (frame.assignment.modelPin.model !== observed.principal.model || frame.assignment.modelPin.thinking !== observed.principal.thinking || frame.assignment.modelPin.profile !== choice.profile))
             throw new Error(`Actual Tribunus selection changed before assignment: pinned ${frame.assignment.modelPin.model}/${frame.assignment.modelPin.thinking}, observed ${observed.principal.model}/${observed.principal.thinking}. Preserve worker and pin; no fallback.`);
           if (frame.kind === "assign") {
@@ -838,6 +954,7 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
           }) + "\n");
         }
         catch (error) {
+          if (acceptedHandoff && handoff?.state.kind === "pending") holdHandoff(`Limited stage dispatch/outcome unresolved. Preserve intent; no replay. ${String(error)}`);
           if (active?.kind === "checking" && active.frame.command === accepted)
             active = null;
           socket.end(JSON.stringify({
@@ -889,6 +1006,15 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   });
   pi.on("before_agent_start", (event) => {
     if (event.messageType === "custom") return;
+    if (handoff && context && incarnation(context)) {
+      const skill = pi.getCommands().find(c => c.name === "skill:handoff" && c.source === "skill");
+      if (skill) {
+        const body = stripFrontmatter(readFileSync(skill.sourceInfo.path, "utf8")).trim();
+        const expansion = `<skill name="handoff" location="${skill.sourceInfo.path}">\nReferences are relative to ${dirname(skill.sourceInfo.path)}.\n\n${body}\n</skill>\n\n${handoff.prompt.slice("/skill:handoff ".length).trim()}`;
+        if (event.prompt === expansion) handoff.expanded = event.prompt;
+      }
+      return;
+    }
     if (active?.kind !== "running" || !context || !incarnation(context))
       return;
     const skill = pi.getCommands().find((c) => c.name === "skill:poteto-mode" && c.source === "skill");
@@ -921,6 +1047,10 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     return true;
   }
   pi.on("message_end", (event, ctx) => {
+    if (handoff && event.message.role === "user") {
+      setImmediate(() => { try { appliedHandoff(ctx); } catch { holdHandoff("Native handoff application receipt is unresolved; no replay."); } });
+      return;
+    }
     if (active?.kind !== "running" || active.frame.kind !== "assign" || event.message.role !== "user") return;
     const pending = active;
     setImmediate(() => {
@@ -980,6 +1110,29 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   });
   pi.on("tool_call", async (event, ctx) => {
     await observeOwner(ctx);
+    if (handoff) {
+      if (handoff.state.kind !== "pending" || retirementReason !== "safe-stop" || !incarnation(ctx) || !isDeepStrictEqual(controller, descriptor.authority) || event.parentToolCallId || !appliedHandoff(ctx)) return { block: true, reason: "Limited handoff authority/application is not current. Ordinary retirement remains permanent." };
+      if (["read", "grep", "find", "ls", "write"].includes(event.toolName) && pi.getAllTools().find(tool => tool.name === event.toolName)?.sourceInfo.path !== `builtin:${event.toolName}`) return { block: true, reason: "Limited handoff requires the ordinary native filesystem tool, not a replacement extension tool." };
+      if (["read", "grep", "find", "ls"].includes(event.toolName)) return;
+      if (event.toolName !== "write") return { block: true, reason: "Handoff authorizes only native reads and one temporary artifact write, never implementation, commands or children." };
+      try {
+        if (artifactEffect) throw new Error("The one artifact effect is already retained; no second write or retry.");
+        const input = z.strictObject({ path: z.string(), content: z.string() }).parse(event.input);
+        if (!isAbsolute(input.path) || normalize(input.path) !== input.path || dirname(input.path) !== handoff.tempRoot || realpathSync(handoff.tempRoot) !== handoff.tempRoot) throw new Error("Artifact write must name a canonical direct child of the worker's actual TMPDIR.");
+        try { lstatSync(input.path); throw new Error("Artifact path already exists. No overwrite or symlink is authorized."); } catch (error) { if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error; }
+        const branch = ctx.sessionManager.getBranch();
+        const user = appliedHandoff(ctx);
+        const calls = branch.filter(entry => entry.type === "message" && entry.message.role === "assistant" && entry.message.content.some(part => part.type === "toolCall" && part.id === event.toolCallId && part.name === "write" && isDeepStrictEqual(part.arguments, input)));
+        const origin = calls[0];
+        if (!user || calls.length !== 1 || !origin || branch.indexOf(origin) <= branch.indexOf(user) || !readFileSync(journal, "utf8").split("\n").some(line => line && isDeepStrictEqual(JSON.parse(line), origin))) throw new Error("Fresh native handoff write provenance is unavailable.");
+        const evidence = receipt(handoff.request.command, "handoff-artifact-outcome");
+        artifactEffect = { call: event.toolCallId, path: input.path, inputDigest: createHash("sha256").update(JSON.stringify(input)).digest("hex"), origin: `${journal}#${origin.id}`, state: "admitted", resultSeen: false, evidence };
+        // Deliberately path/provenance only. Native Pi journals retain their ordinary arguments;
+        // no Legion EffectMessage, report or extra document copy is created.
+        publish(receipt(handoff.request.command, "handoff-artifact-intent"), { call: artifactEffect.call, path: artifactEffect.path, tempRoot: handoff.tempRoot, origin: artifactEffect.origin });
+        return;
+      } catch (error) { return { block: true, reason: String(error) }; }
+    }
     if (active?.kind === "running" && active.frame.kind === "initialize") return { block: true, reason: "Initialization authorizes only a bounded bootstrap reply, not tools or delegation." };
     if (active?.kind === "running" && active.frame.kind === "assign" && !assignmentCommand) assignmentApplied(ctx);
     if (["subagent", "subagents_enable"].includes(event.toolName) && incarnation(ctx)) {
@@ -1044,10 +1197,26 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
     if (active?.kind === "running" && active.frame.kind === "assign") assignmentApplied(ctx);
   });
   pi.on("tool_result", event => {
+    if (artifactEffect?.call === event.toolCallId) {
+      artifactEffect.resultSeen = !event.isError && artifactEffect.inputDigest === createHash("sha256").update(JSON.stringify(event.input)).digest("hex");
+      return;
+    }
     centuriones?.observeInput(event);
     if (effects.has(event.toolCallId)) effectResults.set(event.toolCallId, { input: structuredClone(event.input), isError: event.isError, result: { content: event.content, details: event.details, structuredContent: event.structuredContent } });
   });
   pi.on("tool_execution_end", (event, ctx) => {
+    if (handoff && artifactEffect?.call === event.toolCallId && artifactEffect.state === "admitted") {
+      try {
+        if (!artifactEffect.resultSeen || event.isError || event.durationMs === undefined || realpathSync(artifactEffect.path) !== artifactEffect.path || !lstatSync(artifactEffect.path).isFile()) throw new Error("No successful actual native artifact write evidence.");
+        artifactEffect.state = "completed";
+        publish(artifactEffect.evidence, { kind: "completed", call: artifactEffect.call, path: artifactEffect.path, tempRoot: handoff.tempRoot, origin: artifactEffect.origin });
+      } catch {
+        artifactEffect.state = event.isError && event.durationMs === undefined ? "refused" : "unknown";
+        publish(artifactEffect.evidence, { kind: artifactEffect.state, call: artifactEffect.call, path: artifactEffect.path });
+        holdHandoff("Temporary artifact native effect was refused or has unknown outcome. Preserve this stage; no retry.");
+      }
+      return;
+    }
     centuriones?.observeLaunch(event, ctx);
     if (event.toolName === "subagent") for (const activity of pendingChildActivity.splice(0)) observeChildActivity(activity.kind, activity.raw, false);
     const effect = effects.get(event.toolCallId);
@@ -1067,6 +1236,35 @@ export function installTribunus(pi: ExtensionAPI, path: string) {
   pi.on("agent_settled", async (_event, ctx) => {
     principalActivity = "settled";
     await observeOwner(ctx);
+    if (safeStop && retirement && !safeStop.settled) {
+      const user = ctx.sessionManager.getBranch().find(entry => entry.type === "message" && entry.message.role === "user" && Array.isArray(entry.message.content) && entry.message.content.some(part => part.type === "text" && part.text === safeStop?.prompt));
+      if (user && incarnation(ctx) && !ctx.hasPendingMessages() && ctx.isIdle() && readFileSync(journal, "utf8").split("\n").some(line => line && isDeepStrictEqual(JSON.parse(line), user))) {
+        safeStop.applied = `${journal}#${user.id}`;
+        publish(receipt(retirement.shutdown, "stop-instruction-applied"), { application: safeStop.applied });
+        pi.appendEntry("legion-safe-stop-settled", { shutdown: retirement.shutdown, application: safeStop.applied });
+        safeStop.settled = `${journal}#${ctx.sessionManager.getLeafId()}`;
+        publish(receipt(retirement.shutdown, "stop-instruction-settled"), { settledEntry: safeStop.settled });
+      }
+    }
+    if (handoff) {
+      if (handoff.state.kind !== "pending") return;
+      try {
+        const user = appliedHandoff(ctx), branch = ctx.sessionManager.getBranch();
+        const assistant = branch.filter(entry => entry.type === "message" && entry.message.role === "assistant").at(-1);
+        if (!user || !assistant || assistant.type !== "message" || assistant.message.role !== "assistant" || assistant.message.stopReason !== "stop" || branch.indexOf(assistant) <= branch.indexOf(user) || retirementReason !== "safe-stop" || !incarnation(ctx) || !ctx.isIdle() || ctx.hasPendingMessages() || active || pendingSettlement || admissionHold || centuriones?.outstanding || centuriones?.held || !artifactEffect || artifactEffect.state !== "completed" || !handoffApplication) throw new Error("Native handoff principal, application, artifact effect or child settlement is unresolved.");
+        const actual = readFileSync(journal, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+        const toolResults = branch.filter(entry => entry.type === "message" && entry.message.role === "toolResult" && entry.message.toolCallId === artifactEffect?.call && entry.message.toolName === "write" && !entry.message.isError);
+        if (!actual.some(entry => isDeepStrictEqual(entry, assistant)) || toolResults.length !== 1 || !toolResults.every(entry => actual.some(stored => JSON.stringify(stored) === JSON.stringify(entry)))) throw new Error("Native final assistant or successful artifact tool-result origin is not persisted.");
+        pi.appendEntry("legion-handoff-settled", { handoff: handoff.request.id, command: handoff.request.command, application: handoffApplication, effectEvidence: artifactEffect.evidence, path: artifactEffect.path });
+        const settledEntry = `${journal}#${ctx.sessionManager.getLeafId()}`;
+        const fd = openSync(journal, "r"); try { fsyncSync(fd); } finally { closeSync(fd); }
+        publish(receipt(handoff.request.command, "handoff-settled"), { settledEntry, assistant: `${journal}#${assistant.id}` });
+        handoff.state = { kind: "settled", receipt: { handoff: handoff.request.id, command: handoff.request.command, application: handoffApplication, settledEntry, effectEvidence: [artifactEffect.evidence], artifact: { path: artifactEffect.path, tempRoot: handoff.tempRoot, evidence: artifactEffect.evidence } } };
+        publish(handoffObservation(), handoffView({ request: handoff.request, state: handoff.state }));
+        ctx.ui.setStatus("legion-intake", "Retired Tribunus handoff settled. Exact temporary path retained; ordinary authority remains retired.");
+      } catch (error) { holdHandoff(String(error)); }
+      return;
+    }
     if (pendingSettlement) { resumeSettlement(pendingSettlement.report.command); return; }
     const pending = active;
     if (pending?.kind !== "running" || !address) {

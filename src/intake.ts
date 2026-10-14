@@ -2,10 +2,10 @@ import { ContextAlerts, ContextSample, type ContextAlert, type ContextObservatio
 import { isDeepStrictEqual } from "node:util";
 import { checkoutIdentity } from "./checkout-identity.js";
 import { loadLegionSettings, selectTribunusModel, type LegionSettings, type TribunusModelIntent, type WorkflowChoice } from "./legion-settings.js";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, lstatSync, accessSync, constants } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
-import { join } from "node:path";
-import { mattInitializationPrompt, requiredWorkflowSkills, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, WorkerStop, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
+import { join, dirname, relative, isAbsolute, sep } from "node:path";
+import { mattInitializationPrompt, requiredWorkflowSkills, successorStartupSelection, HandoffStageObservation, LaunchRecord, VerifiedWorker, Initialization, BoundedAssignment, WorkerAddress, WorkerStop, projectLaunch, type LaunchResult, type LaunchView, type TribunusHost } from "./tribunus.js";
 import {
   AssignmentLedger,
   AssignmentConflict,
@@ -27,6 +27,7 @@ import type {
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
+  HandoffRequest, HandoffRecord, SettledHandoff,
   SnapshotStore,
   createSnapshot,
   type StorageFaultPoint,
@@ -171,6 +172,7 @@ export type OperationResult =
     }
   | { kind: "ownership-blocked"; reservation: Reservation; message: string }
   | { kind: "workspace-stage"; requestId: string; message: string }
+  | { kind: "handoff-stage"; requestId: string; message: string }
   | { kind: "launch-stage"; requestId: string; message: string }
   | { kind: "launched"; launch: LaunchResult; message: string }
   | { kind: "native-stage"; source: z.infer<typeof SubmissionRef>; dispatch: z.infer<typeof WorkflowDispatch>; continuation?: true };
@@ -184,6 +186,8 @@ type CommandIntent =
   | { kind: "workflow"; text: string }
   | { kind: "workspace"; id: string }
   | { kind: "launch"; task: z.infer<typeof TaskRef> }
+  | { kind: "handoff"; task: z.infer<typeof TaskRef>; purpose: string; continuation: string }
+  | { kind: "continue-handoff"; id: string }
   | { kind: "retired-research" }
   | z.infer<typeof WorkspaceRequest>["intent"]
   | { kind: "invalid" };
@@ -223,6 +227,17 @@ function commandIntent(text: string): CommandIntent {
       return /^\S+$/.test(payload.trim())
         ? { kind: "workspace", id: payload.trim() }
         : { kind: "invalid" };
+    case "handoff": {
+      if (z.uuid().safeParse(payload.trim()).success) return { kind: "continue-handoff", id: payload.trim() };
+      const parsed = /^(\S+)@(\d+)\s+--purpose\s+("(?:[^"\\]|\\.)*")\s+--continue\s+("(?:[^"\\]|\\.)*")$/.exec(payload.trim());
+      const task = TaskRef.safeParse({ id: parsed?.[1], revision: Number(parsed?.[2]) });
+      if (!parsed || !task.success) return { kind: "invalid" };
+      try {
+        const purpose = z.string().trim().min(1).parse(JSON.parse(parsed[3] ?? ""));
+        const continuation = z.string().trim().min(1).parse(JSON.parse(parsed[4] ?? ""));
+        return { kind: "handoff", task: task.data, purpose, continuation };
+      } catch { return { kind: "invalid" }; }
+    }
     case "launch": {
       const parsed = /^(\S+)@(\d+)$/.exec(payload.trim());
       const task = TaskRef.safeParse({ id: parsed?.[1], revision: Number(parsed?.[2]) });
@@ -343,11 +358,12 @@ export class Legion {
   private settingsView() {
     return { settings: this.settings, tribuniModel: this.settings ? selectTribunusModel({ kind: "new", settings: this.settings }) : null };
   }
-  private assignmentModelIntent(launch: LaunchView | undefined): TribunusModelIntent | null {
+  private assignmentModelIntent({ launch, handoff }: { launch: LaunchView | undefined; handoff?: HandoffRecord | undefined }): TribunusModelIntent | null {
     const progress = launch?.kind === "held" ? launch.last : launch;
     if (progress && "assignment" in progress)
       return selectTribunusModel({ kind: "existing", ...(progress.assignment.modelPin ? { pin: progress.assignment.modelPin } : {}) });
     if (progress?.kind === "unavailable") return { kind: "existing-unknown" };
+    if (handoff) return selectTribunusModel({ kind: "existing", pin: handoff.modelPin });
     return this.settingsView().tribuniModel;
   }
   private taskWorkflow(snapshot: LegatusSnapshot, task: string, launch: LaunchView | undefined) {
@@ -356,6 +372,8 @@ export class Legion {
     const progress = launch?.kind === "held" ? launch.last : launch;
     if (progress && "assignment" in progress)
       return { workflowChoice: progress.assignment.workflowChoice ?? null, workflowHold: null };
+    const handoff = snapshot.handoffs.find(record => record.pin.task.id === task);
+    if (handoff) return { workflowChoice: handoff.workflowChoice, workflowHold: null };
     const pending = snapshot.launchRequests.find(request => request.task.id === task);
     const choice = pending ? pending.workflowChoice ?? null : snapshot.workflowChoice;
     return { workflowChoice: choice, workflowHold: workflowFailure(choice)?.message ?? null };
@@ -370,6 +388,8 @@ export class Legion {
   private pendingStop: Omit<NonNullable<LegatusSnapshot["shutdown"]>, "workers"> | null = null;
   private stopPublication: Promise<void> | null = null;
   private creating = false;
+  private retiredLaunches = new Set<string>();
+  private handoffRuns = new Map<string, Promise<OperationResult>>();
   private workerHosts = new Map<string, TribunusHost>();
   private invocations = 0;
   private effectInvocations = new Set<string>();
@@ -1064,6 +1084,216 @@ export class Legion {
       reservation.owner,
     );
   }
+  private currentLaunchId({ snapshot, task }: { snapshot: LegatusSnapshot; task: string }) {
+    const record = snapshot.handoffs.find(record => record.pin.task.id === task);
+    const progress = record?.state.kind === "held" ? record.state.last : record?.state;
+    return progress?.kind === "successor-reserved" ? progress.launch : snapshot.launchRequests.find(request => request.task.id === task && request.attempt)?.attempt ?? null;
+  }
+  private handoffRequest(record: HandoffRecord) {
+    const { state, ...request } = record;
+    return HandoffRequest.parse(request);
+  }
+  private async ordinaryWatcherCurrent(launch: string) {
+    if (this.retiredLaunches.has(launch)) return false;
+    const state = this.selected ? await this.store.read(this.selected) : null;
+    if (!state) return false;
+    const handoff = state.handoffs.find(record => record.pin.launch === launch);
+    const progress = handoff?.state.kind === "held" ? handoff.state.last : handoff?.state;
+    return !handoff || progress?.kind === "stopping";
+  }
+  private launchOrigin({ snapshot, launch }: { snapshot: LegatusSnapshot; launch: LaunchRecord }) {
+    if (!launch.successor) return snapshot.launchRequests.find(request => request.attempt === launch.id);
+    const record = snapshot.handoffs.find(record => record.id === launch.successor?.handoff);
+    const progress = record?.state.kind === "held" ? record.state.last : record?.state;
+    if (!record || progress?.kind !== "successor-reserved" || progress.launch !== launch.id || record.pin.launch !== launch.successor.predecessor) throw new Error("Exact saved successor/handoff authority missing.");
+    return this.handoffOrigin({ snapshot, record });
+  }
+  private handoffOrigin({ snapshot, record }: { snapshot: LegatusSnapshot; record: HandoffRecord }) {
+    const origin = snapshot.launchRequests.find(request => request.attempt === record.pin.launch);
+    if (!origin || origin.scope !== record.pin.scope || !isDeepStrictEqual(origin.task, record.pin.task) ||
+        origin.evidence.session !== record.pin.session || origin.generation !== record.pin.generation || origin.epoch !== record.pin.epoch)
+      throw new Error("Exact predecessor authority/history is missing. Preserve handoff; do not reconstruct it.");
+    return origin;
+  }
+  private async handoffAuthority({ record, epoch }: { record: HandoffRecord; epoch: number }) {
+    const snapshot = this.selected ? await this.store.read(this.selected) : null;
+    if (!snapshot || snapshot.id !== record.pin.owner) throw new Error("Handoff owner history unavailable.");
+    const origin = this.handoffOrigin({ snapshot, record });
+    const current = await this.ownedTaskAuthority(origin, epoch);
+    const saved = current.state.handoffs.find(saved => saved.id === record.id);
+    if (!saved || !isDeepStrictEqual(this.handoffRequest(saved), this.handoffRequest(record))) throw new Error("Immutable handoff request changed or disappeared.");
+    return { ...current, origin, record: saved };
+  }
+  private recordHandoff({ input, intent }: { input: z.infer<typeof Command>; intent: Extract<CommandIntent, { kind: "handoff" | "continue-handoff" }> }): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      try {
+        const view = await this.state(), snapshot = view.snapshot;
+        if (view.mode !== "active" || !snapshot || !this.binding) return reject("inactive", "Explicit current Legatus authority is required for handoff.");
+        if (input.evidence.generation !== null && input.evidence.generation !== this.binding.generation) throw new Error("Stale host generation.");
+        if (input.nativeDispatch) this.nativeAuthority(snapshot, input.nativeDispatch, input.evidence.session, this.binding.generation);
+        if (intent.kind === "continue-handoff") {
+          const record = snapshot.handoffs.find(record => record.id === intent.id);
+          if (!record) throw new Error("Known handoff request missing; never reconstruct it.");
+          await this.handoffAuthority({ record, epoch });
+          return { kind: "handoff-stage", requestId: record.id, message: "Continue observation of the exact retained handoff with legion_handoff. No stage/start/assignment replay." };
+        }
+        const prior = snapshot.handoffs.find(record => record.pin.task.id === intent.task.id);
+        if (prior) {
+          if (!isDeepStrictEqual(prior.pin.task, intent.task) || prior.purpose !== intent.purpose || prior.continuation !== intent.continuation) throw new Error("Conflicting handoff request. Continue the retained ID; one successor only.");
+          await this.handoffAuthority({ record: prior, epoch });
+          return { kind: "handoff-stage", requestId: prior.id, message: "Same immutable handoff retained; explicit continuation observes its saved attempt." };
+        }
+        const scope = this.approval(snapshot, intent.task);
+        const task = view.tasks.find(task => task.id === intent.task.id);
+        if (task?.claim.kind !== "owned" || task.claim.workspace.kind !== "ready") throw new Error("Exact owned ready reservation required.");
+        const reservation = task.claim.reservation;
+        const repository = snapshot.workspaceRequests.find(request => request.repositoryId === reservation.repository);
+        if (!repository?.repository) throw new Error("Repository history unavailable.");
+        const ledger = new AssignmentLedger({ commonDir: repository.repository, owner: snapshot.id, expectedRepository: task.claim.reservation.repository, historyRequired: true });
+        const predecessor = await ledger.readLaunch({ reservation: task.claim.reservation, known: this.currentLaunchId({ snapshot, task: task.id }) });
+        const progress = predecessor?.state;
+        if (!predecessor || !(progress?.kind === "assigned" || progress?.kind === "reported")) throw new Error("Known applied ordinary assignment required. Unknown startup/assignment blocks handoff.");
+        const origin = snapshot.launchRequests.find(request => request.attempt === predecessor.id);
+        if (!origin) throw new Error("Original launch authority missing.");
+        await this.ownedTaskAuthority(origin, epoch);
+        const record = HandoffRecord.parse({ id: randomUUID(), stop: randomUUID(), command: randomUUID(), purpose: intent.purpose, continuation: intent.continuation,
+          modelPin: progress.assignment.modelPin, workflowChoice: progress.assignment.workflowChoice,
+          pin: { owner: snapshot.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch, task: intent.task, scope, reservation: predecessor.reservation, assignment: progress.command, launch: predecessor.id, workerSession: progress.worker.address.session, workerGeneration: progress.worker.address.generation, addressDigest: createHash("sha256").update(JSON.stringify(progress.worker.address)).digest("hex") }, state: { kind: "stopping" } });
+        snapshot.handoffs.push(record);
+        const revision = snapshot.revision++;
+        await this.store.save(snapshot, revision, () => !!this.binding && !this.stopping && this.epoch === epoch);
+        return { kind: "handoff-stage", requestId: record.id, message: "Immutable task-scoped handoff saved. Invoke legion_handoff with this requestId to safe-stop, observe settlement and continue once." };
+      } catch (error) { return reject("handoff-authority", String(error)); }
+    });
+  }
+  private async saveHandoff({ record, state, epoch }: { record: HandoffRecord; state: HandoffRecord["state"]; epoch: number }) {
+    return this.serialize(async () => {
+      const current = await this.handoffAuthority({ record, epoch });
+      if (!isDeepStrictEqual(current.record.state, record.state)) throw new Error("Handoff progress changed. Observe retained state; no competing effect.");
+      current.record.state = HandoffRecord.parse({ ...record, state }).state;
+      const progress = state.kind === "held" ? state.last : state;
+      if (progress.kind !== "stopping") this.retiredLaunches.add(record.pin.launch);
+      const revision = current.state.revision++;
+      await this.store.save(current.state, revision, () => !!this.binding && !this.stopping && this.epoch === epoch);
+      return current.record;
+    });
+  }
+  private checkArtifact({ record, worktree }: { record: SettledHandoff; worktree: string }) {
+    const { path, tempRoot } = record.state.receipt.artifact;
+    accessSync(path, constants.R_OK);
+    const outside = relative(worktree, path);
+    const rootOutside = relative(worktree, tempRoot);
+    if (realpathSync(tempRoot) !== tempRoot || !lstatSync(tempRoot).isDirectory() || dirname(path) !== tempRoot ||
+        realpathSync(path) !== path || !lstatSync(path).isFile() || lstatSync(path).isSymbolicLink() ||
+        !(outside === ".." || outside.startsWith(`..${sep}`) || isAbsolute(outside)) ||
+        !(rootOutside === ".." || rootOutside.startsWith(`..${sep}`) || isAbsolute(rootOutside)))
+      throw new Error("Exact native temporary artifact/root is unavailable or changed. No copy or reconstruction.");
+  }
+  private handoffSettlementUnresolved({ snapshot, record, observation }: { snapshot: LegatusSnapshot; record: HandoffRecord; observation: WorkerResourceObservation }) {
+    return observation.live.kind !== "observed" || observation.live.value.principal !== "settled" || observation.live.value.busy || observation.live.value.pendingMessages || observation.live.value.admissionHold || observation.live.value.childrenOutstanding || observation.live.value.childrenHeld || observation.live.value.effectsOutstanding ||
+      observation.children.some(child => child.disposition !== "settled") || snapshot.effects.some(effect => effect.intent.pin.launch === record.pin.launch && (effect.state.kind === "outstanding" || effect.state.kind === "unknown"));
+  }
+  private async validateHandoff({ record, epoch, host }: { record: SettledHandoff; epoch: number; host: TribunusHost }) {
+    const current = await this.handoffAuthority({ record, epoch });
+    const claims = await this.claims(current.state), claim = claims.byTask.get(record.pin.task.id);
+    if (claim?.kind !== "owned" || claim.workspace.kind !== "ready" || claim.reservation.id !== record.pin.reservation || claim.reservation.approval.scope !== record.pin.scope) throw new Error("Exact handoff reservation ownership changed.");
+    const ledger = new AssignmentLedger({ commonDir: current.origin.repository, owner: current.state.id, expectedRepository: current.origin.repositoryId, historyRequired: true, fault: this.options.assignments?.fault });
+    const predecessor = await ledger.readLaunch({ reservation: claim.reservation, known: record.pin.launch });
+    if (!predecessor || predecessor.state.kind !== "reported") throw new Error("Settled predecessor history missing; reported alone never proves settlement.");
+    const worker = predecessor.state.worker;
+    if (predecessor.state.command !== record.pin.assignment || createHash("sha256").update(JSON.stringify(worker.address)).digest("hex") !== record.pin.addressDigest ||
+        !isDeepStrictEqual(predecessor.state.assignment.modelPin, record.modelPin) || !isDeepStrictEqual(predecessor.state.assignment.workflowChoice, record.workflowChoice)) throw new Error("Predecessor assignment/incarnation/pins changed.");
+    const reader = this.options.resume?.worker({ owner: record.pin.owner, session: record.pin.session, generation: record.pin.generation, epoch: record.pin.epoch });
+    if (!reader || !host.observeHandoff) throw new Error("Read-only native settlement/handoff observation unavailable. Restore host facilities.");
+    const observation = await reader.observeResources({ launch: predecessor, cwd: claim.reservation.plan.path, signal: this.resumeSignal.signal });
+    await this.handoffAuthority({ record, epoch });
+    if (!this.retiredSettlement({ snapshot: current.state, launch: predecessor, observation }) || observation.retirement?.shutdown !== record.stop || this.handoffSettlementUnresolved({ snapshot: current.state, record, observation })) throw new Error("Actual predecessor/children/effects settlement is unresolved.");
+    const stage = HandoffStageObservation.parse(await host.observeHandoff({ worker, request: this.handoffRequest(record) }));
+    if (!this.handoffObservationMatches({ record, worker, observation: stage }) || stage.state.kind !== "settled" || !isDeepStrictEqual(stage.state.receipt, record.state.receipt)) throw new Error("Exact handoff stage/effect/path receipt is unresolved or changed.");
+    const actual = await host.inspectWorker({ launch: predecessor, window: worker.address.window, cwd: claim.reservation.plan.path });
+    if (!actual || !isDeepStrictEqual(actual.address, worker.address) || actual.resources.cwd !== claim.reservation.plan.path || actual.resources.principal?.model !== record.modelPin.model || actual.resources.principal.thinking !== record.modelPin.thinking || !actual.resources.principal.contextWindow || actual.resources.principal.contextWindow < 272000 || actual.resources.diagnostics.some(d => d.status !== "ready") || requiredWorkflowSkills(record.workflowChoice).some(name => !actual.resources.skills.some(skill => skill.name === name))) throw new Error("Actual predecessor selection/resources unavailable or changed. No fallback.");
+    const git = this.options.resume?.repository(current.origin.repository);
+    if (!git) throw new Error("Read-only Git association observation unavailable.");
+    const observed = await git.observeResources({ plan: claim.reservation.plan, commonDir: current.origin.repository });
+    if (observed.disposition !== "identified" || observed.dirty.kind !== "observed") throw new Error(`Same worktree association is unresolved. ${observed.reasons.join(" ")}`);
+    this.checkArtifact({ record, worktree: claim.reservation.plan.path });
+    const fresh = await this.handoffAuthority({ record, epoch });
+    if (fresh.state.effects.some(effect => effect.intent.pin.launch === record.pin.launch && (effect.state.kind === "outstanding" || effect.state.kind === "unknown"))) throw new Error("Predecessor effect evidence changed during handoff observation.");
+    return { ledger, reservation: claim.reservation, predecessor };
+  }
+  private handoffObservationMatches({ record, worker, observation }: { record: HandoffRecord; worker: z.infer<typeof VerifiedWorker>; observation: z.infer<typeof HandoffStageObservation> }) {
+    return observation.handoff === record.id && observation.command === record.command && isDeepStrictEqual(observation.address, worker.address) &&
+      isDeepStrictEqual(observation.authority, { owner: record.pin.owner, session: record.pin.session, generation: record.pin.generation, epoch: record.pin.epoch });
+  }
+  private async executeHandoff(id: string): Promise<OperationResult> {
+    const epoch = this.epoch, host = this.options.tribuni?.host();
+    let record: HandoffRecord | undefined;
+    let entered = false;
+    try {
+      record = (this.selected ? await this.store.read(this.selected) : null)?.handoffs.find(record => record.id === id);
+      if (!record) return reject("handoff-history", "Exact saved handoff missing. Do not reconstruct it.");
+      const current = await this.handoffAuthority({ record, epoch });
+      this.invocations++;
+      entered = true;
+      if (!host?.stop || !host.handoff || !host.observeHandoff) throw new Error("Addressed task stop/handoff/observation facilities unavailable. Restore host facilities; no alternate delivery.");
+      const claims = await this.claims(current.state), claim = claims.byTask.get(record.pin.task.id);
+      if (claim?.kind !== "owned" || claim.workspace.kind !== "ready") throw new Error("Owned handoff worktree unavailable.");
+      const ledger = new AssignmentLedger({ commonDir: current.origin.repository, owner: current.state.id, expectedRepository: current.origin.repositoryId, historyRequired: true, fault: this.options.assignments?.fault });
+      let predecessor = await ledger.readLaunch({ reservation: claim.reservation, known: record.pin.launch });
+      if (!predecessor || !(predecessor.state.kind === "assigned" || predecessor.state.kind === "reported")) throw new Error("Known predecessor assignment/history unavailable.");
+      const worker = predecessor.state.worker;
+      if (record.state.kind === "held") record = await this.saveHandoff({ record, state: record.state.last, epoch });
+      if (record.state.kind === "stopping") {
+        await host.stop({ worker, shutdown: record.stop, command: record.pin.assignment, instruction: `Task-scoped safe-stop for ${record.pin.task.id}@${record.pin.task.revision}: finish only already-authorized safe effects, settle native children and principal, preserve all committed/index/dirty/untracked work, then park. No new implementation or delegation. A separately addressed handoff-only stage will follow actual settlement.` }, async observation => {
+          const parsed = WorkerStop.parse(observation);
+          if (!record || parsed.shutdown !== record.stop || parsed.command !== record.pin.assignment || !isDeepStrictEqual(parsed.address, worker.address) || !isDeepStrictEqual(parsed.authority, { owner: record.pin.owner, session: record.pin.session, generation: record.pin.generation, epoch: record.pin.epoch })) throw new Error("Task stop receipt does not join the exact predecessor authority/incarnation.");
+        });
+        await this.handoffAuthority({ record, epoch });
+        const reader = this.options.resume?.worker({ owner: record.pin.owner, session: record.pin.session, generation: record.pin.generation, epoch: record.pin.epoch });
+        if (!reader) throw new Error("Actual worker/children/effects observation unavailable; stop delivery is not settlement.");
+        predecessor = await ledger.readLaunch({ reservation: claim.reservation, known: record.pin.launch });
+        if (!predecessor || predecessor.state.kind !== "reported") throw new Error("Actual ordinary result/settlement is pending. Explicitly continue this same handoff after native settlement.");
+        const observed = await reader.observeResources({ launch: predecessor, cwd: claim.reservation.plan.path, signal: this.resumeSignal.signal });
+        // The read joins the retained task stop even when its direct delivery acknowledgement was lost.
+        if (!this.retiredSettlement({ snapshot: current.state, launch: predecessor, observation: observed }) || observed.retirement?.shutdown !== record.stop || this.handoffSettlementUnresolved({ snapshot: current.state, record, observation: observed })) throw new Error("Actual safe-stop worker/children/effect settlement unresolved; delivery/parking alone is insufficient.");
+        record = await this.saveHandoff({ record, state: { kind: "retired", retirementEvidence: observed.evidence }, epoch });
+      }
+      if (record.state.kind === "retired") {
+        const retirementEvidence = record.state.retirementEvidence;
+        record = await this.saveHandoff({ record, state: { kind: "handoff-dispatched", retirementEvidence }, epoch });
+        const stage = HandoffStageObservation.parse(await host.handoff({ worker, request: this.handoffRequest(record) }));
+        if (!this.handoffObservationMatches({ record, worker, observation: stage }) || stage.state.kind !== "settled") throw new Error(`Handoff-only stage unresolved: ${stage.state.kind}. Explicit continuation observes this exact intent, never resends it.`);
+        record = await this.saveHandoff({ record, state: { kind: "handoff-settled", retirementEvidence, receipt: stage.state.receipt }, epoch });
+      } else if (record.state.kind === "handoff-dispatched") {
+        const stage = HandoffStageObservation.parse(await host.observeHandoff({ worker, request: this.handoffRequest(record) }));
+        if (!this.handoffObservationMatches({ record, worker, observation: stage }) || stage.state.kind !== "settled") throw new Error("Known dispatched handoff remains unresolved; no intent replay.");
+        record = await this.saveHandoff({ record, state: { kind: "handoff-settled", retirementEvidence: record.state.retirementEvidence, receipt: stage.state.receipt }, epoch });
+      }
+      const progress = record.state;
+      if (progress.kind !== "handoff-settled" && progress.kind !== "successor-reserved") throw new Error("Handoff progress is unresolved.");
+      const settled = SettledHandoff.parse({ ...record, state: { kind: "handoff-settled", retirementEvidence: progress.retirementEvidence, receipt: progress.receipt } });
+      const validated = await this.validateHandoff({ record: settled, epoch, host });
+      let successor = progress.kind === "successor-reserved"
+        ? await validated.ledger.readLaunch({ reservation: validated.reservation, known: progress.launch })
+        : await validated.ledger.readSuccessor({ reservation: validated.reservation, predecessor: record.pin.launch, handoff: record.id });
+      if (progress.kind === "successor-reserved" && !successor) throw new Error("Known successor history missing. Never allocate replacement.");
+      if (!successor) successor = await validated.ledger.beginSuccessor({ ...validated, handoff: settled, owned: () => !!this.binding && !this.stopping && this.epoch === epoch });
+      if (!successor.successor || successor.successor.handoff !== record.id || successor.successor.predecessor !== record.pin.launch) throw new Error("Successor receipt/history conflicts.");
+      if (record.state.kind !== "successor-reserved") record = await this.saveHandoff({ record, state: { kind: "successor-reserved", retirementEvidence: progress.retirementEvidence, receipt: progress.receipt, launch: successor.id }, epoch });
+      return await this.executeLaunch({ id: current.origin.id, successor: { record, settled, launch: successor } });
+    } catch (error) {
+      const message = `Handoff held. Preserve exact request, resources and temporary path; no reconstruction or blind replay. ${String(error)}`;
+      if (record && record.state.kind !== "held") {
+        try { await this.saveHandoff({ record, state: { kind: "held", last: record.state, message }, epoch }); } catch { /* Publication may have committed; explicit continuation reads the saved request. */ }
+      }
+      return reject("handoff-held", message);
+    } finally {
+      if (entered) this.invocations--;
+      if (this.stopRequested) await this.reconcileStop();
+      else if (this.stopping && !this.invocations) this.revoke();
+    }
+  }
   private async launchViews({ snapshot, claims, fallback }: {
     snapshot: LegatusSnapshot | null;
     claims: Map<string, ClaimView>;
@@ -1090,14 +1320,14 @@ export class Legion {
           fault: this.options.assignments?.fault,
           expectedRepository: request.repositoryId,
           historyRequired: true,
-        }).launchState(claim.reservation, snapshot.launchRequests.find((r) => r.task.id === task && r.attempt)?.attempt ?? null));
+        }).launchState(claim.reservation, this.currentLaunchId({ snapshot, task })));
       } catch (error) { views.set(task, { kind: "unavailable", message: String(error) }); }
     }
     return views;
   }
   private async resumeHistory({ snapshot, epoch, noWorkInitialization = new Set<string>() }: { snapshot: LegatusSnapshot; epoch: number; noWorkInitialization?: Set<string> }) {
     const claims = await this.claims(snapshot);
-    const noAdmittedResources = !claims.all.length && !snapshot.workspaceRequests.some(request => request.repositoryId) && !snapshot.launchRequests.length && !snapshot.effects.length && !hasLegacyResearchHold(snapshot);
+    const noAdmittedResources = !claims.all.length && !snapshot.workspaceRequests.some(request => request.repositoryId) && !snapshot.launchRequests.length && !snapshot.handoffs.length && !snapshot.effects.length && !hasLegacyResearchHold(snapshot);
     // A published resume generation witnesses reconciliation of its older pending requests,
     // never of a request admitted later in that same generation.
     if (snapshot.workspaceRequests.some(request => request.repository && !request.repositoryId &&
@@ -1118,19 +1348,33 @@ export class Legion {
         throw new Error(`Saved launch ${request.id} has no exact owned reservation/history.`);
       await new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: request.repositoryId, historyRequired: true }).launchState(claim.reservation, request.attempt);
     }
+    for (const record of snapshot.handoffs) {
+      const origin = this.handoffOrigin({ snapshot, record }), claim = claims.byTask.get(record.pin.task.id);
+      if (claim?.kind !== "owned" || claim.reservation.id !== record.pin.reservation) throw new Error("Known handoff reservation history unavailable.");
+      const ledger = new AssignmentLedger({ commonDir: origin.repository, owner: snapshot.id, expectedRepository: origin.repositoryId, historyRequired: true });
+      const predecessor = await ledger.readLaunch({ reservation: claim.reservation, known: record.pin.launch });
+      const prior = predecessor?.state.kind === "held" ? predecessor.state.last : predecessor?.state;
+      if (!predecessor || !prior || !("assignment" in prior) || prior.command !== record.pin.assignment || createHash("sha256").update(JSON.stringify(prior.worker.address)).digest("hex") !== record.pin.addressDigest || !isDeepStrictEqual(prior.assignment.modelPin, record.modelPin) || !isDeepStrictEqual(prior.assignment.workflowChoice, record.workflowChoice)) throw new Error("Known handoff predecessor/assignment history missing or changed.");
+      const progress = record.state.kind === "held" ? record.state.last : record.state;
+      const successor = await ledger.readSuccessor({ reservation: claim.reservation, predecessor: record.pin.launch, handoff: record.id });
+      if (progress.kind === "successor-reserved") {
+        const known = await ledger.readLaunch({ reservation: claim.reservation, known: progress.launch });
+        if (!known || !successor || known.id !== successor.id) throw new Error("Known successor receipt/history missing. Preserve it; no replacement.");
+      } else if (successor && progress.kind !== "handoff-settled") throw new Error("Successor allocation contradicts saved handoff progress. Preserve all history.");
+    }
     const launches = new Map<string, LaunchRecord | null>();
     for (const claim of claims.all) {
       if (claim.kind !== "owned") throw new Error("Saved claim identity is unresolved.");
       const request = snapshot.workspaceRequests.find(request => request.repositoryId === claim.reservation.repository);
       if (!request?.repository) throw new Error("Saved repository witness unavailable.");
-      launches.set(claim.reservation.id, await new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: claim.reservation.repository, historyRequired: true }).readLaunch({ reservation: claim.reservation }));
+      launches.set(claim.reservation.id, await new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: claim.reservation.repository, historyRequired: true }).readLaunch({ reservation: claim.reservation, known: this.currentLaunchId({ snapshot, task: claim.reservation.task }) }));
     }
     if (epoch !== this.epoch) throw new Error("Resume revoked during history observation.");
     return { ...claims, launches };
   }
   private workerObservationMatches({ snapshot, launch, observation }: { snapshot: LegatusSnapshot; launch: LaunchRecord; observation: WorkerResourceObservation }) {
     const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
-    const origin = snapshot.launchRequests.find(request => request.attempt === launch.id);
+    const origin = this.launchOrigin({ snapshot, launch });
     return "worker" in progress && !!origin && observation.launch === launch.id && observation.reservation === launch.reservation && observation.scope === launch.scope &&
       observation.process.kind === "alive" && observation.live.kind === "observed" && isDeepStrictEqual(observation.live.value.address, progress.worker.address) &&
       observation.live.value.command === ("assignment" in progress ? progress.command : null) &&
@@ -1141,7 +1385,7 @@ export class Legion {
     const retirement = observation.retirement;
     return this.workerObservationMatches({ snapshot, launch, observation }) && observation.evidence.length > 0 && observation.disposition === "settled" && !!retirement && retirement.state.kind === "parked" &&
       "worker" in progress && isDeepStrictEqual(retirement.address, progress.worker.address) && observation.live.kind === "observed" &&
-      isDeepStrictEqual(retirement.authority, observation.live.value.controller) && retirement.command === ("assignment" in progress ? progress.command : null);
+      isDeepStrictEqual(retirement.authority, observation.live.value.controller) && isDeepStrictEqual(retirement, observation.live.value.retirement) && retirement.command === ("assignment" in progress ? progress.command : null);
   }
   private async resumeResources({ snapshot, epoch, claims }: { snapshot: LegatusSnapshot; epoch: number; claims: Awaited<ReturnType<Legion["claims"]>> }) {
     if (hasLegacyResearchHold(snapshot)) throw new Error("Unsupported legacy research activity is unresolved. Preserve it; no replacement or adoption.");
@@ -1157,10 +1401,44 @@ export class Legion {
       if (epoch !== this.epoch) throw new Error("Resume revoked during Git observation.");
       if (observed.disposition !== "identified" || observed.dirty.kind !== "observed") throw new Error(`Git resources are unresolved: ${observed.reasons.join(" ")}`);
       const ledger = new AssignmentLedger({ commonDir: request.repository, owner: snapshot.id, expectedRepository: claim.reservation.repository, historyRequired: true });
-      const attempt = snapshot.launchRequests.find(request => request.task.id === claim.reservation.task && request.attempt)?.attempt ?? null;
+      const handoff = snapshot.handoffs.find(record => record.pin.task.id === claim.reservation.task);
+      if (handoff) {
+        const origin = this.handoffOrigin({ snapshot, record: handoff });
+        const predecessor = await ledger.readLaunch({ reservation: claim.reservation, known: handoff.pin.launch });
+        if (!predecessor) throw new Error("Known handoff predecessor is missing.");
+        const reader = this.options.resume?.worker({ owner: snapshot.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch });
+        if (!reader) throw new Error("Handoff predecessor observation unavailable.");
+        const observed = await reader.observeResources({ launch: predecessor, cwd: claim.reservation.plan.path, signal: this.resumeSignal.signal });
+        if (!this.workerObservationMatches({ snapshot, launch: predecessor, observation: observed })) throw new Error("Retained handoff predecessor liveness/action identity is unresolved. Preserve it; no reconstructed controller.");
+        const progress = handoff.state.kind === "held" ? handoff.state.last : handoff.state;
+        const retired = this.retiredSettlement({ snapshot, launch: predecessor, observation: observed }) && observed.retirement?.shutdown === handoff.stop;
+        if (progress.kind === "handoff-dispatched") {
+          const prior = predecessor.state.kind === "held" ? predecessor.state.last : predecessor.state;
+          if (!("worker" in prior) || !reader.observeHandoff) throw new Error("Read-only unresolved handoff-stage observation unavailable. No replay on resume.");
+          const stage = HandoffStageObservation.parse(await reader.observeHandoff({ worker: prior.worker, request: this.handoffRequest(handoff) }));
+          if (!this.handoffObservationMatches({ record: handoff, worker: prior.worker, observation: stage })) throw new Error("Unresolved handoff observation has a different retained identity.");
+          if (stage.state.kind === "unknown" || stage.state.kind === "held") throw new Error("Retained handoff stage/effect outcome is unresolved. Resume cannot repair or replay it.");
+          if (stage.state.kind === "settled") this.checkArtifact({ record: SettledHandoff.parse({ ...handoff, state: { kind: "handoff-settled", retirementEvidence: progress.retirementEvidence, receipt: stage.state.receipt } }), worktree: claim.reservation.plan.path });
+        }
+        if ("receipt" in progress) {
+          this.checkArtifact({ record: SettledHandoff.parse({ ...handoff, state: { kind: "handoff-settled", retirementEvidence: progress.retirementEvidence, receipt: progress.receipt } }), worktree: claim.reservation.plan.path });
+          const prior = predecessor.state.kind === "held" ? predecessor.state.last : predecessor.state;
+          if (!("worker" in prior) || !reader.observeHandoff) throw new Error("Read-only retained handoff-stage observation unavailable. No stage retransmission on resume.");
+          const stage = HandoffStageObservation.parse(await reader.observeHandoff({ worker: prior.worker, request: this.handoffRequest(handoff) }));
+          if (!this.handoffObservationMatches({ record: handoff, worker: prior.worker, observation: stage }) || stage.state.kind !== "settled" || !isDeepStrictEqual(stage.state.receipt, progress.receipt)) throw new Error("Exact retained handoff-stage receipt is unresolved or changed.");
+        }
+        holds.push({ task: claim.reservation.task, reservation: claim.reservation.id, message: `Retained handoff ${handoff.id} is observation-only after resume. Never revive either actor, replay its stage or allocate another successor.`, evidence: observed.evidence, activity: retired ? "retired-settled" : "unresolved", result: null });
+        if (progress.kind === "stopping" || progress.kind === "retired" || progress.kind === "handoff-dispatched") continue;
+        if (progress.kind !== "successor-reserved") {
+          const allocated = await ledger.readSuccessor({ reservation: claim.reservation, predecessor: handoff.pin.launch, handoff: handoff.id });
+          if (allocated) throw new Error("Unpublished successor allocation requires exact original-authority reconciliation; resume cannot dispatch it.");
+          continue;
+        }
+      }
+      const attempt = this.currentLaunchId({ snapshot, task: claim.reservation.task });
       const launch = await ledger.readLaunch({ reservation: claim.reservation, known: attempt });
       if (!launch || launch.state.kind === "prepared") continue;
-      const origin = snapshot.launchRequests.find(request => request.attempt === launch.id);
+      const origin = this.launchOrigin({ snapshot, launch });
       if (!origin) throw new Error(`Original launch authority/history is unavailable for ${launch.id}. Preserve it; no reconstructed controller.`);
       const reader = this.options.resume?.worker({ owner: snapshot.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch });
       if (!reader) throw new Error(`Read-only worker observation unavailable for launch ${launch.id}. Preserve it; no control retransmission.`);
@@ -1181,7 +1459,7 @@ export class Legion {
       throw new Error("Retained native effect outcome is unresolved. Reconcile the exact action evidence; process/session liveness is not outcome proof.");
     return holds;
   }
-  private async executeLaunch(id: string): Promise<OperationResult> {
+  private async executeLaunch({ id, successor }: { id: string; successor?: { record: HandoffRecord; settled: SettledHandoff; launch: LaunchRecord } }): Promise<OperationResult> {
     const epoch = this.epoch;
     const git = this.options.assignments?.repository();
     const host = this.options.tribuni?.host();
@@ -1190,16 +1468,18 @@ export class Legion {
     let entered = false;
     try {
       const snapshot = this.selected ? await this.store.read(this.selected) : null;
-      const request = snapshot?.launchRequests.find((r) => r.id === id);
+      const original = snapshot?.launchRequests.find((r) => r.id === id);
+      const request = original && successor ? LaunchRequest.parse({ ...original, nativeDispatch: undefined, startupSelection: successorStartupSelection(successor.launch.successor ?? (() => { throw new Error("Successor receipt missing"); })()), workflowChoice: successor.record.workflowChoice }) : original;
+      const authorize = async () => successor ? this.handoffAuthority({ record: successor.record, epoch }) : this.authorized(request ?? (() => { throw new Error("Launch request missing"); })(), epoch);
       if (!request) return reject("launch-request", "No durably saved host launch request exists.");
-      const authority = await this.authorized(request, epoch);
+      const authority = await authorize();
       const contextHold = this.contextAssignmentHold();
       if (contextHold) return reject("context-unresolved", contextHold);
       this.workspaceAuthority(request, epoch);
       this.invocations++;
       entered = true;
       const location = await git.locate();
-      await this.authorized(request, epoch);
+      await authorize();
       if (location.commonDir !== request.repository) throw new Error("Repository association changed.");
       const ledger = new AssignmentLedger({
         commonDir: location.commonDir,
@@ -1209,29 +1489,41 @@ export class Legion {
         historyRequired: true,
       });
       const observed = await ledger.observations(authority.state.id);
-      await this.authorized(request, epoch);
+      await authorize();
       const claim = observed.byTask.get(request.task.id);
       if (claim?.kind !== "owned" || claim.workspace.kind !== "ready" || claim.reservation.approval.scope !== request.scope)
         return reject("launch-claim", "Confirmed owned current claim and ready workspace required. No worker started.");
       const reservation = claim.reservation;
       this.workerHosts.set(reservation.id, host);
       const revalidate = async () => {
-        await this.authorized(request, epoch);
+        await authorize();
         const current = await ledger.observations(reservation.owner);
-        await this.authorized(request, epoch);
+        await authorize();
         const currentClaim = current.byTask.get(request.task.id);
         if (currentClaim?.kind !== "owned" || JSON.stringify(currentClaim.reservation) !== JSON.stringify(reservation) || currentClaim.workspace.kind !== "ready")
           throw new Error("Claim authority changed. Preserve the launch.");
+        if (successor) {
+          await this.validateHandoff({ record: successor.settled, epoch, host });
+          const retained = await ledger.readLaunch({ reservation, known: successor.launch.id });
+          if (!retained) throw new Error("Known successor history missing before dispatch.");
+          const phase = retained.state.kind === "held" ? retained.state.last : retained.state;
+          if ("worker" in phase) {
+            const actual = await host.inspectWorker({ launch: retained, window: phase.worker.address.window, cwd: reservation.plan.path });
+            if (!actual || !isDeepStrictEqual(actual.address, phase.worker.address) || actual.resources.cwd !== reservation.plan.path || actual.resources.principal?.model !== successor.record.modelPin.model || actual.resources.principal.thinking !== successor.record.modelPin.thinking || !actual.resources.principal.contextWindow || actual.resources.principal.contextWindow < 272000 || actual.resources.diagnostics.some(d => d.status !== "ready") || requiredWorkflowSkills(successor.record.workflowChoice).some(name => !actual.resources.skills.some(skill => skill.name === name))) throw new Error("Actual successor pin/resources changed or unavailable; no fallback or assignment replay.");
+          }
+        }
         const actual = await git.inspect(reservation.plan);
-        await this.authorized(request, epoch);
+        await authorize();
         if (!actual.workspace || !actual.workspace.backlink || actual.workspace.commonDir !== ledger.commonDir || actual.workspace.branch !== reservation.plan.branch || actual.branch !== actual.workspace.commit || actual.path !== "directory")
           throw new Error("Ready workspace association changed. Preserve branch, path, and launch.");
       };
       await revalidate();
       const known = authority.state.launchRequests.find((r) => r.task.id === request.task.id && r.attempt)?.attempt ?? null;
-      let launch = await ledger.beginLaunch(reservation, owned, known);
-      await this.serialize(async () => {
-        const current = await this.authorized(request, epoch);
+      const retainedLaunch = successor ? await ledger.readLaunch({ reservation, known: successor.launch.id }) : await ledger.beginLaunch(reservation, owned, known);
+      if (!retainedLaunch) throw new Error("Exact successor history disappeared; never recreate it.");
+      let launch = retainedLaunch;
+      if (!successor) await this.serialize(async () => {
+        const current = await authorize();
         const saved = current.state.launchRequests.find((r) => r.id === request.id);
         if (!saved || (saved.attempt && saved.attempt !== launch.id)) throw new Error("Saved launch witness conflicts.");
         if (!saved.attempt) {
@@ -1245,6 +1537,19 @@ export class Legion {
       const hold = async (code: string, message: string) => {
         if (launch.state.kind !== "held") await save({ kind: "held", last: launch.state, code, message });
         return result();
+      };
+      const entryProgress = launch.state.kind === "held" ? launch.state.last : launch.state;
+      const reconcileInitialization = !!successor && entryProgress.kind === "initializing";
+      const reconcileAssignment = !!successor && entryProgress.kind === "assigning";
+      const readAction = async () => {
+        const reader = this.options.resume?.worker({ owner: successor?.record.pin.owner ?? authority.state.id, session: request.evidence.session, generation: request.generation, epoch });
+        if (!reader) throw new Error("Read-only action reconciliation unavailable. Preserve the exact successor command; no replay.");
+        const observed = await reader.observeResources({ launch, cwd: reservation.plan.path, signal: this.resumeSignal.signal });
+        await authorize();
+        const phase = launch.state.kind === "held" ? launch.state.last : launch.state;
+        if (!("worker" in phase) || observed.launch !== launch.id || observed.reservation !== reservation.id || observed.scope !== launch.scope || observed.process.kind !== "alive" || observed.live.kind !== "observed" || !isDeepStrictEqual(observed.live.value.address, phase.worker.address) || !isDeepStrictEqual(observed.live.value.controller, { owner: authority.state.id, session: request.evidence.session, generation: request.generation, epoch })) throw new Error("Known successor action/incarnation is unresolved; no replay.");
+        if (phase.kind === "assigning" && observed.live.value.command !== phase.command || phase.kind === "initializing" && observed.live.value.command !== null) throw new Error("Known successor application no longer matches its actual current command. Preserve it; no replay.");
+        return observed.actions;
       };
       const progress = launch.state.kind === "held" ? launch.state.last : launch.state;
       if (!("assignment" in progress)) {
@@ -1262,8 +1567,9 @@ export class Legion {
         if (!owned()) throw new Error("Authority revoked before window invocation.");
         try {
           if (!request.workflowChoice || !request.startupSelection) throw new Error("Captured startup choice unavailable.");
+          if (successor) this.checkArtifact({ record: successor.settled, worktree: reservation.plan.path });
           const window = await host.createWindow({ launch, cwd: reservation.plan.path, workflowChoice: request.workflowChoice, startupSelection: request.startupSelection });
-          await this.authorized(request, epoch);
+          await authorize();
           await save({ kind: "window-owned", window });
         } catch (error) { return hold("window-outcome-unknown", `Window creation outcome unknown. Preserve the dispatched attempt. No retry. ${String(error)}`); }
       }
@@ -1277,13 +1583,14 @@ export class Legion {
         let startEvidence: LaunchRecord["startEvidence"];
         try {
           if (!request.startupSelection) throw new Error("Captured startup selection unavailable.");
+          if (successor) this.checkArtifact({ record: successor.settled, worktree: reservation.plan.path });
           await host.startPi({ launch, window, startupSelection: request.startupSelection });
           startEvidence = { kind: "completed" };
         } catch (error) {
           startEvidence = { kind: "uncertain", message: String(error) };
         }
         await save(dispatch, startEvidence);
-        await this.authorized(request, epoch);
+        await authorize();
       }
       const principalFailure = (resources: z.infer<typeof VerifiedWorker>["resources"]): string | null => {
         const principal = resources.principal;
@@ -1300,7 +1607,7 @@ export class Legion {
       };
       if (launch.state.kind === "pi-dispatched") {
         const worker = await host.inspectWorker({ launch, window: launch.state.window, cwd: reservation.plan.path });
-        await this.authorized(request, epoch);
+        await authorize();
         if (!worker) return hold("startup-outcome-unknown", "Pi startup may have applied but exact worker identity is unavailable. Preserve window, worktree, claim, and attempt. No restart or replacement.");
         const verified = VerifiedWorker.parse(worker);
         if (verified.address.launch !== launch.id || JSON.stringify(verified.address.window) !== JSON.stringify(launch.state.window))
@@ -1314,7 +1621,7 @@ export class Legion {
       if (launch.state.kind === "verified") {
         const incompatibility = principalFailure(launch.state.worker.resources);
         if (incompatibility) return hold("worker-principal", incompatibility);
-        await this.authorized(request, epoch);
+        await authorize();
         await save({ kind: "initializing", worker: launch.state.worker, command: randomUUID() });
       }
       if (launch.state.kind === "initializing") {
@@ -1322,9 +1629,14 @@ export class Legion {
         this.workspaceAuthority(request, epoch);
         if (!request.workflowChoice) throw new Error("Captured workflow choice unavailable.");
         let observed: Awaited<ReturnType<TribunusHost["initialize"]>>;
-        try { observed = await host.initialize({ worker: phase.worker, command: phase.command, workflowChoice: request.workflowChoice }); }
+        try {
+          if (reconcileInitialization) {
+            const action = (await readAction()).find(action => action.kind === "initialize" && action.command === phase.command);
+            observed = action?.kind === "initialize" ? action.receipt : null;
+          } else observed = await host.initialize({ worker: phase.worker, command: phase.command, workflowChoice: request.workflowChoice });
+        }
         catch (error) { return hold("initialization-outcome-unknown", `Native initialization is unresolved or refused. Preserve the same command and worker; no alternate skill or toggle. ${String(error)}`); }
-        await this.authorized(request, epoch);
+        await authorize();
         if (!observed) return hold("initialization-outcome-unknown", "Native initialization has no conclusive applied and settled evidence. Assignment withheld. Preserve the same command and worker.");
         const initialization = Initialization.parse(observed);
         const skill = phase.worker.resources.skills.find((s) => s.name === "poteto-mode");
@@ -1340,7 +1652,7 @@ export class Legion {
         const phase = launch.state;
         await revalidate();
         const observed = await host.inspectWorker({ launch, window: phase.worker.address.window, cwd: reservation.plan.path });
-        const current = await this.authorized(request, epoch);
+        const current = await authorize();
         if (!observed || JSON.stringify(observed.address) !== JSON.stringify(phase.worker.address))
           return hold("worker-changed", "Exact initialized worker changed before assignment. Preserve the worker. No successor adoption.");
         const incompatibility = principalFailure(observed.resources);
@@ -1357,16 +1669,25 @@ export class Legion {
         const workflowChoice = request.workflowChoice;
         if (!workflowChoice || workflowFailure(workflowChoice)) throw new Error("Captured explicit workflow choice unavailable. Assignment withheld.");
         const workflow = workflowChoice.profile === "poteto-mode" ? "poteto-mode" : workflowChoice.requestedWorkflow;
-        const assignment = BoundedAssignment.parse({ task: request.task, scope: request.scope, goal: task.goal, acceptance: task.acceptance, workflow, workflowChoice, authority: "bounded-implementation-only", modelPin: { model: principal.model, thinking: principal.thinking, profile: workflowChoice.profile } });
+        const assignment = BoundedAssignment.parse({ task: request.task, scope: request.scope, goal: task.goal, acceptance: task.acceptance, workflow, workflowChoice, authority: "bounded-implementation-only", ...(launch.successor ? { handoff: launch.successor } : {}), modelPin: { model: principal.model, thinking: principal.thinking, profile: workflowChoice.profile } });
         await save({ kind: "assigning", worker: { ...phase.worker, resources: observed.resources }, initialization: phase.initialization, command: randomUUID(), assignment });
       }
       if (launch.state.kind === "assigning") {
         const phase = launch.state;
         await revalidate();
         this.workspaceAuthority(request, epoch);
-        const application = await host.assign(phase);
+        let application: Awaited<ReturnType<TribunusHost["assign"]>>;
+        try {
+          if (reconcileAssignment) {
+            const action = (await readAction()).find(action => action.kind === "assign" && action.command === phase.command);
+            application = action?.kind === "assign" ? action.receipt : null;
+          } else application = await host.assign(phase);
+        } catch (error) {
+          if (!successor) throw error;
+          return hold("assignment-outcome-unknown", `Exact successor assignment application unresolved; no replay. ${String(error)}`);
+        }
         if (!application) return hold("assignment-outcome-unknown", "Assignment application is unknown. Preserve the same addressed command. Do not send another assignment.");
-        await this.authorized(request, epoch);
+        await authorize();
         await save({ ...phase, kind: "assigned", application: application.application });
       }
       if (launch.state.kind === "assigned") {
@@ -1375,6 +1696,7 @@ export class Legion {
         const identity = JSON.stringify({ principal, address: assigned.worker.address, command: assigned.command, owner: this.selected, generation: request.generation, epoch });
         if (this.settings && !this.contextAlerts.view()[principal]) this.contextAlerts.observe(principal, { identity, model: assigned.assignment.modelPin?.model ?? null, sample: { kind: "missing", tokens: null, contextWindow: assigned.worker.resources.principal?.contextWindow ?? null, sampledAt: Date.now(), reason: "Awaiting current addressed Tribunus context observation" } }, this.settings.context);
         const dispose = host.watchContext?.({ worker: assigned.worker, command: assigned.command }, async observation => {
+          if (!await this.ordinaryWatcherCurrent(launch.id)) return;
           const current = await this.ownedTaskAuthority(request, epoch);
           if (request.nativeDispatch) {
             const origin = this.appliedNativeAuthority(current.state, request.nativeDispatch, request.evidence.session, request.generation);
@@ -1390,6 +1712,7 @@ export class Legion {
           if (alert) this.options.onContextAlert?.(alert);
           this.options.onContextUpdate?.();
         }, (message, observation) => {
+          if (this.retiredLaunches.has(assigned.worker.address.launch)) return;
           try { this.workspaceAuthority(request, epoch); } catch { return; }
           const previous = this.contextAlerts.view()[principal];
           if (!previous || previous.identity !== identity || !this.settings) return;
@@ -1400,12 +1723,15 @@ export class Legion {
         if (dispose) this.contextWatchers.push(dispose);
         host.watchEffects?.({ worker: assigned.worker, command: assigned.command }, async message => EffectReply.parse(await this.submit(message)), message => this.options.tribuni?.onUnavailable?.(message));
         host.watchReports?.({ worker: assigned.worker, command: assigned.command }, async (report) => {
+          if (!await this.ordinaryWatcherCurrent(launch.id)) return;
           if (report.command !== assigned.command || JSON.stringify(report.address) !== JSON.stringify(assigned.worker.address) || launch.state.kind !== "assigned") return;
           launch = await ledger.updateLaunch(reservation, launch, { ...launch.state, kind: "reported", report: { outcome: report.outcome, assistantText: report.assistantText, evidence: report.evidence, contract: report.contract, engineering: report.engineering } }, () => true);
         }, async (message) => {
+          if (!await this.ordinaryWatcherCurrent(launch.id)) return;
           if (launch.state.kind !== "assigned") return;
           launch = await ledger.updateLaunch(reservation, launch, { kind: "held", last: launch.state, code: "report-evidence-unavailable", message: `Worker report evidence is unavailable. Preserve the applied assignment and receipt. ${message}` }, () => true);
         }, async observation => {
+          if (!await this.ordinaryWatcherCurrent(launch.id)) return;
           if (observation.command !== assigned.command || !isDeepStrictEqual(observation.address, assigned.worker.address)) return;
           const current = launch.state;
           if (current.kind !== "assigned" && current.kind !== "reported") return;
@@ -1414,7 +1740,7 @@ export class Legion {
       }
       return result();
     } catch (error) {
-      return { kind: "uncertain", requestKey: id, message: `Launch authority or effect evidence unavailable. Preserve all resources and the saved attempt. No fallback or retry. ${String(error)}` };
+      return { kind: "uncertain", requestKey: successor?.record.id ?? id, message: `Launch authority or effect evidence unavailable. Preserve all resources and the saved attempt. No fallback or retry. ${String(error)}` };
     } finally {
       if (entered) this.invocations--;
       if (this.stopRequested) await this.reconcileStop();
@@ -1475,7 +1801,7 @@ export class Legion {
             ...t,
             claim: claims.byTask.get(t.id) ?? claims.fallback,
             launch: launches.get(t.id) ?? { kind: "not-launched" },
-            tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
+            tribunusModel: this.assignmentModelIntent({ launch: launches.get(t.id), handoff: snapshot?.handoffs.find(record => record.pin.task.id === t.id) }),
             ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
             resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
             eligibility:
@@ -1600,12 +1926,12 @@ export class Legion {
     if (!input.success) return denied("Invalid bounded native workflow request.");
     const { text, requestKey, dispatch, session, generation } = input.data;
     const intent = commandIntent(text);
-    if (!["reserve", "reconcile", "workspace", "launch"].includes(intent.kind)) return denied("Native workflow may request only existing bounded reserve, reconcile, workspace or launch stages. No profile, publication or Emperor command authority.");
+    if (!["reserve", "reconcile", "workspace", "launch", "handoff", "continue-handoff"].includes(intent.kind)) return denied("Native workflow may request only existing bounded reserve, reconcile, workspace, launch or explicit handoff stages. No profile, publication or Emperor command authority.");
     try {
       const state = this.selected ? await this.store.read(this.selected) : null;
       if (!state) return denied("Native state unavailable.");
       const authority = this.nativeAuthority(state, dispatch, session, generation);
-      const taskId = intent.kind === "reserve" || intent.kind === "launch" ? intent.task.id : intent.kind === "reconcile" ? intent.task : intent.kind === "workspace" ? state.workspaceRequests.find(request => request.id === intent.id)?.intent.task : null;
+      const taskId = intent.kind === "reserve" || intent.kind === "launch" || intent.kind === "handoff" ? intent.task.id : intent.kind === "continue-handoff" ? state.handoffs.find(record => record.id === intent.id)?.pin.task.id : intent.kind === "reconcile" ? intent.task : intent.kind === "workspace" ? state.workspaceRequests.find(request => request.id === intent.id)?.intent.task : null;
       const id = typeof taskId === "string" ? taskId : taskId?.id;
       const task = state.tasks.find(task => task.id === id);
       if (!task || !state.submissions.some(source => source.id === task.scope.original && source.workflowDispatch && "root" in source.workflowDispatch && source.workflowDispatch.root.id === authority.dispatch.root.id))
@@ -1616,8 +1942,18 @@ export class Legion {
   }
   command(raw: unknown): Promise<CommandResult> {
 
+    const handoffExecution = z.strictObject({ handoffRequest: z.uuid() }).safeParse(raw);
+    if (handoffExecution.success) {
+      const id = handoffExecution.data.handoffRequest;
+      let run = this.handoffRuns.get(id);
+      if (!run) {
+        run = this.executeHandoff(id).finally(() => { this.handoffRuns.delete(id); });
+        this.handoffRuns.set(id, run);
+      }
+      return run.then(result => ({ ...result, disposition: "workspace" }));
+    }
     const launchExecution = z.object({ launchRequest: z.string().min(1) }).strict().safeParse(raw);
-    if (launchExecution.success) return this.executeLaunch(launchExecution.data.launchRequest).then((result) => ({ ...result, disposition: "workspace" }));
+    if (launchExecution.success) return this.executeLaunch({ id: launchExecution.data.launchRequest }).then((result) => ({ ...result, disposition: "workspace" }));
     const execution = z
       .object({ workspaceRequest: z.string().min(1) })
       .strict()
@@ -1649,6 +1985,8 @@ export class Legion {
       reconcile: "workspace",
       workspace: "workspace",
       launch: "workspace",
+      handoff: "workspace",
+      "continue-handoff": "workspace",
       "retired-research": "none",
       invalid: "none",
     } satisfies Record<CommandIntent["kind"], CommandResult["disposition"]>;
@@ -1668,7 +2006,7 @@ export class Legion {
       return Promise.resolve(
         reject(
           "usage",
-          "Use on, task <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, or launch <task-id>@<revision>. Use task to escape reserved arguments.",
+          "Use on, task <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>, handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string>, or handoff <handoff-id>. Use task to escape reserved arguments.",
         ),
       );
     if (
@@ -1696,6 +2034,8 @@ export class Legion {
       });
     }
     const epoch = this.epoch;
+    if (intent.kind === "handoff" || intent.kind === "continue-handoff")
+      return this.recordHandoff({ input, intent });
     if (intent.kind === "launch")
       return this.serialize(async () => {
         const contextHold = this.contextAssignmentHold();
@@ -1705,6 +2045,8 @@ export class Legion {
         if (view.mode !== "active") return reject("inactive", "Activate or explicitly resume Legion before launching work.");
         if (!view.snapshot) return reject("unavailable", "Intake records unavailable.");
         try {
+          if (view.snapshot.handoffs.some(record => record.pin.task.id === intent.task.id))
+            return reject("handoff-retired", "This task has a retained handoff. Continue its exact handoff ID; ordinary launch cannot revive or replace it.");
           const scope = this.approval(view.snapshot, intent.task);
           if (input.nativeDispatch) this.nativeAuthority(view.snapshot, input.nativeDispatch, input.evidence.session, input.evidence.generation ?? 0);
           if (input.evidence.generation !== null && input.evidence.generation !== this.binding?.generation) return reject("provenance", "Host launch association generation is stale.");
@@ -1785,7 +2127,7 @@ export class Legion {
                 eligibility: "inactive",
                 claim: claims.byTask.get(t.id) ?? claims.fallback,
                 launch: launches.get(t.id) ?? { kind: "not-launched" },
-                tribunusModel: this.assignmentModelIntent(launches.get(t.id)),
+                tribunusModel: this.assignmentModelIntent({ launch: launches.get(t.id), handoff: snapshot?.handoffs.find(record => record.pin.task.id === t.id) }),
                 ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
                 resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
               })) ?? [],
@@ -2163,9 +2505,9 @@ export class Legion {
         const reservation = task.claim.reservation;
         const repository = state.workspaceRequests.find(request => request.repositoryId === reservation.repository);
         if (!repository?.repository) throw new Error("Current read-only retirement observation unavailable.");
-        const launch = await new AssignmentLedger({ commonDir: repository.repository, owner: state.id, expectedRepository: repository.repositoryId, historyRequired: true }).readLaunch({ reservation: task.claim.reservation });
+        const launch = await new AssignmentLedger({ commonDir: repository.repository, owner: state.id, expectedRepository: repository.repositoryId, historyRequired: true }).readLaunch({ reservation: task.claim.reservation, known: this.currentLaunchId({ snapshot: state, task: task.id }) });
         if (!launch) throw new Error("Retained retirement launch history unavailable.");
-        const origin = state.launchRequests.find(request => request.attempt === launch.id);
+        const origin = this.launchOrigin({ snapshot: state, launch });
         if (!origin) throw new Error("Original retired launch authority/history unavailable.");
         const reader = this.options.resume?.worker({ owner: state.id, session: origin.evidence.session, generation: origin.generation, epoch: origin.epoch });
         if (!reader) throw new Error("Current read-only retirement observation unavailable.");
@@ -2230,6 +2572,7 @@ export class Legion {
       if (!state || !binding || this.uncertain) return reject("effect-controller", "Current effect controller is unavailable or uncertain. Preserve the same intent.");
       if (message.kind === "centurio-owner-check") {
         const pin = message.pin, task = view.tasks.find(task => task.id === pin.task.id), launch = task?.launch;
+        if (message.stage !== "read" && state.handoffs.some(record => record.pin.launch === pin.launch)) return reject("handoff-retired", "Predecessor handoff retirement denies child work.");
         const settlementRead = message.stage === "read" && !!state.shutdown && pin.generation === state.shutdown.generation && pin.epoch === state.shutdown.epoch;
         if ((!settlementRead && (view.mode !== "active" || epoch !== this.epoch || this.stopping)) || pin.owner !== state.id || pin.session !== this.options.session || pin.generation !== binding.generation || (!settlementRead && pin.epoch !== epoch))
           return reject("centurio-controller", "The child owner is no longer the current controller. No child work admitted.");
@@ -2260,6 +2603,7 @@ export class Legion {
         } catch (error) { return reject("effect-observation-unknown", `Retain the same effect observation for reconciliation. ${String(error)}`); }
       }
       const intent = message.intent, pin = intent.pin;
+      if (state.handoffs.some(record => record.pin.launch === pin.launch)) return reject("handoff-retired", "Predecessor retirement denies new ordinary effects.");
       const existing = state.effects.find(effect => effect.intent.id === intent.id || effect.intent.pin.workerSession === pin.workerSession && effect.intent.pin.workerGeneration === pin.workerGeneration && effect.intent.call.id === intent.call.id && (effect.intent.origin?.kind === "centurio" ? effect.intent.origin.session : null) === (intent.origin?.kind === "centurio" ? intent.origin.session : null));
       if (existing) return isDeepStrictEqual(existing.intent, intent) ? { kind: "effect", effect: existing } : reject("effect-conflict", "Call identity already belongs to a different retained intent. No retry.");
       if (intent.origin?.kind === "centurio") return reject("effect-child-retired", "Native child effects use assignment-level launch authority, not the retired per-call protocol. Retain legacy records without adoption.");

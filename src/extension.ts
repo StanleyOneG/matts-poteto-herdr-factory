@@ -76,7 +76,7 @@ const ShellReceipt = z.object({
   truncated: z.literal(false),
 });
 type WorkspaceRun = {
-  tool: "legion_workspace" | "legion_launch";
+  tool: "legion_workspace" | "legion_launch" | "legion_handoff";
   marker: string;
   requestId: string;
   session: string;
@@ -110,7 +110,7 @@ function compactContinuation(view: LegionView): string {
   })}`;
 }
 const nativeInstructions = `You are the Legatus following the explicitly Emperor-selected native Matt skill, not the intake-only interpreter. Ask necessary requirements, design and test-seam questions before AFK implementation. Let the skill own methodology and task-graph/frontier decisions; Tribuni are separate interactive exploration/implementer subagents, not ordinary native children. Native research, tools, permissions, Trust and child completion remain native.
-Record scoped tickets/tasks and material questions via legion_intake using the exact saved source references. An implement-spec source may scope multiple tickets, all within that Emperor source; new requirements, expanded access, financial commitments and irreversible actions require presented Emperor decisions. Followup answers are saved sources; do not manufacture provenance or infer workflow/profile selection. Use legion_request only for bounded reserve/reconcile/workspace/launch of admitted tasks; then execute the exact returned legion_workspace/legion_launch request identity. Never fabricate request IDs, change profile or bypass held/uncertain outcomes. Resolve uncertainty before any retry.
+Record scoped tickets/tasks and material questions via legion_intake using the exact saved source references. An implement-spec source may scope multiple tickets, all within that Emperor source; new requirements, expanded access, financial commitments and irreversible actions require presented Emperor decisions. Followup answers are saved sources; do not manufacture provenance or infer workflow/profile selection. Use legion_request only for bounded reserve/reconcile/workspace/launch/handoff of admitted tasks; then execute the exact returned legion_workspace/legion_launch request identity. Never fabricate request IDs, change profile or bypass held/uncertain outcomes. Resolve uncertainty before any retry.
 This skill entry grants no additional staging, commit, integration, publication, issue closure, deployment, main merge or cleanup authority. Follow the Emperor's separately granted task policy. Do not rewrite upstream skills or global settings.`;
 export default function (pi: ExtensionAPI) {
   if (process.env.PI_SUBAGENT_CHILD === "1") return;
@@ -212,12 +212,15 @@ export default function (pi: ExtensionAPI) {
       case "native-stage":
         report(ctx, `Native workflow ${result.dispatch.kind}. Source ${result.source.id}.`);
         break;
+      case "handoff-stage":
+        report(ctx, `${result.message}\nHandoff ${result.requestId}. Explicit continuation: /legion handoff ${result.requestId}`);
+        break;
       case "launch-stage":
       case "workspace-stage":
         report(ctx, result.message);
         break;
       case "rejected":
-        report(ctx, `Not saved. ${result.message}`, "error");
+        report(ctx, result.code === "handoff-held" ? result.message : `Not saved. ${result.message}`, "error");
         break;
       case "uncertain":
         report(
@@ -542,7 +545,7 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Enable durable intake and reservations. Arguments: on, task <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>",
+      "Enable durable intake and reservations. Arguments: on, task <text>, poteto-mode=on <instructions>, poteto-mode=off, implement-spec=on <instructions>, status [id], doctor, off, resume <id>, reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>], reconcile <task-id>, workspace <request-id>, launch <task-id>@<revision>, handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string>, handoff <handoff-id>",
     getArgumentCompletions: (prefix) =>
       [
         "on",
@@ -622,7 +625,7 @@ export default function (pi: ExtensionAPI) {
               "warning",
             );
         }
-        if (result.kind === "workspace-stage" || result.kind === "launch-stage") {
+        if (result.kind === "workspace-stage" || result.kind === "launch-stage" || result.kind === "handoff-stage") {
           if (
             workspaceRun ||
             run ||
@@ -651,7 +654,7 @@ export default function (pi: ExtensionAPI) {
           )
             return;
           const attempt = `${view.snapshot.generation}/${result.requestId}`;
-          if (workspaceAttempts.get(attempt) === "attempted") {
+          if (result.kind !== "handoff-stage" && workspaceAttempts.get(attempt) === "attempted") {
             report(
               ctx,
               "This workspace stage was already attempted. Inspect status and explicitly reserve or reconcile with a fresh request before another stage.",
@@ -662,7 +665,7 @@ export default function (pi: ExtensionAPI) {
           workspaceAttempts.set(attempt, "attempted");
           const pending: WorkspaceRun = {
             kind: "dispatch",
-            tool: result.kind === "launch-stage" ? "legion_launch" : "legion_workspace",
+            tool: result.kind === "handoff-stage" ? "legion_handoff" : result.kind === "launch-stage" ? "legion_launch" : "legion_workspace",
             marker: `Legion workspace dispatch ${randomUUID()}`,
             requestId: result.requestId,
             session: ctx.sessionManager.getSessionId(),
@@ -747,7 +750,7 @@ export default function (pi: ExtensionAPI) {
             return { action: "handled" };
           }
           check = await legion?.command({
-            text: pending.tool === "legion_launch" ? `launch ${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.id) ?? ""}@${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.revision) ?? 0}` : `workspace ${pending.requestId}`,
+            text: pending.tool === "legion_handoff" ? `handoff ${pending.requestId}` : pending.tool === "legion_launch" ? `launch ${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.id) ?? ""}@${((await legion?.state())?.snapshot?.launchRequests.find((r) => r.id === pending.requestId)?.task.revision) ?? 0}` : `workspace ${pending.requestId}`,
             requestKey: pending.requestId,
             evidence: evidence(ctx),
           });
@@ -756,7 +759,7 @@ export default function (pi: ExtensionAPI) {
           return { action: "handled" };
         }
         if (workspaceRun !== pending || pending.kind !== "dispatch") return { action: "handled" };
-        if ((check?.kind !== "workspace-stage" && check?.kind !== "launch-stage") || !binding || binding.session !== pending.session || binding.generation !== pending.generation) {
+        if ((check?.kind !== "workspace-stage" && check?.kind !== "launch-stage" && check?.kind !== "handoff-stage") || !binding || binding.session !== pending.session || binding.generation !== pending.generation) {
           retireWorkspace(pending, ctx, "held", "Workspace authority changed before start.");
           return { action: "handled" };
         }
@@ -890,7 +893,7 @@ export default function (pi: ExtensionAPI) {
       workspaceRun.session === ctx.sessionManager.getSessionId()
     ) {
       return {
-        systemPrompt: `${event.systemPrompt}\n\nExecute exactly one ${workspaceRun.tool} call with requestId ${JSON.stringify(workspaceRun.requestId)}. This is a bounded host-authorized workspace stage. Do not interpret intake, change its payload, execute other root tools, or retry. For legion_launch only the saved request authorizes a bounded launch through guarded effects. Report the returned English result.`,
+        systemPrompt: `${event.systemPrompt}\n\nExecute exactly one ${workspaceRun.tool} call with requestId ${JSON.stringify(workspaceRun.requestId)}. This is a bounded host-authorized workspace stage. Do not interpret intake, change its payload, execute other root tools, or retry. For legion_handoff observe the same saved request after uncertainty; never recreate it. For legion_launch only the saved request authorizes a bounded launch through guarded effects. Report the returned English result.`,
         message: {
           customType: "legion-workspace",
           display: false,
@@ -970,7 +973,7 @@ export default function (pi: ExtensionAPI) {
         repositories.getStore()
       )
         return;
-      if (nativeRun?.kind === "running" && !["legion_workspace", "legion_launch", "legion_request"].includes(event.toolName)) return;
+      if (nativeRun?.kind === "running" && !["legion_workspace", "legion_launch", "legion_handoff", "legion_request"].includes(event.toolName)) return;
       return {
         block: true,
         reason:
@@ -978,7 +981,7 @@ export default function (pi: ExtensionAPI) {
       };
     }
     if (event.toolName === "legion_request" && nativeRun?.kind !== "running") return { block: true, reason: "No applied selected native workflow turn is active." };
-    if (event.toolName === "legion_workspace" || event.toolName === "legion_launch")
+    if (event.toolName === "legion_workspace" || event.toolName === "legion_launch" || event.toolName === "legion_handoff")
       return {
         block: true,
         reason: "No correlated host-authorized workspace stage is active.",
@@ -1001,7 +1004,7 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerTool({
     name: "legion_request", label: "Legion workflow request", exposure: "model-only",
-    description: "Request an existing bounded reserve, reconcile, workspace or launch stage for an admitted task in the selected native workflow. Supply only the command, never Emperor provenance, workflow/profile or task payload. No publication authority.",
+    description: 'Request a bounded reserve, reconcile, workspace, launch or explicit handoff stage for an admitted task in the selected native workflow. Handoff usage: handoff <task-id>@<revision> --purpose "short purpose" --continue "successor continuation"; continue observations with handoff <handoff-id>. Supply only the command, never Emperor provenance, workflow/profile or task payload. No publication authority.',
     parameters: Type.Object({ command: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
     execute: async (toolCallId, raw, _signal, _update, ctx) => {
       const captured = nativeRun, current = legion;
@@ -1012,24 +1015,24 @@ export default function (pi: ExtensionAPI) {
       const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
       if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready")) throw new Error(modeHold ?? diagnostics.map(diagnostic => diagnostic.message).join(" "));
       if (nativeRequestCall) throw new Error("Another bounded workflow request is unsettled. Inspect its result before requesting another stage.");
-      if (/^\s*launch(?:\s|$)/.test(args.command)) await observeContext(ctx);
+      if (/^\s*(?:launch|handoff)(?:\s|$)/.test(args.command)) await observeContext(ctx);
       nativeRequestCall = toolCallId;
       try {
         const result = await current.nativeRequest({ text: args.command, requestKey: `${captured.id}/${toolCallId}`, dispatch: captured.id, session: captured.evidence.session, generation: captured.evidence.generation });
-        if (result.kind === "workspace-stage" || result.kind === "launch-stage") {
-          workspaceRun = { kind: "prepared", tool: result.kind === "launch-stage" ? "legion_launch" : "legion_workspace", marker: captured.id, requestId: result.requestId, session: captured.evidence.session, generation: captured.evidence.generation };
+        if (result.kind === "workspace-stage" || result.kind === "launch-stage" || result.kind === "handoff-stage") {
+          workspaceRun = { kind: "prepared", tool: result.kind === "handoff-stage" ? "legion_handoff" : result.kind === "launch-stage" ? "legion_launch" : "legion_workspace", marker: captured.id, requestId: result.requestId, session: captured.evidence.session, generation: captured.evidence.generation };
         }
         if (legion === current) await refresh(ctx);
         return { content: [{ type: "text", text: JSON.stringify(result) }], details: result, isError: result.kind === "rejected" || result.kind === "uncertain" };
       } finally { if (nativeRequestCall === toolCallId) nativeRequestCall = null; }
     },
   });
-  for (const tool of ["legion_workspace", "legion_launch"] as const) pi.registerTool({
+  for (const tool of ["legion_workspace", "legion_launch", "legion_handoff"] as const) pi.registerTool({
     name: tool,
-    label: tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
+    label: tool === "legion_handoff" ? "Legion handoff" : tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
     exposure: "model-only",
     description:
-      tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
+      tool === "legion_handoff" ? "Continue exactly one immutable Legatus handoff request: task-scoped safe-stop, actual settlement, unchanged native skill, exact temporary artifact and one pinned same-worktree successor. Uncertain effects are observed, never replayed." : tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
     parameters: Type.Object(
       { requestId: Type.String({ minLength: 1 }) },
       { additionalProperties: false },
@@ -1049,9 +1052,12 @@ export default function (pi: ExtensionAPI) {
         binding?.generation !== captured.generation
       )
         throw new Error("No current correlated workspace stage.");
-      if (tool === "legion_launch") await observeContext(ctx);
+      if (tool === "legion_launch" || tool === "legion_handoff") await observeContext(ctx);
       const guarded: ConstructorParameters<typeof GitWorkspace>[1] = async (command) => {
-        if (tool === "legion_launch") {
+        if (tool === "legion_handoff") {
+          const checked = await current.command({ text: `handoff ${args.requestId}`, requestKey: args.requestId, evidence: evidence(ctx) });
+          if (checked.kind !== "handoff-stage") throw new Error("Exact handoff authority revoked; no external invocation.");
+        } else if (tool === "legion_launch") {
           const request = (await current.state()).snapshot?.launchRequests.find((r) => r.id === args.requestId);
           const checked = await current.command({ text: `launch ${request?.task.id ?? ""}@${request?.task.revision ?? 0}`, requestKey: args.requestId, evidence: evidence(ctx) });
           if (checked.kind !== "launch-stage") throw new Error("Guarded effect authority was revoked or changed. No external invocation.");
@@ -1076,9 +1082,9 @@ export default function (pi: ExtensionAPI) {
       try {
         const view = await current.state();
         const request = view.snapshot?.launchRequests.find((r) => r.id === args.requestId);
-        const host = new LocalTribunusHost(guarded, { owner: binding.legatus, session: captured.session, generation: captured.generation, epoch: request?.epoch ?? 0 }, (message) => report(ctx, message, "error"));
+        const host = new LocalTribunusHost(guarded, { owner: binding.legatus, session: captured.session, generation: captured.generation, epoch: tool === "legion_handoff" ? view.snapshot?.handoffs.find(record => record.id === args.requestId)?.pin.epoch ?? 0 : request?.epoch ?? 0 }, (message) => report(ctx, message, "error"));
         const result = await repositories.run(git, () => hosts.run(host, () =>
-          current.command(tool === "legion_launch" ? { launchRequest: args.requestId } : { workspaceRequest: args.requestId }),
+          current.command(tool === "legion_handoff" ? { handoffRequest: args.requestId } : tool === "legion_launch" ? { launchRequest: args.requestId } : { workspaceRequest: args.requestId }),
         ));
         notifyResult(ctx, result);
         if (legion === current) await refresh(ctx);
