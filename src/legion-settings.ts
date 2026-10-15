@@ -1,8 +1,23 @@
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
+
+const DeliverySelection = z.strictObject({ configurationFile: z.string().min(1) });
+/** Delivery is checkout-only and independent of task/model settings; errors hold delivery alone. */
+export function loadDeliverySelection({ checkoutPath }: { checkoutPath: string }): string | null {
+  const file = join(checkoutPath, ".pi", "legion-delivery.json");
+  let text: string;
+  try { text = readFileSync(file, "utf8"); }
+  catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+    throw new Error(`${file}: delivery selection unavailable. ${String(error)}`);
+  }
+  try { return DeliverySelection.parse(JSON.parse(text)).configurationFile; }
+  catch (error) { throw new Error(`${file}: invalid delivery selection; expected {configurationFile: "checkout-local path"}. ${String(error)}`); }
+}
 
 export const ThinkingSchema = z.enum(
   ["off", "minimal", "low", "medium", "high", "xhigh", "max"] satisfies ModelThinkingLevel[],

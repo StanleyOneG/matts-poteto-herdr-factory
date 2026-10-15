@@ -88,7 +88,23 @@ A reported worker result is **not accepted**. In the current selected native Leg
 4. `prepare-integration`: `{kind: "prepare-integration", result, id}` saves an operation UUID without Git effects. Separately call `legion_integrate({requestId: id})` with that exact prepared UUID. It uses ordinary nested Bash permissions; review and preparation are not a permission grant. If the turn settles first, explicitly prepare the same pending ID in a current native Legatus turn rather than inventing a replacement operation.
 5. `reconcile-integration`: `{kind: "reconcile-integration", id}` observes actual Git evidence read-only. Failed/unknown effects stay unaccepted; never retry a merge to recover a lost acknowledgment. Status/doctor remain passive and do not reconcile.
 
-The owning checkout must be clean and on the intended non-primary task parent branch. Integration is fast-forward-only into that checkout, serialized within the owning run. Divergent/conflicting or materially changed work is held: separately authorize source resolution, produce a new clean commit, then capture/check/review the new identity. There is no reset/force, automatic conflict resolution, resource adoption, scope refresh, cross-run scheduler, main merge, push/PR, tracker closure or deployment grant. Acceptance requires confirmed exact parent integration, not command exit zero alone. Spec-wide final review and cleanup remain separate work.
+The owning checkout must be clean and on the intended non-primary task parent branch. Integration is fast-forward-only into that checkout, serialized within the owning run. Divergent/conflicting or materially changed work is held: separately authorize source resolution, produce a new clean commit, then capture/check/review the new identity. There is no reset/force, automatic conflict resolution, resource adoption, scope refresh, cross-run scheduler, main merge, push/PR, tracker closure or deployment grant. Acceptance requires confirmed exact parent integration, not command exit zero alone. Spec-wide final review and delivery use the separate #39 controls below; cleanup remains separate work.
+
+## Final review and delivery (#39)
+
+Delivery now has separate native `legion_delivery({action})` preparation/evidence controls and an exact `legion_deliver({requestId})` execution stage using ordinary permission-controlled nested Bash. Direct tasks need no ticket. Dependents require an accepted integrated #38 result, never a tracker closed flag or prose. Ticket closure carries full linked accepted evidence and needs separate external authority; it need not wait for main merge.
+
+The Legatus owns the graph/frontier and explicitly declares final spec scope. Draft publication can follow the first accepted integration; ready/local-report requires all declared tasks accepted, final checks and independent interactions review. Unchanged standalone review is reused. Changed scope/content/checks require relevant rechecks/review. Existing #37 holds remain effective; unrelated approved work may continue.
+
+The operator explicitly selects checkout-local configuration in `.pi/legion-delivery.json` with `{ "configurationFile": "checkout-local path" }`. There is no default platform, remote inference or global selector. Missing/invalid configuration holds delivery alone. Both local-only verified branch/report and generic fixed-executable remote capabilities are supported; no universal production `gh` implementation is supplied. See [delivery configuration, tools and trusted read-only provider protocol](docs/delivery.md) before configuring a provider. No real checkout is configured automatically.
+
+Unknown closure/publication reconciles read-only, never blind retries or repeated integration:
+
+```text
+/legion delivery observe <run-id> <operation-id>
+```
+
+The exact retained controller may observe after off/restart without activation, worker revival or renewed authority. Status/doctor remain passive. Delivery does not resolve conflicts, merge main, deploy or automate #40 cleanup. Controlled boundary tests are not installed-platform or #41 journey evidence; integrated validation and independent review remain separate acceptance gates.
 
 ## Safe stopping (#34)
 

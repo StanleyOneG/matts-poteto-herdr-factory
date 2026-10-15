@@ -1,3 +1,4 @@
+import { FinalRecord, FinalIdentity, FinalObservation, finalReviewStatus, DeliveryContent, type FinalReviewStatus, DeliveryControl, DeliveryExecution, DeliveryObservation, DeliveryRecord, DeliveryIntent, DeliveryOutcome, DeliveryConfiguration, deliveryDigest, deliveryOutcomeMatches, unresolvedDelivery, type DeliveryAdapter, type AcceptedResultProof } from "./delivery-domain.js";
 import { ContextAlerts, ContextSample, type ContextAlert, type ContextObservation } from "./context-alerts.js";
 import { isDeepStrictEqual } from "node:util";
 import { checkoutIdentity } from "./checkout-identity.js";
@@ -201,6 +202,8 @@ export type OperationResult =
   | { kind: "workspace-stage"; requestId: string; message: string }
   | { kind: "correction-stage"; correction: z.infer<typeof CorrectionId>; state: CorrectionRecord["state"]; message: string }
   | { kind: "result-stage"; result: ResultRecord; status: ResultStatus; message: string }
+  | { kind: "final-delivery-stage"; final: FinalRecord; review: FinalReviewStatus; message: string }
+  | { kind: "delivery-stage"; delivery: DeliveryRecord; message: string }
   | { kind: "integration-stage"; integration: IntegrationRecord; status: ResultStatus; message: string }
   | { kind: "handoff-stage"; requestId: string; message: string }
   | { kind: "launch-stage"; requestId: string; message: string }
@@ -342,6 +345,7 @@ function resultEffectHold({ snapshot, taskId }: { snapshot: LegatusSnapshot; tas
 function hasUnsettledWork(snapshot: LegatusSnapshot | null, launches: Map<string, LaunchView>) {
   const shutdown = snapshot?.shutdown;
   return hasLegacyResearchHold(snapshot) || !!snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown") ||
+    !!snapshot?.deliveries.some(unresolvedDelivery) ||
     !!snapshot?.integrations.some(unresolvedIntegration) ||
     !!shutdown && (shutdown.workers.some(worker => worker.state.kind !== "parked") ||
       [...launches.values()].some(launch => {
@@ -366,6 +370,7 @@ export type LegionOptions = {
     repository: (commonDir: string) => Pick<GitWorkspace, "observeResources"> | null;
     worker: (authority: z.infer<typeof WorkerStop>["authority"]) => ResumeResourceReader | null;
   };
+  delivery?: { adapter: () => DeliveryAdapter | null };
   results?: { repository: (commonDir: string) => ResultRepository | null };
   assignments?: {
     workspaceRoot?: string;
@@ -1992,6 +1997,8 @@ export class Legion {
   }
   command(raw: unknown): Promise<CommandResult> {
 
+    const deliveryExecution = DeliveryExecution.safeParse(raw);
+    if (deliveryExecution.success) return this.executeDelivery({ id: deliveryExecution.data.deliveryRequest }).then(result => ({ ...result, disposition: "workspace" }));
     const integrationExecution = z.strictObject({ integrationRequest: z.uuid() }).safeParse(raw);
     if (integrationExecution.success) return this.executeIntegration({ id: integrationExecution.data.integrationRequest }).then(result => ({ ...result, disposition: "workspace" }));
     const handoffExecution = z.strictObject({ handoffRequest: z.uuid() }).safeParse(raw);
@@ -3089,7 +3096,251 @@ export class Legion {
       } catch (error) { return reject("result-authority", String(error)); }
     });
   }
+  private acceptedDeliveryProof({ snapshot, task }: { snapshot: LegatusSnapshot; task: LegatusSnapshot["tasks"][number] }): AcceptedResultProof {
+    if (this.taskResultStatus({ snapshot, task }).kind !== "accepted") throw new Error("Only the current #38 accepted result authorizes closure/delivery; tracker state and prose never accept work.");
+    const record = snapshot.results.find(record => record.id === task.result?.id && record.digest === task.result.digest);
+    const integration = [...snapshot.integrations].reverse().find(operation => operation.intent.result.id === record?.id && operation.intent.result.digest === record.digest && operation.state.kind === "confirmed" && operation.intent.verificationDigest === record.verifications.at(-1)?.digest && operation.intent.review.id === currentReview(record)?.id);
+    if (!record || !integration) throw new Error("Exact accepted integration proof unavailable.");
+    return { record, integration };
+  }
+  private deliveryContent(intent: DeliveryIntent) {
+    const { id: _id, digest: _digest, configuration: _configuration, controller: _controller, ...content } = intent;
+    return DeliveryContent.parse(content);
+  }
+  private assertDeliveryAttempt({ prior, previous }: { prior: DeliveryRecord | undefined; previous: string | undefined }) {
+    if (prior ? prior.state.kind !== "failed" || !prior.state.noEffect || previous !== prior.intent.id : previous !== undefined)
+      throw new Error("A new explicit attempt must link its latest proven no-effect predecessor. Uncertain or confirmed effects cannot repeat.");
+  }
+  private deliveryResult(delivery: DeliveryRecord): OperationResult {
+    return { kind: "delivery-stage", delivery, message: delivery.state.kind === "confirmed" ? "Delivery confirmed. This grants no integration, main-merge or deployment authority." : "Delivery not confirmed; preserve exact operation and reconcile uncertainty read-only." };
+  }
+  private deliveryAdapter(configuration?: z.infer<typeof DeliveryConfiguration>): DeliveryAdapter {
+    const adapter = this.options.delivery?.adapter();
+    if (!adapter || configuration && !isDeepStrictEqual(DeliveryConfiguration.parse(adapter.configuration), configuration)) throw new Error("Exact explicitly configured delivery adapter unavailable or changed.");
+    DeliveryConfiguration.parse(adapter.configuration);
+    return adapter;
+  }
+  private currentFinalResults({ snapshot, scope }: { snapshot: LegatusSnapshot; scope: Array<{ id: string; revision: number }> }) {
+    const tasks = scope.map(ref => {
+      const task = snapshot.tasks.find(task => task.id === ref.id && task.history.at(-1)?.revision === ref.revision);
+      if (!task) throw new Error("Exact current declared delivery task revision required.");
+      return task;
+    });
+    return tasks.sort((a, b) => a.id.localeCompare(b.id)).filter(task => this.taskResultStatus({ snapshot, task }).kind === "accepted").map(task => this.acceptedDeliveryProof({ snapshot, task }));
+  }
+  private finalResult(final: FinalRecord): OperationResult {
+    return { kind: "final-delivery-stage", final, review: finalReviewStatus(final), message: "Final evidence binds exact accepted result set and branch commit/tree. Publication is separate from integration." };
+  }
+  private async assertFinalCurrent({ snapshot, final, adapter }: { snapshot: LegatusSnapshot; final: FinalRecord; adapter: DeliveryAdapter }) {
+    const head = snapshot.finalDeliveryHeads.find(head => head.specification === final.identity.specification);
+    if (head?.final.id !== final.id || head.final.digest !== final.digest) throw new Error("Final scope/candidate was superseded; old review cannot authorize changed membership.");
+    if (!isDeepStrictEqual(this.currentFinalResults({ snapshot, scope: final.identity.tasks }), final.identity.results)) throw new Error("Final accepted result set or task scope changed. Recapture, recheck and review the new identity.");
+    const observed = FinalObservation.parse(await adapter.observeFinal?.({ workspace: final.identity.workspace, results: final.identity.results }));
+    if (observed.kind !== "clean" || observed.commit !== final.identity.commit || observed.tree !== final.identity.tree) throw new Error("Final branch tip/tree changed or is not clean/identified. Recapture and recheck/review; never reuse stale proof.");
+  }
+  private async assertDeliveryProof({ snapshot, intent, adapter }: { snapshot: LegatusSnapshot; intent: DeliveryIntent; adapter: DeliveryAdapter }) {
+    if (intent.kind === "close-task") {
+      const task = snapshot.tasks.find(task => task.id === intent.task.id && task.history.at(-1)?.revision === intent.task.revision);
+      if (!task || !isDeepStrictEqual(task.tracker, intent.tracker) || !isDeepStrictEqual(this.acceptedDeliveryProof({ snapshot, task }), intent.proof)) throw new Error("Task binding or exact accepted proof changed; no stale closure.");
+    } else {
+      const final = snapshot.finalDeliveries.find(record => record.id === intent.final.id && record.digest === intent.final.digest);
+      if (!final || !isDeepStrictEqual(final, intent.final) || !isDeepStrictEqual(finalReviewStatus(final), intent.review)) throw new Error("Exact final evidence/review changed.");
+      await this.assertFinalCurrent({ snapshot, final, adapter });
+      if (intent.publication.kind !== "draft" && finalReviewStatus(final).kind === "review-required") throw new Error("Final acceptance requires all tasks accepted, relevant checks and exact independent interactions review.");
+      if (intent.publication.kind === "ready") this.confirmedDraft({ snapshot, id: intent.publication.draft, final, reference: intent.publication.reference });
+    }
+  }
+  private confirmedDraft({ snapshot, id, final, reference }: { snapshot: LegatusSnapshot; id: string; final: FinalRecord; reference?: string | undefined }): string {
+    const draft = snapshot.deliveries.find(record => record.intent.id === id);
+    if (!draft || draft.intent.kind !== "publish" || draft.intent.publication.kind !== "draft" || draft.state.kind !== "confirmed" ||
+        draft.intent.final.identity.specification !== final.identity.specification || !isDeepStrictEqual(draft.intent.final.identity.workspace, final.identity.workspace) || reference && reference !== draft.state.reference)
+      throw new Error("Exact confirmed draft for this specification/branch required before ready.");
+    return draft.state.reference;
+  }
+  private controlDelivery(input: z.infer<typeof DeliveryControl>): Promise<OperationResult> {
+    if (input.action.kind === "reconcile") {
+      if (this.binding && input.evidence.generation !== this.binding.generation) return Promise.resolve(reject("delivery-authority", "Current controller generation required for tool reconciliation."));
+      return this.observeDelivery({ run: input.evidence.legatus, operation: input.action.id, session: input.evidence.session });
+    }
+    const action = input.action;
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const binding = this.binding;
+      if (!binding || !this.selected || this.stopping || this.stopRequested || epoch !== this.epoch ||
+          input.evidence.session !== this.options.session || input.evidence.generation !== binding.generation || input.evidence.legatus !== this.selected)
+        return reject("delivery-authority", "Exact current controller authority is required.");
+      const snapshot = await this.store.read(this.selected);
+      if (!snapshot) return reject("unavailable", "Delivery state unavailable.");
+      try {
+        let operation: DeliveryRecord | undefined;
+        let final: FinalRecord | undefined;
+        const controller = { owner: snapshot.id, session: this.options.session, generation: binding.generation, epoch };
+        if (action.kind === "bind-tracker" || action.kind === "prepare-closure") {
+          const task = snapshot.tasks.find(task => task.id === action.task.id && task.history.at(-1)?.revision === action.task.revision);
+          if (!task) return reject("delivery-task", "Exact current task revision required.");
+          if (action.kind === "bind-tracker") {
+            if (task.tracker && !isDeepStrictEqual(task.tracker, action.tracker)) return reject("delivery-binding", "Tracker identity is immutable.");
+            if (snapshot.tasks.some(other => other.id !== task.id && other.tracker?.provider === action.tracker.provider && other.tracker.project === action.tracker.project && other.tracker.id === action.tracker.id)) return reject("delivery-binding", "Tracker item already binds another task.");
+            task.tracker = action.tracker;
+          } else {
+            const prior = snapshot.deliveries.find(record => record.intent.id === action.id);
+            if (prior) {
+              if (prior.intent.kind !== "close-task" || !isDeepStrictEqual(prior.intent.task, action.task)) return reject("delivery-conflict", "Operation IDs cannot be retargeted.");
+              return this.deliveryResult(prior);
+            }
+            if (!task.tracker) throw new Error("Direct task has no tracker to close.");
+            const adapter = this.deliveryAdapter();
+            if (adapter.configuration.provider !== task.tracker.provider || adapter.configuration.project !== task.tracker.project) throw new Error("Configured adapter does not own this tracker item.");
+            if (snapshot.deliveries.some(record => record.intent.kind === "close-task" && record.intent.task.id === task.id && (unresolvedDelivery(record) || record.state.kind === "confirmed"))) throw new Error("Original closure is unresolved or already confirmed. Reconcile it; never repeat.");
+            this.assertDeliveryAttempt({ prior: [...snapshot.deliveries].reverse().find(record => record.intent.kind === "close-task" && record.intent.task.id === task.id), previous: action.previous });
+            const content = DeliveryContent.parse({ ...(action.previous ? { previous: action.previous } : {}), kind: "close-task", task: action.task, tracker: task.tracker, proof: this.acceptedDeliveryProof({ snapshot, task }) });
+            const configuration = DeliveryConfiguration.parse(adapter.configuration);
+            operation = DeliveryRecord.parse({ intent: { ...content, id: action.id, digest: deliveryDigest({ content, configuration }), configuration, controller }, state: { kind: "pending" } });
+            snapshot.deliveries.push(operation);
+          }
+        } else if (action.kind === "capture-final") {
+          const tasks = [...action.tasks].sort((a, b) => a.id.localeCompare(b.id));
+          const proofs = this.currentFinalResults({ snapshot, scope: tasks }), first = proofs[0];
+          if (!first) throw new Error("At least one accepted result is required even for a draft.");
+          const source = first.record.identity.workspace;
+          if (!source.parentPath || source.parentPath !== checkoutIdentity(this.options.context) || proofs.some(proof => proof.record.identity.workspace.repository !== source.repository || proof.record.identity.workspace.parentPath !== source.parentPath || proof.record.identity.parent.ref !== source.parent)) throw new Error("All accepted results must identify the same owning parent branch/checkout.");
+          const workspace = { repository: source.repository, path: source.parentPath, branch: source.parent };
+          const adapter = this.deliveryAdapter(), observed = FinalObservation.parse(await adapter.observeFinal?.({ workspace, results: proofs }));
+          if (observed.kind !== "clean") throw new Error("Final branch must be exactly observed and clean.");
+          const identity = FinalIdentity.parse({ specification: action.specification, workspace, commit: observed.commit, tree: observed.tree, results: proofs,
+            tasks, requiredChecks: action.requiredChecks });
+          const digest = deliveryDigest(identity);
+          final = snapshot.finalDeliveries.find(record => record.digest === digest);
+          if (!final) { final = FinalRecord.parse({ id: randomUUID(), digest, identity, evidence: observed.evidence }); snapshot.finalDeliveries.push(final); }
+          snapshot.finalDeliveryHeads = snapshot.finalDeliveryHeads.filter(head => head.specification !== action.specification);
+          snapshot.finalDeliveryHeads.push({ specification: action.specification, final: { id: final.id, digest: final.digest } });
+        } else {
+          const ref = action.kind === "review-final" ? action.result : action.final;
+          final = snapshot.finalDeliveries.find(record => record.id === ref.id && record.digest === ref.digest);
+          if (!final) throw new Error("Exact captured final identity required.");
+          const adapter = this.deliveryAdapter();
+          await this.assertFinalCurrent({ snapshot, final, adapter });
+          if (action.kind === "verify-final" || action.kind === "review-final") {
+            if (snapshot.deliveries.some(record => record.intent.kind === "publish" && record.intent.final.id === final?.id && unresolvedDelivery(record))) throw new Error("Final publication unresolved. Preserve evidence and reconcile first.");
+            if (action.kind === "verify-final") {
+              const requiredChecks = final.identity.requiredChecks;
+              if (action.verification.checks.some(check => !requiredChecks.includes(check.name))) throw new Error("Final checks must name required checks.");
+              const digest = deliveryDigest({ final: ref, verification: action.verification });
+              if (final.verifications.at(-1)?.digest !== digest) final.verifications.push({ digest, verification: action.verification });
+            } else {
+              const verification = final.verifications.at(-1);
+              if (!verification || action.verificationDigest !== verification.digest || verification.verification.checks.length !== final.identity.requiredChecks.length || !final.identity.requiredChecks.every(name => verification.verification.checks.some(check => check.name === name && check.outcome === "passed")) || verification.verification.exceptions.some(exception => exception.resolution.kind !== "resolved")) throw new Error("Current passing final checks and resolved exceptions are required.");
+              if (action.reviewer.session === input.evidence.session || final.identity.results.some(proof => proof.record.identity.assignment.executor.session === action.reviewer.session)) throw new Error("Final interactions review must be independent of coordinator and executors.");
+              const { kind: _kind, ...review } = action;
+              const prior = final.reviews.find(saved => saved.id === review.id);
+              if (prior && !isDeepStrictEqual(prior, review)) throw new Error("Final review IDs are immutable.");
+              if (!prior) final.reviews.push(review);
+            }
+          } else {
+            const review = finalReviewStatus(final);
+            if (action.publication.kind !== "draft" && review.kind === "review-required") throw new Error("All tasks must be accepted and exact final checks/independent interactions review are required.");
+            const configuration = DeliveryConfiguration.parse(adapter.configuration);
+            const draftReference = action.publication.kind === "ready" ? this.confirmedDraft({ snapshot, id: action.publication.draft, final }) : undefined;
+            if (action.publication.kind === "ready") {
+              const draftId = action.publication.draft;
+              const draft = snapshot.deliveries.find(record => record.intent.id === draftId);
+              if (!draft || !isDeepStrictEqual(draft.intent.configuration, configuration)) throw new Error("Draft configuration changed.");
+            }
+            const content = DeliveryContent.parse({ ...(action.previous ? { previous: action.previous } : {}), kind: "publish", final, review, publication: { ...action.publication, ...(draftReference ? { reference: draftReference } : {}) } });
+            const prior = snapshot.deliveries.find(record => record.intent.id === action.id);
+            if (prior) {
+              if (!isDeepStrictEqual(this.deliveryContent(prior.intent), content)) throw new Error("Operation IDs cannot be retargeted.");
+              return this.deliveryResult(prior);
+            }
+            if (snapshot.deliveries.some(record => record.intent.kind === "publish" && record.intent.final.identity.specification === final?.identity.specification && (unresolvedDelivery(record) || record.state.kind === "confirmed" && record.intent.publication.kind === action.publication.kind))) throw new Error("Publication unresolved or this stage already confirmed. Never create duplicates.");
+            this.assertDeliveryAttempt({ prior: [...snapshot.deliveries].reverse().find(record => record.intent.kind === "publish" && record.intent.final.identity.specification === final?.identity.specification && record.intent.publication.kind === action.publication.kind), previous: action.previous });
+            operation = DeliveryRecord.parse({ intent: { ...content, id: action.id, digest: deliveryDigest({ content, configuration }), configuration, controller }, state: { kind: "pending" } });
+            snapshot.deliveries.push(operation);
+          }
+        }
+        const revision = snapshot.revision++;
+        try { await this.store.save(snapshot, revision, () => binding === this.binding && !this.stopping && epoch === this.epoch); }
+        catch (error) {
+          this.revoke();
+          return { kind: "uncertain", requestKey: operation?.intent.id ?? final?.id ?? input.evidence.run, message: `Delivery preparation/evidence publication uncertain. Read retained state and reconcile without execution revival. ${String(error)}` };
+        }
+        return operation ? this.deliveryResult(operation) : final ? this.finalResult(final) : { kind: "observed", view: await this.state() };
+      } catch (error) { return reject("delivery-held", String(error)); }
+    });
+  }
+  private executeDelivery({ id }: { id: string }): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const binding = this.binding;
+      if (!binding || !this.selected || this.stopping || this.stopRequested || epoch !== this.epoch) return reject("delivery-authority", "Current delivery stage authority required.");
+      const snapshot = await this.store.read(this.selected), operation = snapshot?.deliveries.find(record => record.intent.id === id);
+      if (!snapshot || !operation) return reject("delivery-missing", "Exact prepared delivery operation required.");
+      if (operation.state.kind !== "pending") return this.deliveryResult(operation);
+      const intent = operation.intent;
+      const assertAuthority = async () => {
+        if (binding !== this.binding || this.stopping || this.stopRequested || epoch !== this.epoch || intent.controller.owner !== snapshot.id || intent.controller.session !== this.options.session || intent.controller.generation !== binding.generation || intent.controller.epoch !== epoch) throw new Error("Delivery stage authority revoked or retained for observation only.");
+        this.deliveryAdapter(intent.configuration);
+        const current = await this.store.read(snapshot.id), saved = current?.deliveries.find(record => record.intent.id === id);
+        if (!current || !saved || !isDeepStrictEqual(saved.intent, intent) || !(saved.state.kind === "pending" || saved.state.kind === "dispatched")) throw new Error("Exact durable delivery stage unavailable.");
+        await this.assertDeliveryProof({ snapshot: current, intent, adapter: this.deliveryAdapter(intent.configuration) });
+        if (binding !== this.binding || this.stopping || this.stopRequested || epoch !== this.epoch) throw new Error("Authority changed during final observation.");
+      };
+      this.invocations++;
+      try {
+        await assertAuthority();
+        const adapter = this.deliveryAdapter(intent.configuration);
+        operation.state = { kind: "dispatched" };
+        let revision = snapshot.revision++;
+        await this.store.save(snapshot, revision, () => binding === this.binding && !this.stopping && epoch === this.epoch);
+        try {
+          const outcome = DeliveryOutcome.parse(await adapter.execute({ intent: DeliveryIntent.parse(intent), assertAuthority }));
+          if (!deliveryOutcomeMatches({ intent, outcome })) throw new Error("Outcome does not identify the exact operation/proof/configuration.");
+          operation.state = outcome;
+        } catch (error) { operation.state = this.unknownDelivery({ intent, error }); }
+        revision = snapshot.revision++;
+        await this.store.save(snapshot, revision, () => binding === this.binding && epoch === this.epoch);
+        return this.deliveryResult(operation);
+      } catch (error) { return { kind: "uncertain", requestKey: id, message: `Delivery held; observe durable stage without replay. ${String(error)}` }; }
+      finally { this.invocations--; if (this.stopRequested) await this.reconcileStop(); else if (this.stopping && !this.invocations) this.revoke(); }
+    });
+  }
+  private unknownDelivery({ intent, error }: { intent: DeliveryIntent; error: unknown }): DeliveryOutcome {
+    return { kind: "unknown", operation: intent.id, digest: intent.digest, evidence: ["exact-delivery-receipt-unavailable"], message: String(error) };
+  }
+  /** Read-only after stopping/restart; never renews generation, attachment or execution authority. */
+  observeDelivery(raw: z.infer<typeof DeliveryObservation>): Promise<OperationResult> {
+    const parsed = DeliveryObservation.safeParse(raw);
+    if (!parsed.success || parsed.data.session !== this.options.session) return Promise.resolve(reject("delivery-authority", "Exact retained controller session required."));
+    const { run, operation, session } = parsed.data;
+    return this.serialize(async () => {
+      const binding = this.binding, epoch = this.epoch;
+      let association: DatabaseSync | null = null, lock: DatabaseSync | null = null;
+      const owned = () => binding === this.binding && epoch === this.epoch;
+      try {
+        if (binding && this.selected !== run) throw new Error("Another run owns this checkout.");
+        if (!binding) { association = await this.store.acquireAssociation({ context: this.options.context, resume: LegatusId.parse(run) }); lock = await this.store.acquire(LegatusId.parse(run)); }
+        const snapshot = await this.store.read(LegatusId.parse(run));
+        const record = snapshot?.deliveries.find(record => record.intent.id === operation), attachment = snapshot?.attachments.at(-1);
+        if (!snapshot || snapshot.context !== this.options.context || !record || record.intent.controller.owner !== run || record.intent.controller.session !== session || record.intent.controller.generation !== snapshot.generation || attachment?.session !== session || attachment.generation !== snapshot.generation || binding && binding.generation !== snapshot.generation || !owned()) throw new Error("Exact retained controller/run/context association required; no adoption.");
+        if (!unresolvedDelivery(record)) return this.deliveryResult(record);
+        const adapter = this.deliveryAdapter(record.intent.configuration);
+        try {
+          const outcome = DeliveryOutcome.parse(await adapter.reconcile({ intent: DeliveryIntent.parse(record.intent) }));
+          if (!deliveryOutcomeMatches({ intent: record.intent, outcome })) throw new Error("Reconciliation proof identifies another operation.");
+          record.state = outcome;
+        } catch (error) { record.state = this.unknownDelivery({ intent: record.intent, error }); }
+        const revision = snapshot.revision++;
+        try { await this.store.save(snapshot, revision, owned); }
+        catch (error) { return { kind: "uncertain", requestKey: operation, message: `Read-only reconciliation publication uncertain; never replay. ${String(error)}` }; }
+        if (this.stopRequested) await this.finishStop();
+        return this.deliveryResult(record);
+      } catch (error) { return reject("delivery-observation", `Read-only reconciliation held; preserve original operation. ${String(error)}`); }
+      finally { try { if (lock) release(lock); } finally { if (association) release(association); } }
+    });
+  }
   submit(raw: unknown): Promise<OperationResult> {
+    const delivery = DeliveryControl.safeParse(raw);
+    if (delivery.success) return this.controlDelivery(delivery.data);
     const result = ResultControl.safeParse(raw);
     if (result.success) return this.controlResult(result.data);
     const correction = CorrectionAction.safeParse(raw);

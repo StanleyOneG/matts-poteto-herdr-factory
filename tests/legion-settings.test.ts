@@ -3,7 +3,7 @@ import { test, type TestContext } from "node:test";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadLegionSettings, selectTribunusModel, type AssignmentModelPin } from "../src/legion-settings.js";
+import { loadDeliverySelection, loadLegionSettings, selectTribunusModel, type AssignmentModelPin } from "../src/legion-settings.js";
 
 async function checkout(t: TestContext) {
   const root = await mkdtemp(join(tmpdir(), "legion-settings-"));
@@ -214,3 +214,17 @@ for (const [value, field] of [
     });
   });
 }
+
+test("delivery selection is explicit checkout-only data and invalid selection does not poison task settings", async t => {
+  const paths = await checkout(t);
+  const selector = join(paths.checkoutPath, ".pi", "legion-delivery.json");
+  await writeFile(join(paths.homePath, ".pi", "agent", "legion", "legion-delivery.json"), JSON.stringify({ configurationFile: "global-provider.json" }));
+  assert.equal(loadDeliverySelection({ checkoutPath: paths.checkoutPath }), null, "No global or platform default");
+  await writeFile(selector, JSON.stringify({ configurationFile: ".git/provider.json" }));
+  assert.equal(loadDeliverySelection({ checkoutPath: paths.checkoutPath }), ".git/provider.json");
+  for (const value of ["not json", "null", JSON.stringify({ configurationFile: "" }), JSON.stringify({ configurationFile: ".git/provider.json", executable: "/model/command" })]) {
+    await writeFile(selector, value);
+    assert.throws(() => loadDeliverySelection({ checkoutPath: paths.checkoutPath }), /invalid delivery selection/);
+    assert.equal((await loadLegionSettings(paths)).tribuni_model, undefined, "Only delivery is held");
+  }
+});

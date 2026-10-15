@@ -10,6 +10,8 @@ test("extension status details and doctor are passive even inactive; help is dis
     assert.equal(before.snapshot, null);
     await f.runtime.command("help");
     assert.match(f.runtime.notices.at(-1) ?? "", /correction <task-id>@<revision>/);
+    assert.match(f.runtime.notices.at(-1) ?? "", /legion_delivery.*legion_deliver/s);
+    assert.match(f.runtime.notices.at(-1) ?? "", /delivery observe <run-id> <operation-id>/);
     assert.equal((await f.state()).snapshot, null);
     await f.runtime.command("doctor");
     assert.match(f.runtime.notices.at(-1) ?? "", /Legion inactive/);
@@ -17,6 +19,11 @@ test("extension status details and doctor are passive even inactive; help is dis
     assert.equal(f.runtime.sent.length, 0);
     assert.ok((await f.commands.get("legion")?.getArgumentCompletions?.("correction"))?.some(item => item.value === "correction deliver"));
     assert.ok((await f.commands.get("legion")?.getArgumentCompletions?.("hand"))?.some(item => item.value === "handoff"));
+    assert.ok((await f.commands.get("legion")?.getArgumentCompletions?.("delivery"))?.some(item => item.value === "delivery observe"));
+    await f.runtime.command("delivery observe invalid invalid");
+    assert.match(f.runtime.notices.at(-1) ?? "", /Use \/legion delivery observe/);
+    assert.equal((await f.state()).snapshot, null);
+    assert.equal(f.runtime.prompts.length, 0);
   } finally { await f.close(); }
 });
 

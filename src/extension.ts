@@ -5,6 +5,9 @@ import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
 import { GitIntegration } from "./git-integration.js";
 import { checkoutIdentity } from "./checkout-identity.js";
 import type { ResultRepository } from "./result-domain.js";
+import { DeliveryControl, DeliveryExecution, DeliveryObservation, unresolvedDelivery, finalReviewStatus, type DeliveryAdapter } from "./delivery-domain.js";
+import { createDeliveryAdapter } from "./delivery-adapter.js";
+import { loadDeliverySelection } from "./legion-settings.js";
 import { join, dirname } from "node:path";
 import { realpathSync, readFileSync, openSync, fsyncSync, closeSync } from "node:fs";
 import { z } from "zod";
@@ -81,6 +84,7 @@ const CorrectionArguments = CorrectionAction.omit({ kind: true, evidence: true }
   action: z.discriminatedUnion("kind", [DeliverCorrection, ObserveCorrection, VerifyCorrection]),
 });
 const ResultArguments = ResultControl.omit({ kind: true, evidence: true });
+const DeliveryArguments = DeliveryControl.omit({ kind: true, evidence: true });
 const StatusArguments = z.strictObject({ command: z.enum(["status", "doctor"]), id: LegatusId.optional(), details: z.boolean().optional() });
 const WorkspaceArguments = z.object({ requestId: z.string().min(1) }).strict();
 const ShellReceipt = z.object({
@@ -89,7 +93,7 @@ const ShellReceipt = z.object({
   truncated: z.literal(false),
 });
 type WorkspaceRun = {
-  tool: "legion_workspace" | "legion_launch" | "legion_handoff" | "legion_integrate";
+  tool: "legion_workspace" | "legion_launch" | "legion_handoff" | "legion_integrate" | "legion_deliver";
   marker: string;
   requestId: string;
   session: string;
@@ -114,7 +118,7 @@ function compactContinuation(view: LegionView): string {
   return `Explicit run continuation ${state.id}. This is saved state, not a new Emperor task. Continue the selected workflow from these references and known decisions/results; do not replay original task, assignment or applied prompts. Retained workers are observation-only: no revival, control retransmission, active-child transfer or inferred outcomes. Resolve displayed blockers before dependent work.\n${JSON.stringify({
     run: state.id, workflow: state.workflowChoice,
     tasks: view.tasks.map(task => { const launch = task.launch.kind === "held" ? task.launch.last : task.launch; return {
-      id: task.id, revision: task.history.at(-1)?.revision, scope: task.scope, current: task.history.at(-1), choices: task.technicalChoices,
+      id: task.id, revision: task.history.at(-1)?.revision, scope: task.scope, current: task.history.at(-1), choices: task.technicalChoices, tracker: task.tracker,
       eligibility: task.eligibility, hold: task.resumeHold, correctionHold: task.correctionHold, reservation: task.claim.kind === "owned" ? task.claim.reservation.id : null,
       launch: task.launch.kind, model: task.tribunusModel, workflow: task.workflowChoice,
       reportedResult: launch.kind === "reported" ? launch.report : state.resumeState?.holds.find(hold => hold.task === task.id)?.result ?? null,
@@ -123,11 +127,16 @@ function compactContinuation(view: LegionView): string {
     corrections: state.corrections,
     results: view.tasks.map(task => ({ task: task.id, result: task.result, status: task.resultStatus })),
     integrations: state.integrations.map(operation => ({ id: operation.intent.id, result: operation.intent.result, state: operation.state })),
+    deliveries: state.deliveries.map(operation => ({ id: operation.intent.id, kind: operation.intent.kind, configuration: operation.intent.configuration, controller: operation.intent.controller, state: operation.state })),
+    finalDeliveryHeads: state.finalDeliveryHeads,
+    finalDeliveries: state.finalDeliveries.map(final => ({ id: final.id, digest: final.digest, specification: final.identity.specification, tasks: final.identity.tasks, commit: final.identity.commit, tree: final.identity.tree, requiredChecks: final.identity.requiredChecks, review: finalReviewStatus(final) })),
   })}`;
 }
 const nativeInstructions = `You are the Legatus following the explicitly Emperor-selected native Matt skill, not the intake-only interpreter. Ask necessary requirements, design and test-seam questions before AFK implementation. Let the skill own methodology and task-graph/frontier decisions; Tribuni are separate interactive exploration/implementer subagents, not ordinary native children. Native research, tools, permissions, Trust and child completion remain native.
 Record scoped tickets/tasks and material questions via legion_intake using the exact saved source references. An implement-spec source may scope multiple tickets, all within that Emperor source; new requirements, acceptance changes, mandatory-verification waivers, expanded access, financial commitments and irreversible actions require presented Emperor decisions. Followup answers are saved sources; do not manufacture provenance or infer workflow/profile selection. Use legion_request only for bounded reserve/reconcile/workspace/launch/handoff of admitted tasks; then execute the exact returned legion_workspace/legion_launch request identity. Never fabricate request IDs, change profile or bypass held/uncertain outcomes. Resolve uncertainty before any retry.
 For task corrections, use legion_intake correction with the exact saved source, current task and technical or approved-amendment authorization. Technical-choice is distinct and does not queue correction instructions. Use legion_correction to explicitly deliver or observe the exact saved ID/digest through actual host evidence. Queued means saved intent; delivered means exact worker receipt only. Verify only after Legatus checks establish the performed change, with nonempty summary and evidence references; worker reports, receipts, native settlement and generic applied intake results are not performed correction. Unknown outcomes preserve the exact original worker/evidence; never resend or automatically retarget. Explicit reissue uses correction.previous only after predecessor reconciliation and a different actual current worker. Receipt and verification never renew stale assignment scope; expose authority mismatches while independent approved tasks continue. Status/doctor are passive, not controls. Never answer Trust/permission prompts automatically.
+For implement-spec, read the configured tracker and local spec docs as Legatus; own the dependency graph/frontier and clarify missing or inconsistent dependencies. Give bounded Tribuni only their assignment and context pointers, with isolated concurrent writers. Direct tasks need no tickets. Dependents require accepted integrated results, never tracker closed flags or prose; unrelated approved work may proceed.
+Use legion_delivery to bind optional tracker identity, prepare closure only with full linked accepted evidence and separate external authority, capture the exact Legatus-declared final scope, verify relevant final checks and independent interactions review, and prepare draft/ready/local-report. Closure need not wait for main merge. Unchanged standalone review is reused; changed results need relevant rechecks/review. Draft follows the first accepted integration; ready/local-report requires final acceptance. A separate exact legion_deliver requestId uses ordinary nested Bash permissions and operator-selected checkout configuration. Missing configuration holds delivery, not direct tasks. Unknown closure/publication outcomes reconcile read-only via legion_delivery reconcile or /legion delivery observe <run-id> <operation-id>, including after off/restart; never blind retry or repeat integration. This grants no external authority, primary-branch merge, deployment, conflict resolution or cleanup. Preserve #37 scope holds; cleanup requires separate eligibility and policy.
 Use legion_result to capture clean committed reported work, verify every approved criterion/named required check and record material exceptions, then record independent skill review bound to the exact result and current verification digest. Executor/coordinator self-review is not independent. Unchanged exact work reuses its valid review. prepare-integration saves intent only and returns an exact legion_integrate requestId for a separate explicit guarded tool call; it is not Git permission. reconcile-integration observes unknown/applied effects read-only, never retries. Changed work, parent or conflict resolution requires new capture and relevant checks/review under separately appropriate authority. Failed/unknown integration is never accepted and cannot release dependents.
 This skill entry grants no additional staging, commit, integration, publication, issue closure, deployment, main merge or cleanup authority. Follow the Emperor's separately granted task policy. Do not rewrite upstream skills or global settings.`;
 export default function (pi: ExtensionAPI) {
@@ -137,6 +146,8 @@ export default function (pi: ExtensionAPI) {
   const hosts = new AsyncLocalStorage<TribunusHost>();
   const repositories = new AsyncLocalStorage<WorkspaceRepository>();
   const resultRepositories = new AsyncLocalStorage<ResultRepository>();
+  const deliveryAdapters = new AsyncLocalStorage<DeliveryAdapter>();
+  let deliveryAvailability = "Delivery configuration not checked; select it in the owning checkout's .pi/legion-delivery.json. Direct tasks need no delivery configuration.";
   let workspaceRun: WorkspaceRun | null = null;
   const workspaceAttempts = new Map<string, "attempted" | "deferred" | "held">();
   let legion: Legion | null = null;
@@ -145,6 +156,7 @@ export default function (pi: ExtensionAPI) {
   let run: Run | null = null;
   let nativeRun: NativeRun | null = null;
   let nativeRequestCall: string | null = null;
+  let deliveryControlCall: string | null = null;
   let liveContext: ExtensionContext | null = null;
   const attempted = new Set<string>();
   function report(
@@ -222,6 +234,9 @@ export default function (pi: ExtensionAPI) {
       for (const correction of snapshot.corrections) {
         lines.push(`Correction ${correction.id}: ${correction.state.kind}; task ${correction.task.id}@${correction.task.revision}. ${correctionAdvice(correction)}`);
       }
+      lines.push(deliveryAvailability);
+      for (const delivery of snapshot.deliveries) lines.push(`Delivery ${delivery.intent.id}: ${delivery.state.kind}; ${delivery.intent.kind === "publish" ? delivery.intent.publication.kind : "close-task"}. ${delivery.state.kind === "pending" ? "Prepared only; exact legion_deliver stage and ordinary Bash permission required." : unresolvedDelivery(delivery) ? `Read-only recovery: /legion delivery observe ${snapshot.id} ${delivery.intent.id}. Never retry effects.` : ""}`);
+      for (const final of snapshot.finalDeliveries) lines.push(`Final candidate ${final.id}: ${final.identity.specification}; ${final.identity.commit}; ${snapshot.finalDeliveryHeads.some(head => head.final.id === final.id) ? finalReviewStatus(final).kind : "superseded"}.`);
       for (const [principal, observation] of Object.entries(view.context)) lines.push(`Context ${principal}: ${contextStatus(observation)}`);
     }
     if (view.diagnostics.length) lines.push(`Diagnostics: ${view.diagnostics.filter(diagnostic => diagnostic.status === "ready").length} ready; ${view.diagnostics.filter(diagnostic => diagnostic.status !== "ready").length} need attention.`);
@@ -278,6 +293,12 @@ export default function (pi: ExtensionAPI) {
         break;
       case "integration-stage":
         report(ctx, `${result.message}\nIntegration ${result.integration.intent.id}; ${result.status.kind}. ${result.integration.state.kind === "pending" ? `Explicit next stage: legion_integrate with requestId ${result.integration.intent.id}; ordinary Bash permissions still apply.` : result.integration.state.kind === "unknown" || result.integration.state.kind === "dispatched" ? `Preserve evidence; use legion_result reconcile-integration in the current native turn, or /legion integration observe ${result.integration.intent.controller.owner} ${result.integration.intent.id} from the exact retained controller session, including after off/restart. Never retry the merge.` : ""}`, result.status.kind === "accepted" ? "info" : "warning");
+        break;
+      case "final-delivery-stage":
+        report(ctx, `${result.message}\nFinal ${result.final.id}; ${result.review.kind}.`);
+        break;
+      case "delivery-stage":
+        report(ctx, `${result.message}\nDelivery ${result.delivery.intent.id}: ${result.delivery.state.kind}. ${result.delivery.state.kind === "pending" ? `Explicit next stage: legion_deliver with requestId ${result.delivery.intent.id}; ordinary Bash permissions apply.` : unresolvedDelivery(result.delivery) ? `Read-only reconciliation: legion_delivery reconcile or /legion delivery observe ${result.delivery.intent.controller.owner} ${result.delivery.intent.id}, including after off/restart. Never retry publication or closure.` : ""}`, result.delivery.state.kind === "confirmed" ? "info" : "warning");
         break;
       case "correction-stage":
         report(ctx, `Correction ${result.correction}: ${result.state.kind}. ${result.message}`, result.state.kind === "unknown" ? "warning" : "info");
@@ -555,6 +576,8 @@ export default function (pi: ExtensionAPI) {
     attempted.clear();
     workspaceRun = null;
     workspaceAttempts.clear();
+    deliveryControlCall = null;
+    deliveryAvailability = "Delivery configuration not checked; select it in the owning checkout's .pi/legion-delivery.json. Direct tasks need no delivery configuration.";
     registerNativeAliases(ctx);
     legion = new Legion({
       onContextAlert: deliverContextAlert,
@@ -577,6 +600,7 @@ export default function (pi: ExtensionAPI) {
       assignments: {
         repository: () => repositories.getStore() ?? null,
       },
+      delivery: { adapter: () => deliveryAdapters.getStore() ?? null },
       results: {
         repository: () => {
           const guarded = resultRepositories.getStore();
@@ -620,7 +644,7 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Durable approved work. /legion help for commands. on, task <text>, correction <task-id>@<revision> <text>, correction deliver|observe <id>, integration observe <run-id> <operation-id>, status [id] [--details], doctor, off, resume <id>, reserve, reconcile, workspace, launch, handoff. Poteto remains off unless the Emperor enables it.",
+      "Durable approved work. /legion help for commands. on, task <text>, correction <task-id>@<revision> <text>, correction deliver|observe <id>, integration observe <run-id> <operation-id>, delivery observe <run-id> <operation-id>, status [id] [--details], doctor, off, resume <id>, reserve, reconcile, workspace, launch, handoff. Poteto remains off unless the Emperor enables it.",
     getArgumentCompletions: (prefix) =>
       [
         "on",
@@ -636,6 +660,7 @@ export default function (pi: ExtensionAPI) {
         "correction deliver",
         "correction observe",
         "integration observe",
+        "delivery observe",
         "handoff",
         "off",
         "resume",
@@ -656,7 +681,7 @@ export default function (pi: ExtensionAPI) {
       const caller = { ...evidence(ctx), origin: "host-command" };
       try {
         if (text.trim() === "help") {
-          report(ctx, "Legion commands (English interface)\n/legion on | off | resume <run-id>\n/legion task <text> (escape reserved command words)\n/legion correction <task-id>@<revision> <text> (save targeted intent; protected changes still require Emperor approval)\n/legion correction deliver <id> | correction observe <id> (explicit controls; observe reconciles durable correction state, unlike passive status)\n/legion status [run-id] [--details] | doctor (read-only, no activation or dispatch)\n/legion reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>]\n/legion reconcile <task-id> | workspace <request-id> | launch <task-id>@<revision>\n/legion handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string> | handoff <handoff-id>\n/legion implement-spec=on <instructions> | poteto-mode=on <instructions> | poteto-mode=off\n/legion integration observe <run-id> <operation-id> (explicit read-only reconciliation by the exact retained controller session, including after off/restart; no activation, worker revival or renewed write/scope authority; unavailable ownership/evidence stays held)\nExact results: ask the current native Legatus to use legion_result capture, verify and independent review; prepare-integration saves intent only, then a separate exact legion_integrate requestId uses ordinary Bash permissions. reconcile-integration is read-only; unknown/failed is not accepted. No slash command grants Git authority.\nCorrection verification and explicit linked reissue belong to the current Legatus; delivery reconciliation uses actual host observation. Receipts and reports are not performed-change verification. Never answer native Trust/permission prompts automatically.");
+          report(ctx, "Legion commands (English interface)\n/legion on | off | resume <run-id>\n/legion task <text> (escape reserved command words)\n/legion correction <task-id>@<revision> <text> (save targeted intent; protected changes still require Emperor approval)\n/legion correction deliver <id> | correction observe <id> (explicit controls; observe reconciles durable correction state, unlike passive status)\n/legion status [run-id] [--details] | doctor (read-only, no activation or dispatch)\n/legion reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>]\n/legion reconcile <task-id> | workspace <request-id> | launch <task-id>@<revision>\n/legion handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string> | handoff <handoff-id>\n/legion implement-spec=on <instructions> | poteto-mode=on <instructions> | poteto-mode=off\n/legion integration observe <run-id> <operation-id> (explicit read-only reconciliation by the exact retained controller session, including after off/restart; no activation, worker revival or renewed write/scope authority; unavailable ownership/evidence stays held)\nDelivery: ask the current native Legatus to use legion_delivery for optional tracker binding/accepted-result closure, exact declared final scope/checks/independent review and draft/ready/local-report preparation; then separately legion_deliver with the exact requestId and ordinary Bash permissions. Operator-only owning-checkout .pi/legion-delivery.json selects configuration; missing/invalid configuration holds delivery, not direct tasks. /legion delivery observe <run-id> <operation-id> reconciles read-only after off/restart under the exact retained controller; no retry, activation, integration or authority renewal. Status is passive. External authority remains separate.\nExact results: ask the current native Legatus to use legion_result capture, verify and independent review; prepare-integration saves intent only, then a separate exact legion_integrate requestId uses ordinary Bash permissions. reconcile-integration is read-only; unknown/failed is not accepted. No slash command grants Git authority.\nCorrection verification and explicit linked reissue belong to the current Legatus; delivery reconciliation uses actual host observation. Receipts and reports are not performed-change verification. Never answer native Trust/permission prompts automatically.");
           return;
         }
         if (/^\s*(?:status|doctor)(?:\s|$)/.test(text)) {
@@ -665,6 +690,15 @@ export default function (pi: ExtensionAPI) {
           const command = parts.filter(part => part !== "--details").join(" ");
           const result = await current.command({ text: command, requestKey: randomUUID(), evidence: caller });
           notifyResult(ctx, result, { details, diagnostics: parts[0] === "doctor" });
+          return;
+        }
+        if (/^\s*delivery(?:\s|$)/.test(text)) {
+          const match = /^\s*delivery\s+observe\s+(\S+)\s+(\S+)\s*$/.exec(text);
+          const observation = DeliveryObservation.safeParse({ run: match?.[1], operation: match?.[2], session: ctx.sessionManager.getSessionId() });
+          if (!observation.success) { report(ctx, "Use /legion delivery observe <run-id> <operation-id>. Read-only reconciliation never activates or retries effects.", "error"); return; }
+          const result = await withDelivery({ ctx, action: () => current.observeDelivery(observation.data) });
+          notifyResult(ctx, result);
+          if (legion === current) await refresh(ctx, false);
           return;
         }
         if (/^\s*integration(?:\s|$)/.test(text)) {
@@ -1091,18 +1125,22 @@ export default function (pi: ExtensionAPI) {
         workspaceRun.kind === "running" &&
         event.toolName === "bash" &&
         event.parentToolCallId === workspaceRun.callId &&
-        (repositories.getStore() || resultRepositories.getStore())
+        (repositories.getStore() || resultRepositories.getStore() || deliveryAdapters.getStore())
       )
         return;
-      if (workspaceRun.tool !== "legion_integrate" && nativeRun?.kind === "running" && !["legion_workspace", "legion_launch", "legion_handoff", "legion_integrate", "legion_request", "legion_result"].includes(event.toolName)) return;
+      if (workspaceRun.tool !== "legion_integrate" && workspaceRun.tool !== "legion_deliver" && nativeRun?.kind === "running" && !["legion_workspace", "legion_launch", "legion_handoff", "legion_integrate", "legion_deliver", "legion_request", "legion_result", "legion_delivery"].includes(event.toolName)) return;
       return {
         block: true,
         reason:
           "Workspace stage permits only its exact correlated root tool and necessary guarded nested Git calls.",
       };
     }
-    if ((event.toolName === "legion_request" || event.toolName === "legion_correction" || event.toolName === "legion_result") && nativeRun?.kind !== "running") return { block: true, reason: "No applied selected native Legatus workflow turn is active." };
-    if (event.toolName === "legion_workspace" || event.toolName === "legion_launch" || event.toolName === "legion_handoff" || event.toolName === "legion_integrate")
+    if ((event.toolName === "legion_request" || event.toolName === "legion_correction" || event.toolName === "legion_result" || event.toolName === "legion_delivery") && nativeRun?.kind !== "running") return { block: true, reason: "No applied selected native Legatus workflow turn is active." };
+    if (event.toolName === "legion_delivery") {
+      if (event.parentToolCallId || deliveryControlCall) return { block: true, reason: "Delivery control requires its exact current root invocation." };
+      deliveryControlCall = event.toolCallId;
+    }
+    if (event.toolName === "legion_workspace" || event.toolName === "legion_launch" || event.toolName === "legion_handoff" || event.toolName === "legion_integrate" || event.toolName === "legion_deliver")
       return {
         block: true,
         reason: "No correlated host-authorized workspace stage is active.",
@@ -1123,6 +1161,28 @@ export default function (pi: ExtensionAPI) {
         reason: "No correlated Legion interpretation run is active.",
       };
   });
+  async function withDelivery<T>({ ctx, execute, action }: { ctx: ExtensionContext; execute?: ConstructorParameters<typeof GitWorkspace>[1]; action: () => Promise<T> }): Promise<T> {
+    const cwd = checkoutIdentity(ctx.cwd);
+    try {
+      const selection = loadDeliverySelection({ checkoutPath: cwd });
+      if (!selection) throw new Error("Delivery not selected. Configure the owning checkout's .pi/legion-delivery.json; direct tasks remain available.");
+      const adapter = await createDeliveryAdapter({ cwd, configurationFile: selection,
+        observe: async command => {
+          try { const result = await pi.exec("bash", ["-c", command]); return { kind: "finished", code: result.code, output: result.stdout + result.stderr }; }
+          catch (error) { return { kind: "unknown", message: String(error) }; }
+        },
+        execute: async command => {
+          if (!execute || loadDeliverySelection({ checkoutPath: cwd }) !== selection) throw new Error("Delivery requires its exact correlated ordinary Bash stage and unchanged checkout selection; no exec fallback.");
+          return execute(command);
+        },
+      });
+      deliveryAvailability = `Delivery configured: ${adapter.configuration.provider}/${adapter.configuration.project}; ${adapter.configuration.revision}.`;
+      return await deliveryAdapters.run(adapter, action);
+    } catch (error) {
+      deliveryAvailability = `Delivery held. ${String(error)}`;
+      throw error;
+    }
+  }
   async function controlCorrection(input: {
     ctx: ExtensionContext; current: Legion; args: z.infer<typeof CorrectionArguments>;
     authority: Pick<RunEvidence, "session" | "generation" | "legatus" | "run">; isCurrent: () => boolean;
@@ -1194,6 +1254,38 @@ export default function (pi: ExtensionAPI) {
       return { content: [{ type: "text", text: JSON.stringify(result) }], details: result, isError: result.kind === "rejected" || result.kind === "uncertain" || (result.kind === "integration-stage" && ["held", "integration-failed", "integration-unknown"].includes(result.status.kind)) };
     },
   });
+  pi.on("tool_execution_end", event => { if (event.toolName === "legion_delivery" && event.toolCallId === deliveryControlCall) deliveryControlCall = null; });
+  pi.registerTool({
+    name: "legion_delivery", label: "Legion delivery control", exposure: "model-only",
+    description: "Current native Legatus: bind optional tracker, prepare closure of an accepted integrated result, capture exact declared final scope, verify/review final interactions, prepare draft/ready/local-report, or reconcile an operation read-only. Preparation has no effects; separately call legion_deliver with the exact ID under ordinary permissions. Missing operator checkout configuration holds delivery alone. Closed tickets and prose never release dependents. Unknown effects reconcile only.",
+    parameters: Type.Unsafe<z.infer<typeof DeliveryArguments>>(z.toJSONSchema(DeliveryArguments)),
+    execute: async (toolCallId, raw, _signal, _update, ctx) => {
+      const args = DeliveryArguments.parse(raw), captured = nativeRun, current = legion;
+      if (deliveryControlCall !== toolCallId || !current || captured?.kind !== "running" || captured.evidence.session !== ctx.sessionManager.getSessionId() ||
+          binding?.generation !== captured.evidence.generation || binding.legatus !== captured.evidence.legatus || workspaceRun)
+        throw new Error("No current correlated native Legatus root turn authorizes delivery control.");
+      const modeHold = nativeModeHold(ctx);
+      const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
+      if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready")) throw new Error(modeHold ?? diagnostics.map(diagnostic => diagnostic.message).join(" "));
+      const submit = () => {
+        if (nativeRun !== captured || captured.kind !== "running" || legion !== current || deliveryControlCall !== toolCallId ||
+            binding?.generation !== captured.evidence.generation || ctx.sessionManager.getSessionId() !== captured.evidence.session)
+          throw new Error("Delivery controller changed before evidence submission.");
+        return current.submit({ kind: "delivery-control", ...args, evidence: {
+          session: captured.evidence.session, generation: captured.evidence.generation, legatus: captured.evidence.legatus, run: captured.evidence.run,
+        } });
+      };
+      const result = args.action.kind === "bind-tracker" ? await submit() : await withDelivery({ ctx, action: submit });
+      if ((args.action.kind === "prepare-publication" || args.action.kind === "prepare-closure") && result.kind === "delivery-stage" && result.delivery.state.kind === "pending" &&
+          nativeRun === captured && captured.kind === "running" && legion === current && binding?.generation === captured.evidence.generation && !workspaceRun) {
+        workspaceRun = { kind: "prepared", tool: "legion_deliver", marker: captured.id, requestId: result.delivery.intent.id, session: captured.evidence.session, generation: captured.evidence.generation };
+      }
+      notifyResult(ctx, result);
+      if (legion === current) await refresh(ctx, false);
+      return { content: [{ type: "text", text: JSON.stringify(result) }], details: result,
+        isError: result.kind === "rejected" || result.kind === "uncertain" || (result.kind === "delivery-stage" && ["failed", "unknown", "dispatched"].includes(result.delivery.state.kind)) };
+    },
+  });
   pi.registerTool({
     name: "legion_request", label: "Legion workflow request", exposure: "model-only",
     description: 'Request a bounded reserve, reconcile, workspace, launch or explicit handoff stage for an admitted task in the selected native workflow. Handoff usage: handoff <task-id>@<revision> --purpose "short purpose" --continue "successor continuation"; continue observations with handoff <handoff-id>. Supply only the command, never Emperor provenance, workflow/profile or task payload. No publication authority.',
@@ -1219,12 +1311,12 @@ export default function (pi: ExtensionAPI) {
       } finally { if (nativeRequestCall === toolCallId) nativeRequestCall = null; }
     },
   });
-  for (const tool of ["legion_workspace", "legion_launch", "legion_handoff", "legion_integrate"] as const) pi.registerTool({
+  for (const tool of ["legion_workspace", "legion_launch", "legion_handoff", "legion_integrate", "legion_deliver"] as const) pi.registerTool({
     name: tool,
-    label: tool === "legion_integrate" ? "Legion parent integration" : tool === "legion_handoff" ? "Legion handoff" : tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
+    label: tool === "legion_deliver" ? "Legion delivery execution" : tool === "legion_integrate" ? "Legion parent integration" : tool === "legion_handoff" ? "Legion handoff" : tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
     exposure: "model-only",
     description:
-      tool === "legion_integrate" ? "Execute exactly one prepared integration requestId from legion_result in its separately correlated stage, through ordinary permission-controlled Bash. Review/preparation grants no Git permission. Unknown outcomes require read-only reconcile-integration, never another merge. No primary-branch merge, conflict resolution, publication or scope authority." : tool === "legion_handoff" ? "Continue exactly one immutable Legatus handoff request: task-scoped safe-stop, actual settlement, unchanged native skill, exact temporary artifact and one pinned same-worktree successor. Uncertain effects are observed, never replayed." : tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
+      tool === "legion_deliver" ? "Execute one exact prepared delivery requestId from legion_delivery through ordinary permission-controlled Bash. Operator-selected configuration only; no model commands, push/PR/closure authority implied. Unknown effects require read-only reconciliation, never retry." : tool === "legion_integrate" ? "Execute exactly one prepared integration requestId from legion_result in its separately correlated stage, through ordinary permission-controlled Bash. Review/preparation grants no Git permission. Unknown outcomes require read-only reconcile-integration, never another merge. No primary-branch merge, conflict resolution, publication or scope authority." : tool === "legion_handoff" ? "Continue exactly one immutable Legatus handoff request: task-scoped safe-stop, actual settlement, unchanged native skill, exact temporary artifact and one pinned same-worktree successor. Uncertain effects are observed, never replayed." : tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
     parameters: Type.Object(
       { requestId: Type.String({ minLength: 1 }) },
       { additionalProperties: false },
@@ -1244,9 +1336,11 @@ export default function (pi: ExtensionAPI) {
         binding?.generation !== captured.generation
       )
         throw new Error("No current correlated workspace stage.");
+      if (tool === "legion_deliver" && (nativeRun?.kind !== "running" || captured.marker !== nativeRun.id || nativeRun.evidence.session !== captured.session || nativeRun.evidence.generation !== captured.generation))
+        throw new Error("Delivery requires its exact current native controller turn.");
       if (tool === "legion_launch" || tool === "legion_handoff") await observeContext(ctx);
       const guarded: ConstructorParameters<typeof GitWorkspace>[1] = async (command) => {
-        if (tool === "legion_integrate" && (workspaceRun !== captured || captured.kind !== "running" || captured.callId !== toolCallId || legion !== current ||
+        if ((tool === "legion_integrate" || tool === "legion_deliver") && (workspaceRun !== captured || captured.kind !== "running" || captured.callId !== toolCallId || legion !== current ||
             binding?.session !== captured.session || binding.generation !== captured.generation || ctx.sessionManager.getSessionId() !== captured.session))
           throw new Error("Correlated guarded stage authority changed. No shell invocation.");
         if (tool === "legion_handoff") {
@@ -1256,6 +1350,12 @@ export default function (pi: ExtensionAPI) {
           const request = (await current.state()).snapshot?.launchRequests.find((r) => r.id === args.requestId);
           const checked = await current.command({ text: `launch ${request?.task.id ?? ""}@${request?.task.revision ?? 0}`, requestKey: args.requestId, evidence: evidence(ctx) });
           if (checked.kind !== "launch-stage") throw new Error("Guarded effect authority was revoked or changed. No external invocation.");
+        }
+        if (tool === "legion_deliver") {
+          if (nativeRun?.kind !== "running" || captured.marker !== nativeRun.id) throw new Error("Delivery controller turn changed; no shell invocation.");
+          const modeHold = nativeModeHold(ctx);
+          const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
+          if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready")) throw new Error(modeHold ?? diagnostics.map(diagnostic => diagnostic.message).join(" "));
         }
         const result = await ctx.executeTool("bash", { command });
         const parsed = ShellReceipt.safeParse(result.result.structuredContent);
@@ -1278,7 +1378,9 @@ export default function (pi: ExtensionAPI) {
         const view = await current.state();
         const request = view.snapshot?.launchRequests.find((r) => r.id === args.requestId);
         const host = new LocalTribunusHost(guarded, { owner: binding.legatus, session: captured.session, generation: captured.generation, epoch: tool === "legion_handoff" ? view.snapshot?.handoffs.find(record => record.id === args.requestId)?.pin.epoch ?? 0 : request?.epoch ?? 0 }, (message) => report(ctx, message, "error"));
-        const result = tool === "legion_integrate"
+        const result = tool === "legion_deliver"
+          ? await withDelivery({ ctx, execute: guarded, action: () => current.command(DeliveryExecution.parse({ deliveryRequest: args.requestId })) })
+          : tool === "legion_integrate"
           ? await resultRepositories.run(new GitIntegration({ cwd: checkoutIdentity(ctx.cwd), run: guarded }), () => current.command({ integrationRequest: args.requestId }))
           : await repositories.run(git, () => hosts.run(host, () =>
               current.command(tool === "legion_handoff" ? { handoffRequest: args.requestId } : tool === "legion_launch" ? { launchRequest: args.requestId } : { workspaceRequest: args.requestId }),
@@ -1292,7 +1394,8 @@ export default function (pi: ExtensionAPI) {
             result.kind === "rejected" ||
             result.kind === "uncertain" ||
             result.kind === "ownership-blocked" || (result.kind === "launched" && result.launch.state.kind === "held") ||
-            (result.kind === "integration-stage" && result.status.kind !== "accepted"),
+            (result.kind === "integration-stage" && result.status.kind !== "accepted") ||
+            (result.kind === "delivery-stage" && result.delivery.state.kind !== "confirmed"),
         };
       } finally {
         if (workspaceRun === captured) {
