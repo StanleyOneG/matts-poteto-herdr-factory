@@ -1,3 +1,5 @@
+import { CleanupRecord, LaunchId, WindowIdentity, WorkerAddress } from "./cleanup-domain.js";
+export { LaunchId, WindowIdentity, WorkerAddress } from "./cleanup-domain.js";
 import { TrackerTaskRef, DeliveryRecord, FinalRecord } from "./delivery-domain.js";
 import { checkoutIdentity } from "./checkout-identity.js";
 import { ResultRecord, ResultRef, IntegrationRecord } from "./result-domain.js";
@@ -21,11 +23,6 @@ import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "no
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 
-export const LaunchId = z.uuid().brand<"LaunchId">();
-export const WindowIdentity = z.object({
-  endpoint: z.string(), server: z.string(), workspace: z.string(), tab: z.string(), pane: z.string(), terminal: z.string(),
-});
-export const WorkerAddress = z.object({ launch: LaunchId, window: WindowIdentity, session: z.string(), generation: z.uuid() });
 export const LegatusId = z.uuid().brand<"LegatusId">();
 export const SubmissionId = z.uuid().brand<"SubmissionId">();
 export const TaskId = z.uuid().brand<"TaskId">();
@@ -368,6 +365,8 @@ export const SnapshotSchema = z.object({
   finalDeliveries: z.array(FinalRecord).default([]),
   finalDeliveryHeads: z.array(z.strictObject({ specification: z.string().trim().min(1), final: ResultRef })).default([]),
   deliveries: z.array(DeliveryRecord).refine(records => new Set(records.map(record => record.intent.id)).size === records.length, "Delivery operation IDs are unique.").default([]),
+  cleanups: z.array(CleanupRecord).refine(records => new Set(records.map(record => record.intent.id)).size === records.length,
+    "Cleanup operation IDs are immutable and unique.").default([]),
   integrations: z.array(IntegrationRecord).refine(records => new Set(records.map(record => record.intent.id)).size === records.length, "Integration operation IDs are immutable and unique.").default([]),
   engineering: z.array(EngineeringRecord).default([]),
   effects: z.array(EffectRecord).default([]),

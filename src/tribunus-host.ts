@@ -86,6 +86,7 @@ function readCorrection({ root, journal, request, queuedKnown = false }: { root:
     return observed;
   } catch (error) { return unknown(`Retained correction receipt cannot be verified. Preserve the journal and exact request; no repair or replay. ${String(error)}`); }
 }
+export { localIdentity as localHerdrIdentity };
 async function localIdentity() {
   if (process.env.HERDR_ENV !== "1")
     throw new Error("Launch requires the current local Herdr environment.");

@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:net";
+import { localHerdrIdentity } from "../../src/tribunus-host.ts";
 import { installTribunus } from "../../src/tribunus-host.ts";
 import { composedRuntime } from "./composed-transport.mjs";
 import extension from "../../src/extension.ts";
 
 // Controlled root Pi/UI adapter, real public extension and storage; no SDK session or real Herdr actors.
-export async function legatusUiFixture({ parent = "main", nested = false, linked = false } = {}) {
+export async function legatusUiFixture({ parent = "main", nested = false, linked = false, cleanup = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), "u-"));
   const profile = join(root, "a"), repo = join(root, "repo"), bin = join(root, "bin");
   for (const path of [profile, repo, bin]) fs.mkdirSync(path);
@@ -24,9 +25,10 @@ export async function legatusUiFixture({ parent = "main", nested = false, linked
   const herdr = createServer(), socket = join(root, "h.sock");
   await new Promise(resolve => herdr.listen(socket, resolve));
   const owner = { workspace_id: "workspace", tab_id: "owner", pane_id: "owner", terminal_id: "owner", foreground_cwd: cwd, agent: "pi", agent_session: { kind: "id", value: "root-legatus" } };
+  const closedPath = join(root, "closed.json");
   const panePath = join(root, "pane.json"), bootstrapPath = join(root, "created.json");
   fs.writeFileSync(panePath, JSON.stringify(owner));
-  fs.writeFileSync(join(bin, "herdr"), `#!/usr/bin/env node\nconst fs=require('node:fs'),a=process.argv.slice(2);let pane=JSON.parse(fs.readFileSync(${JSON.stringify(panePath)}));if(a[0]==='--version')console.log('0.9.1');else if(a[0]==='status')console.log(JSON.stringify({status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(socket)}}));else if(a[0]==='tab'||a[0]==='workspace'){delete pane.agent;delete pane.agent_session;pane.tab_id='worker';pane.pane_id='worker';pane.terminal_id='worker';pane.foreground_cwd=a[a.indexOf('--cwd')+1];fs.writeFileSync(${JSON.stringify(panePath)},JSON.stringify(pane));fs.writeFileSync(${JSON.stringify(bootstrapPath)},JSON.stringify(a[a.indexOf('--env')+1].split('=').slice(1).join('=')));console.log(JSON.stringify({result:{root_pane:pane}}));}else if(a[1]==='get')console.log(JSON.stringify({result:{pane:a[2]==='owner'?${JSON.stringify(owner)}:pane}}));else console.log(JSON.stringify({result:{process_info:{foreground_processes:[{pid:${process.pid}}]}}}));\n`, { mode: 0o700 });
+  fs.writeFileSync(join(bin, "herdr"), `#!/usr/bin/env node\nconst fs=require('node:fs'),a=process.argv.slice(2);let pane=JSON.parse(fs.readFileSync(${JSON.stringify(panePath)}));if(a[0]==='tab'&&a[1]==='close'){fs.writeFileSync(${JSON.stringify(closedPath)},JSON.stringify({tab:a[2]}));console.log(JSON.stringify({result:{type:'ok'}}));}else if(a[0]==='--version')console.log('0.9.1');else if(a[0]==='status')console.log(JSON.stringify({status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(socket)}}));else if(a[0]==='tab'||a[0]==='workspace'){delete pane.agent;delete pane.agent_session;pane.tab_id='worker';pane.pane_id='worker';pane.terminal_id='worker';pane.foreground_cwd=a[a.indexOf('--cwd')+1];fs.writeFileSync(${JSON.stringify(panePath)},JSON.stringify(pane));fs.writeFileSync(${JSON.stringify(bootstrapPath)},JSON.stringify(a[a.indexOf('--env')+1].split('=').slice(1).join('=')));console.log(JSON.stringify({result:{root_pane:pane}}));}else if(a[1]==='get')console.log(JSON.stringify({result:{pane:a[2]==='owner'?${JSON.stringify(owner)}:pane}}));else console.log(JSON.stringify({result:{process_info:{foreground_processes:[{pid:${process.pid}}]}}}));\n`, { mode: 0o700 });
   const keys = ["PATH", "PI_CODING_AGENT_DIR", "PI_SUBAGENT_CHILD", "LEGION_TRIBUNUS_BOOTSTRAP", "HERDR_ENV", "HERDR_PANE_ID"];
   const prior = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   Object.assign(process.env, { PATH: `${bin}:${prior.PATH}`, PI_CODING_AGENT_DIR: profile, HERDR_ENV: "1", HERDR_PANE_ID: "owner" });
@@ -72,7 +74,21 @@ export async function legatusUiFixture({ parent = "main", nested = false, linked
   runtime.pi.registerCommand = (name, command) => { commands.set(name, command); registerCommand(name, command); };
   const forbiddenUi = [];
   for (const name of ["confirm", "select", "custom", "setEditorComponent", "setFooter", "setWidget", "setEditorText", "setTitle"]) runtime.ctx.ui[name] = () => { forbiddenUi.push(name); throw new Error(`Forbidden UI replacement/modal/focus: ${name}`); };
-  extension(runtime.pi);
+  const cleanupNative = cleanup ? {
+    identity: localHerdrIdentity,
+    snapshot: async () => {
+      if (cleanup.snapshotUnavailable && fs.existsSync(closedPath)) throw new Error("Controlled lost acknowledgment/postcondition after saved successful native receipt");
+      const pane = JSON.parse(fs.readFileSync(panePath, "utf8"));
+      return { result: { snapshot: { version: "0.9.1", protocol: 22,
+        tabs: fs.existsSync(closedPath) ? [] : [{ workspace_id: pane.workspace_id, tab_id: pane.tab_id, pane_count: 1 }],
+        panes: fs.existsSync(closedPath) ? [] : [{ ...pane, agent_status: cleanup.activity ?? "done" }],
+      } } };
+    },
+    processes: async ({ pane }) => ({ result: { process_info: { pane_id: pane, shell_pid: 10000001, foreground_processes: [{ pid: process.pid }] } } }),
+    occupants: async ({ worker }) => { const shell = { ...worker, pid: 10000001, start: "1" }; return { shell, processes: [shell, worker] }; },
+    close: async () => { throw new Error("Controlled native close must execute the actual authorized Bash CLI, not raw native.close."); },
+  } : undefined;
+  extension(runtime.pi, cleanup ? { tabs: cleanupNative, ...(cleanup.usage ? { usage: cleanup.usage } : {}) } : {});
   await runtime.emit("session_start");
   const state = async () => {
     await runtime.command("status --details");
@@ -120,5 +136,5 @@ export async function legatusUiFixture({ parent = "main", nested = false, linked
     const bytes = fs.readFileSync(path); fs.writeFileSync(join(root, "lost-receipt-evidence.json"), bytes);
     fs.unlinkSync(path);
   };
-  return { root, runtime, tools, commands, state, startPending, launch, loseReceiptEvidence, systemPrompt: () => systemPrompt, call: (name, input) => runtime.call(name, input), close };
+  return { root, runtime, tools, commands, closedPath, panePath, state, startPending, launch, loseReceiptEvidence, systemPrompt: () => systemPrompt, call: (name, input) => runtime.call(name, input), close };
 }

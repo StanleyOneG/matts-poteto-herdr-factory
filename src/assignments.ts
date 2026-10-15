@@ -54,6 +54,8 @@ export const WorkspaceState = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("dispatched"), operation: Operation }),
   z.object({ kind: z.literal("branch-owned") }),
   z.object({ kind: z.literal("ready") }),
+  // Snapshot's exact confirmed cleanup is the durable witness; never infer this from an absent path.
+  z.object({ kind: z.literal("removed"), cleanup: z.uuid(), evidence: z.array(z.string().min(1)).min(1) }),
   z.object({
     kind: z.literal("held"),
     code: z.string(),
@@ -395,6 +397,23 @@ export class AssignmentLedger {
       const row = db.prepare("SELECT reservation,id,revision,value FROM tribuni WHERE reservation=?").get(reservation.id);
       if (known && !row) throw new Error("Known launch row is missing. History cannot be reset.");
       return row ? this.retainedLaunch({ row, reservation, known }) : null;
+    } finally { db.close(); }
+  }
+  /** Complete retained inventory for usage checks, without migration, adoption or new launches. */
+  async readLaunchHistory({ reservation }: { reservation: Reservation }): Promise<LaunchRecord[]> {
+    if (reservation.owner !== this.owner) throw new Error("Assignment run identity changed.");
+    const db = await this.open(false);
+    if (!db) throw new Error("Known assignment history unavailable.");
+    try {
+      this.confirmReservation({ db, reservation });
+      const schema = this.launchSchema(db, true);
+      if (schema === "legacy") throw new Error("Exact launch history is unavailable; preserve legacy resources.");
+      const root = db.prepare("SELECT reservation,id,revision,value FROM tribuni WHERE reservation=?").get(reservation.id);
+      if (!root) throw new Error("Accepted reservation's launch history is missing.");
+      const launches = [this.retainedLaunch({ row: root, reservation, known: null })];
+      if (schema === "successors") for (const row of db.prepare("SELECT * FROM tribuni_successors WHERE reservation=? ORDER BY rowid").all(reservation.id))
+        launches.push(this.retainedSuccessor({ db, row, reservation }));
+      return launches;
     } finally { db.close(); }
   }
   private successorMetadata(handoff: SettledHandoff): z.infer<typeof SuccessorLaunch> {
