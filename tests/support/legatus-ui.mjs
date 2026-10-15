@@ -10,12 +10,16 @@ import { composedRuntime } from "./composed-transport.mjs";
 import extension from "../../src/extension.ts";
 
 // Controlled root Pi/UI adapter, real public extension and storage; no SDK session or real Herdr actors.
-export async function legatusUiFixture() {
+export async function legatusUiFixture({ parent = "main", nested = false, linked = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "u-"));
-  const profile = join(root, "a"), cwd = join(root, "repo"), bin = join(root, "bin");
-  for (const path of [profile, cwd, bin]) fs.mkdirSync(path);
-  execFileSync("git", ["init", "-q", "-b", "main", cwd]);
-  execFileSync("git", ["-C", cwd, "-c", "user.name=UI trial", "-c", "user.email=ui@example.invalid", "commit", "--allow-empty", "-qm", "base"]);
+  const profile = join(root, "a"), repo = join(root, "repo"), bin = join(root, "bin");
+  for (const path of [profile, repo, bin]) fs.mkdirSync(path);
+  execFileSync("git", ["init", "-q", "-b", linked ? "primary-control" : parent, repo]);
+  execFileSync("git", ["-C", repo, "-c", "user.name=UI trial", "-c", "user.email=ui@example.invalid", "commit", "--allow-empty", "-qm", "base"]);
+  const owning = linked ? join(root, "owning") : repo;
+  if (linked) execFileSync("git", ["-C", repo, "worktree", "add", "-qb", parent, owning]);
+  const cwd = nested ? join(owning, "nested") : owning;
+  if (nested) fs.mkdirSync(cwd);
   assert.ok(Buffer.byteLength(join(profile, "legion", "tribuni", `s-${"a".repeat(32)}.sock`)) < 108);
   const herdr = createServer(), socket = join(root, "h.sock");
   await new Promise(resolve => herdr.listen(socket, resolve));
@@ -91,7 +95,7 @@ export async function legatusUiFixture() {
     assert.deepEqual(forbiddenUi, [], "Legion must preserve editor/footer/widgets and never force modals or focus changes");
   };
   const launch = async target => {
-    const reserved = await runtime.call("legion_request", { command: `reserve ${target.id}@${target.revision} --parent refs/heads/main` });
+    const reserved = await runtime.call("legion_request", { command: `reserve ${target.id}@${target.revision} --parent refs/heads/${parent}` });
     assert.equal(reserved.details?.kind, "deferred", JSON.stringify(reserved));
     const stage = await runtime.call("legion_request", { command: `workspace ${reserved.details.receipt.requestKey}` });
     assert.equal(stage.details?.kind, "workspace-stage", JSON.stringify(stage));

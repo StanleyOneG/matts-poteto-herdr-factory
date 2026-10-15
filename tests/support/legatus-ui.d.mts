@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { LegionView } from "../../src/intake.js";
 type Tool = Parameters<ExtensionAPI["registerTool"]>[0];
 type Command = Parameters<ExtensionAPI["registerCommand"]>[1];
-export function legatusUiFixture(): Promise<{
+export function legatusUiFixture(options?: { parent?: string; nested?: boolean; linked?: boolean }): Promise<{
   root: string;
   runtime: ReturnType<typeof import("./composed-transport.mjs").composedRuntime> & {
     statuses: Array<{ key: string; text: string | undefined }>;

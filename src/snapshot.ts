@@ -1,4 +1,5 @@
 import { checkoutIdentity } from "./checkout-identity.js";
+import { ResultRecord, ResultRef, IntegrationRecord } from "./result-domain.js";
 import { StartupSelectionSchema, WorkflowChoiceSchema, AssignmentModelPinSchema } from "./legion-settings.js";
 import { ResearchRecord, ResearchStage } from "./owned-children.js";
 import { ContractEvidence } from "./engineering-contract.js";
@@ -362,6 +363,8 @@ export const SnapshotSchema = z.object({
   researchHold: z.string().nullable().default(null),
   corrections: z.array(CorrectionRecord).refine(records => new Set(records.map(record => record.id)).size === records.length,
     "Correction IDs are immutable and unique.").default([]),
+  results: z.array(ResultRecord).refine(records => new Set(records.map(record => record.id)).size === records.length && new Set(records.map(record => record.digest)).size === records.length, "Exact result IDs and identities are unique.").default([]),
+  integrations: z.array(IntegrationRecord).refine(records => new Set(records.map(record => record.intent.id)).size === records.length, "Integration operation IDs are immutable and unique.").default([]),
   engineering: z.array(EngineeringRecord).default([]),
   effects: z.array(EffectRecord).default([]),
   submissions: z.array(
@@ -393,6 +396,7 @@ export const SnapshotSchema = z.object({
   tasks: z.array(
     z.object({
       id: TaskId,
+      result: ResultRef.nullable().default(null),
       technicalChoices: z.array(
         z.object({
           source: SubmissionRef,

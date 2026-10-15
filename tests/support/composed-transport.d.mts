@@ -1,13 +1,13 @@
 export function composedRuntime(cwd: string, session: string, journal: string): {
   pi: import("@earendil-works/pi-coding-agent").ExtensionAPI;
-  ctx: import("@earendil-works/pi-coding-agent").ExtensionContext;
+  ctx: import("@earendil-works/pi-coding-agent").ExtensionContext & Pick<Parameters<Parameters<import("@earendil-works/pi-coding-agent").ExtensionAPI["registerTool"]>[0]["execute"]>[4], "executeTool">;
   prompts: string[];
   notices: string[];
   emit(name: string, event?: unknown): Promise<unknown>;
   command(text: string): Promise<unknown>;
   start(prompt: string): Promise<boolean>;
   call(name: string, input: unknown): Promise<{ isError?: boolean }>;
-  settle(): Promise<void>;
+  settle(native?: boolean, text?: string, stopReason?: string): Promise<void>;
   failSend(): void;
 };
 export function exerciseNativeAssignment(scenario: "context-block-launch"): Promise<{ root: string; view: import("../../src/intake.js").LegionView; created: boolean; notices: string[] }>;

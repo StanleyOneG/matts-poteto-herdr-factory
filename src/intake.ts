@@ -1,6 +1,7 @@
 import { ContextAlerts, ContextSample, type ContextAlert, type ContextObservation } from "./context-alerts.js";
 import { isDeepStrictEqual } from "node:util";
 import { checkoutIdentity } from "./checkout-identity.js";
+import { CandidateObservation, ResultIdentity, ResultRecord, ResultRef, ResultVerification, ResultReview, IntegrationIntent, IntegrationRecord, IntegrationOutcome, integrationOutcomeMatches, unresolvedIntegration, currentReview, resultDigest, verificationDigest, verificationPassed, resultStatus, type ResultRepository, type ResultStatus } from "./result-domain.js";
 import { loadLegionSettings, selectTribunusModel, type LegionSettings, type TribunusModelIntent, type WorkflowChoice } from "./legion-settings.js";
 import { existsSync, readFileSync, realpathSync, lstatSync, accessSync, constants } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
@@ -147,6 +148,17 @@ export const CorrectionAction = z.strictObject({
   ]),
   evidence: z.strictObject({ session: z.string(), generation: z.int().positive(), legatus: LegatusId, run: z.string().min(1) }),
 });
+export const ResultControl = z.strictObject({
+  kind: z.literal("result-control"),
+  action: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("capture"), task: TaskRef, requiredChecks: ResultIdentity.shape.requiredChecks }),
+    z.strictObject({ kind: z.literal("verify"), result: ResultRef, verification: ResultVerification }),
+    ResultReview.extend({ kind: z.literal("review") }),
+    z.strictObject({ kind: z.literal("prepare-integration"), result: ResultRef, id: z.uuid() }),
+    z.strictObject({ kind: z.literal("reconcile-integration"), id: z.uuid() }),
+  ]),
+  evidence: z.strictObject({ session: z.string(), generation: z.int().positive(), legatus: LegatusId, run: z.string().min(1) }),
+});
 export type LegionView = {
   mode: "inactive" | "active" | "stopping";
   snapshot: LegatusSnapshot | null;
@@ -160,6 +172,7 @@ export type LegionView = {
       workflowHold: string | null;
       resumeHold: string | null;
       correctionHold: string | null;
+      resultStatus: ResultStatus;
     }
   >;
   settings: LegionSettings | null;
@@ -187,6 +200,8 @@ export type OperationResult =
   | { kind: "ownership-blocked"; reservation: Reservation; message: string }
   | { kind: "workspace-stage"; requestId: string; message: string }
   | { kind: "correction-stage"; correction: z.infer<typeof CorrectionId>; state: CorrectionRecord["state"]; message: string }
+  | { kind: "result-stage"; result: ResultRecord; status: ResultStatus; message: string }
+  | { kind: "integration-stage"; integration: IntegrationRecord; status: ResultStatus; message: string }
   | { kind: "handoff-stage"; requestId: string; message: string }
   | { kind: "launch-stage"; requestId: string; message: string }
   | { kind: "launched"; launch: LaunchResult; message: string }
@@ -320,9 +335,14 @@ function correctionHold({ snapshot, taskId }: { snapshot: LegatusSnapshot; taskI
   if (unaddressed) return `Correction ${unaddressed.id} is saved without a matching assigned worker. No worker was launched. Create a linked request when a current assignment is available.`;
   return null;
 }
+function resultEffectHold({ snapshot, taskId }: { snapshot: LegatusSnapshot; taskId: string }): string | null {
+  return snapshot.effects.some(effect => effect.intent.pin.task.id === taskId && (effect.state.kind === "outstanding" || effect.state.kind === "unknown"))
+    ? "Known task effects are unsettled or unknown. A report or review cannot establish exact result settlement; preserve work and reconcile first." : null;
+}
 function hasUnsettledWork(snapshot: LegatusSnapshot | null, launches: Map<string, LaunchView>) {
   const shutdown = snapshot?.shutdown;
   return hasLegacyResearchHold(snapshot) || !!snapshot?.effects.some(effect => effect.state.kind === "outstanding" || effect.state.kind === "unknown") ||
+    !!snapshot?.integrations.some(unresolvedIntegration) ||
     !!shutdown && (shutdown.workers.some(worker => worker.state.kind !== "parked") ||
       [...launches.values()].some(launch => {
         if (launch.kind === "not-launched" || launch.kind === "prepared") return false;
@@ -346,6 +366,7 @@ export type LegionOptions = {
     repository: (commonDir: string) => Pick<GitWorkspace, "observeResources"> | null;
     worker: (authority: z.infer<typeof WorkerStop>["authority"]) => ResumeResourceReader | null;
   };
+  results?: { repository: (commonDir: string) => ResultRepository | null };
   assignments?: {
     workspaceRoot?: string;
     repository: () => WorkspaceRepository | null;
@@ -1832,6 +1853,7 @@ export class Legion {
             ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
             resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
             correctionHold: correctionHold({ snapshot, taskId: t.id }),
+            resultStatus: this.taskResultStatus({ snapshot, task: t }),
             eligibility:
               !this.binding || this.stopping
                 ? "inactive"
@@ -1970,6 +1992,8 @@ export class Legion {
   }
   command(raw: unknown): Promise<CommandResult> {
 
+    const integrationExecution = z.strictObject({ integrationRequest: z.uuid() }).safeParse(raw);
+    if (integrationExecution.success) return this.executeIntegration({ id: integrationExecution.data.integrationRequest }).then(result => ({ ...result, disposition: "workspace" }));
     const handoffExecution = z.strictObject({ handoffRequest: z.uuid() }).safeParse(raw);
     if (handoffExecution.success) {
       const id = handoffExecution.data.handoffRequest;
@@ -2162,6 +2186,7 @@ export class Legion {
                 ...this.taskWorkflow(snapshot, t.id, launches.get(t.id)),
                 resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
                 correctionHold: correctionHold({ snapshot, taskId: t.id }),
+                resultStatus: this.taskResultStatus({ snapshot, task: t }),
               })) ?? [],
             ...this.settingsView(),
             diagnostics: this.activationDiagnostics,
@@ -2828,7 +2853,245 @@ export class Legion {
       }
     });
   }
+  private taskResultStatus({ snapshot, task }: { snapshot: LegatusSnapshot; task: LegatusSnapshot["tasks"][number] }): ResultStatus {
+    const record = snapshot.results.find(record => record.id === task.result?.id && record.digest === task.result.digest);
+    if (record && (record.identity.assignment.owner !== snapshot.id || record.identity.assignment.task.id !== task.id ||
+        record.identity.assignment.task.revision !== task.history.at(-1)?.revision || record.identity.assignment.scope !== taskApprovalScope({ snapshot, task }) ||
+        correctionHold({ snapshot, taskId: task.id }) || resultEffectHold({ snapshot, taskId: task.id }) || snapshot.decisions.some(decision => decision.state.kind === "open" && decision.history.at(-1)?.affected.some(ref => ref.id === task.id))))
+      return { kind: "held", result: { id: record.id, digest: record.digest }, message: "Result no longer has current task/scope authority. Preserve evidence; review/acceptance cannot clear an Emperor decision or refresh assignment authority." };
+    return resultStatus({ record, integrations: snapshot.integrations });
+  }
+  private integrationResult({ snapshot, operation }: { snapshot: LegatusSnapshot; operation: IntegrationRecord }): OperationResult {
+    const record = snapshot.results.find(record => record.id === operation.intent.result.id && record.digest === operation.intent.result.digest);
+    const task = snapshot.tasks.find(task => task.id === record?.identity.assignment.task.id);
+    const status: ResultStatus = record && (!task || task.result?.id !== record.id || task.result.digest !== record.digest)
+      ? { kind: "held", result: { id: record.id, digest: record.digest }, message: "Historical integration is pinned to a superseded result. It cannot accept the current task result." }
+      : task ? this.taskResultStatus({ snapshot, task }) : resultStatus({ record, integrations: snapshot.integrations });
+    return { kind: "integration-stage", integration: operation, status,
+      message: operation.state.kind === "confirmed" ? "Exact intended-parent integration confirmed. Review and acceptance grant no further scope or Git/publication permission." : "Integration is not accepted. Preserve intent/outcome; reconcile uncertainty read-only before any new attempt." };
+  }
+  private executeIntegration({ id }: { id: string }): Promise<OperationResult> {
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const binding = this.binding;
+      if (!binding || !this.selected || this.stopping || this.stopRequested || epoch !== this.epoch) return reject("inactive", "Current Legatus integration-stage authority required.");
+      const snapshot = await this.store.read(this.selected);
+      const operation = snapshot?.integrations.find(operation => operation.intent.id === id);
+      if (!snapshot || !operation) return reject("integration-missing", "Exact durable integration intent required.");
+      if (operation.state.kind !== "pending") return this.integrationResult({ snapshot, operation });
+      const intent = operation.intent;
+      if (intent.controller.owner !== snapshot.id || intent.controller.session !== this.options.session || intent.controller.generation !== binding.generation || intent.controller.epoch !== epoch)
+        return reject("integration-authority", "Retained integration is observation-only after owner change. Reconcile read-only; never replay it.");
+      const record = snapshot.results.find(record => record.id === intent.result.id && record.digest === intent.result.digest);
+      if (!record) return reject("result-identity", "Integration's exact result is unavailable.");
+      const repository = this.options.results?.repository(intent.identity.workspace.repository);
+      if (!repository) return reject("result-adapter", "Guarded integration adapter unavailable; no effects authorized.");
+      const assertAuthority = async () => {
+        if (binding !== this.binding || this.stopping || this.stopRequested || epoch !== this.epoch) throw new Error("Integration owner/stage authority revoked.");
+        const current = await this.store.read(snapshot.id);
+        const saved = current?.integrations.find(operation => operation.intent.id === id);
+        const candidate = current?.results.find(record => record.id === intent.result.id && record.digest === intent.result.digest);
+        if (!current || !saved || !candidate || !isDeepStrictEqual(saved.intent, intent) || !(saved.state.kind === "pending" || saved.state.kind === "dispatched") ||
+            !verificationPassed(candidate) || candidate.verifications.at(-1)?.digest !== intent.verificationDigest || !isDeepStrictEqual(currentReview(candidate), intent.review) ||
+            current.integrations.some(other => other.intent.id !== id && other.intent.identity.workspace.repository === intent.identity.workspace.repository && other.intent.identity.parent.ref === intent.identity.parent.ref && unresolvedIntegration(other)))
+          throw new Error("Exact current reviewed integration stage is unavailable or another unresolved effect holds this parent.");
+        await this.assertCurrentResult({ snapshot: current, record: candidate });
+        if (binding !== this.binding || this.stopping || this.stopRequested || epoch !== this.epoch) throw new Error("Integration authority changed during observation.");
+      };
+      this.invocations++;
+      try {
+        await assertAuthority();
+        operation.state = { kind: "dispatched" };
+        const revision = snapshot.revision++;
+        await this.store.save(snapshot, revision, () => binding === this.binding && !this.stopping && epoch === this.epoch);
+        try {
+          const outcome = IntegrationOutcome.parse(await repository.integrate({ intent: IntegrationIntent.parse(intent), assertAuthority }));
+          if (!integrationOutcomeMatches({ intent, outcome })) throw new Error("Adapter outcome does not confirm the exact operation/result/source/intended-parent tree.");
+          operation.state = outcome;
+        } catch (error) { operation.state = { kind: "unknown", operation: id, result: intent.result, evidence: ["guarded-integration-outcome-unavailable"], message: String(error) }; }
+        const expected = snapshot.revision++;
+        await this.store.save(snapshot, expected, () => binding === this.binding && !this.stopping && epoch === this.epoch);
+        return this.integrationResult({ snapshot, operation });
+      } catch (error) {
+        // A dispatched marker may already be durable. Only read-only reconciliation can settle it.
+        return { kind: "uncertain", requestKey: id, message: `Integration remains unaccepted. Observe durable intent and reconcile before any further effects. ${String(error)}` };
+      } finally {
+        this.invocations--;
+        if (this.stopRequested) await this.reconcileStop();
+        else if (this.stopping && !this.invocations) this.revoke();
+      }
+    });
+  }
+  private async assertCurrentResult({ snapshot, record }: { snapshot: LegatusSnapshot; record: ResultRecord }) {
+    const identity = record.identity;
+    const ref = TaskRef.parse(identity.assignment.task);
+    const task = snapshot.tasks.find(task => task.id === ref.id);
+    if (!task || task.result?.id !== record.id || task.result.digest !== record.digest || identity.assignment.owner !== snapshot.id ||
+        this.approval(snapshot, ref) !== identity.assignment.scope || correctionHold({ snapshot, taskId: ref.id }) || resultEffectHold({ snapshot, taskId: ref.id }))
+      throw new Error("Result task/revision/scope is no longer current. Acceptance and review never reauthorize changed scope.");
+    const addressed = await this.currentCorrectionBinding({ state: snapshot, task: ref });
+    if (!addressed || addressed.pin.reservation !== identity.assignment.reservation || addressed.pin.assignment !== identity.assignment.assignment ||
+        addressed.pin.workerSession !== identity.assignment.executor.session || addressed.pin.workerGeneration !== identity.assignment.executor.generation)
+      throw new Error("Exact result assignment/reservation/executor identity changed.");
+    const repository = this.options.results?.repository(identity.workspace.repository);
+    if (!repository) throw new Error("Read-only exact result adapter unavailable.");
+    const observation = CandidateObservation.parse(await repository.observe({ workspace: identity.workspace }));
+    if (observation.kind !== "clean" || observation.commit !== identity.commit || observation.tree !== identity.tree || observation.parentCommit !== identity.parent.commit)
+      throw new Error("Git candidate or intended parent changed/dirty/unknown. Capture the new committed identity and recheck/review; never reuse stale evidence.");
+    return repository;
+  }
+  /** Explicit observation only: retained controller identity is not renewed execution authority. */
+  observeIntegration(input: { run: string; operation: string; session: string }): Promise<OperationResult> {
+    const parsed = z.object({ run: LegatusId, operation: z.uuid(), session: z.string() }).strict().safeParse(input);
+    if (!parsed.success || parsed.data.session !== this.options.session)
+      return Promise.resolve(reject("integration-authority", "A trusted host command from the exact retained controller session is required."));
+    const { run, operation, session } = parsed.data;
+    return this.serialize(async () => {
+      const binding = this.binding, epoch = this.epoch;
+      let association: DatabaseSync | null = null, lock: DatabaseSync | null = null;
+      const owned = () => epoch === this.epoch && binding === this.binding;
+      try {
+        if (binding && this.selected !== run) throw new Error("Another run owns this checkout. No observation takeover.");
+        if (!binding) {
+          association = await this.store.acquireAssociation({ context: this.options.context, resume: run });
+          lock = await this.store.acquire(run);
+        }
+        const snapshot = await this.store.read(run);
+        const record = snapshot?.integrations.find(record => record.intent.id === operation);
+        const attachment = snapshot?.attachments.at(-1);
+        if (!snapshot || snapshot.context !== this.options.context || !record || record.intent.controller.owner !== run ||
+            record.intent.controller.session !== session || record.intent.controller.generation !== snapshot.generation ||
+            attachment?.session !== session || attachment.generation !== snapshot.generation ||
+            binding && binding.generation !== snapshot.generation || !owned())
+          return reject("integration-authority", "Exact retained owner/session/context/controller association is required. Preserve the original run and operation; no adoption or execution recovery is authorized.");
+        const result = await this.observeIntegrationOutcome({ snapshot, operation: record, owned });
+        if (this.stopRequested) await this.finishStop();
+        return result;
+      } catch (error) {
+        return reject("integration-observation", `Read-only observation held. Preserve the original run/operation and owning session; resolve unavailable ownership or evidence without takeover, retry or worker revival. ${String(error)}`);
+      } finally {
+        try { if (lock) release(lock); }
+        finally { if (association) release(association); }
+      }
+    });
+  }
+  private async observeIntegrationOutcome({ snapshot, operation, owned }: {
+    snapshot: LegatusSnapshot; operation: IntegrationRecord; owned: () => boolean;
+  }): Promise<OperationResult> {
+    if (!unresolvedIntegration(operation)) return this.integrationResult({ snapshot, operation });
+    const repository = this.options.results?.repository(operation.intent.identity.workspace.repository);
+    if (!repository) return reject("result-adapter", "Read-only integration reconciliation adapter is unavailable. Preserve uncertainty.");
+    try {
+      const outcome = IntegrationOutcome.parse(await repository.reconcile({ intent: IntegrationIntent.parse(operation.intent) }));
+      if (!integrationOutcomeMatches({ intent: operation.intent, outcome })) throw new Error("Reconciliation does not identify the exact operation and intended-parent result.");
+      operation.state = outcome;
+    } catch (error) { operation.state = { kind: "unknown", operation: operation.intent.id, result: operation.intent.result, evidence: ["read-only-reconciliation-unavailable"], message: String(error) }; }
+    const revision = snapshot.revision++;
+    try { await this.store.save(snapshot, revision, owned); }
+    catch (error) { return { kind: "uncertain", requestKey: operation.intent.id, message: `Reconciliation publication uncertain; preserve original intent and never replay. ${String(error)}` }; }
+    return this.integrationResult({ snapshot, operation });
+  }
+  private reconcileIntegration({ input, id }: { input: z.infer<typeof ResultControl>; id: string }): Promise<OperationResult> {
+    return this.serialize(async () => {
+      const binding = this.binding;
+      if (!binding || !this.selected || input.evidence.session !== this.options.session || input.evidence.generation !== binding.generation || input.evidence.legatus !== this.selected)
+        return reject("integration-authority", "Read-only integration reconciliation requires the exact current owner/session/generation; it never grants execution authority.");
+      const snapshot = await this.store.read(this.selected);
+      const operation = snapshot?.integrations.find(operation => operation.intent.id === id);
+      if (!snapshot || !operation || operation.intent.controller.owner !== snapshot.id) return reject("integration-missing", "Exact retained owned integration intent is required; no adoption.");
+      const result = await this.observeIntegrationOutcome({ snapshot, operation, owned: () => binding === this.binding });
+      if (this.stopRequested) await this.finishStop();
+      return result;
+    });
+  }
+  private controlResult(input: z.infer<typeof ResultControl>): Promise<OperationResult> {
+    if (input.action.kind === "reconcile-integration") return this.reconcileIntegration({ input, id: input.action.id });
+    const action = input.action;
+    const epoch = this.epoch;
+    return this.serialize(async () => {
+      const binding = this.binding;
+      if (!binding || !this.selected || this.stopping || this.stopRequested || epoch !== this.epoch) return reject("inactive", "Current Legatus authority is required for result control.");
+      if (input.evidence.session !== this.options.session || input.evidence.generation !== binding.generation || input.evidence.legatus !== this.selected)
+        return reject("provenance", "Result control requires the exact current Legatus session and generation.");
+      const snapshot = await this.store.read(this.selected);
+      if (!snapshot) return reject("unavailable", "Result state is unavailable.");
+      const save = async (record: ResultRecord): Promise<OperationResult> => {
+        const revision = snapshot.revision++;
+        try { await this.store.save(snapshot, revision, () => binding === this.binding && !this.stopping && epoch === this.epoch); }
+        catch (error) { this.revoke(); return { kind: "uncertain", requestKey: record.id, message: `Result publication uncertain; observe retained state before retry. ${String(error)}` }; }
+        return { kind: "result-stage", result: record, status: resultStatus({ record, integrations: snapshot.integrations }), message: "Exact result evidence retained. Reported is not accepted; review grants no scope or Git permission." };
+      };
+      try {
+        if (action.kind !== "capture") {
+          const record = snapshot.results.find(record => record.id === action.result.id && record.digest === action.result.digest);
+          if (!record) return reject("result-identity", "Exact saved result ID and digest required.");
+          if (action.kind === "prepare-integration") {
+            const prior = snapshot.integrations.find(operation => operation.intent.id === action.id);
+            if (prior) {
+              if (!isDeepStrictEqual(prior.intent.result, action.result)) return reject("integration-conflict", "Integration operation IDs cannot be retargeted.");
+              return this.integrationResult({ snapshot, operation: prior });
+            }
+            await this.assertCurrentResult({ snapshot, record });
+            const review = currentReview(record), verification = record.verifications.at(-1);
+            if (!verificationPassed(record) || !verification || review?.outcome !== "approved") return reject("integration-review", "Current passing criteria/checks, resolved exceptions and exact independent review are required before integration.");
+            if (snapshot.integrations.some(operation => operation.intent.identity.workspace.repository === record.identity.workspace.repository && operation.intent.identity.parent.ref === record.identity.parent.ref && unresolvedIntegration(operation)))
+              return reject("integration-held", "A parent integration is pending/uncertain. Reconcile its original intent read-only; never replay or bypass it.");
+            const operation = IntegrationRecord.parse({ intent: { id: action.id, result: action.result, identity: record.identity, verificationDigest: verification.digest, review,
+              controller: { owner: snapshot.id, session: this.options.session, generation: binding.generation, epoch } }, state: { kind: "pending" } });
+            snapshot.integrations.push(operation);
+            const saved = await save(record);
+            return saved.kind === "uncertain" ? saved : this.integrationResult({ snapshot, operation });
+          }
+          if (snapshot.integrations.some(operation => operation.intent.result.id === record.id && unresolvedIntegration(operation)))
+            return reject("integration-held", "Preserve exact evidence while integration is unresolved; reconcile the original operation first.");
+          await this.assertCurrentResult({ snapshot, record });
+          if (action.kind === "verify") {
+            if (action.verification.criteria.some(check => check.criterion >= record.identity.criteria.length) || action.verification.checks.some(check => !record.identity.requiredChecks.includes(check.name)))
+              return reject("result-checks", "Verification must name the identified result's criteria and required checks.");
+            const digest = verificationDigest({ result: action.result, verification: action.verification });
+            if (record.verifications.at(-1)?.digest !== digest) record.verifications.push({ digest, verification: action.verification });
+          } else {
+            if (!verificationPassed(record) || record.verifications.at(-1)?.digest !== action.verificationDigest)
+              return reject("result-review-stale", "Review must bind current passing checks and resolved material exceptions for this exact result.");
+            if (action.reviewer.session === record.identity.assignment.executor.session || action.reviewer.session === input.evidence.session)
+              return reject("result-self-review", "Executor/coordinator completion prose is not independent review. Supply a separate reviewer skill evidence reference.");
+            const { kind: _kind, ...review } = action;
+            const prior = record.reviews.find(review => review.id === action.id);
+            if (prior && !isDeepStrictEqual(prior, review)) return reject("result-review-conflict", "Review IDs are immutable; preserve the original reference.");
+            if (!prior) record.reviews.push(review);
+          }
+          return save(record);
+        }
+        if (snapshot.integrations.some(operation => operation.intent.identity.assignment.task.id === action.task.id && unresolvedIntegration(operation)))
+          return reject("integration-held", "Preserve the current result while integration is unresolved; reconcile its original operation first.");
+        const task = snapshot.tasks.find(task => task.id === action.task.id);
+        const scope = this.approval(snapshot, action.task);
+        if (!task || correctionHold({ snapshot, taskId: task.id }) || resultEffectHold({ snapshot, taskId: task.id })) throw new Error("Affected task scope/authority or known effect settlement is held.");
+        const addressed = await this.currentCorrectionBinding({ state: snapshot, task: action.task });
+        const claims = await this.claims(snapshot), claim = claims.byTask.get(task.id);
+        const launches = await this.launchViews({ snapshot, claims: claims.byTask, fallback: claims.fallback });
+        const launch = launches.get(task.id);
+        if (!addressed || addressed.pin.scope !== scope || addressed.pin.task.revision !== action.task.revision || claim?.kind !== "owned" || claim.workspace.kind !== "ready" || launch?.kind !== "reported" || launch.report.outcome !== "reported-result")
+          throw new Error("Capture requires the exact current owned reported-result assignment, not completion prose or changed authority.");
+        const commonDir = snapshot.workspaceRequests.find(request => request.repositoryId === claim.reservation.repository)?.repository;
+        const repository = commonDir ? this.options.results?.repository(commonDir) : null;
+        if (!commonDir || !repository) return reject("result-adapter", "Read-only result observation adapter is unavailable. No candidate captured.");
+        const workspace = { repository: commonDir, repositoryId: claim.reservation.repository, path: claim.reservation.plan.path, branch: claim.reservation.plan.branch, parent: claim.reservation.plan.parent, parentPath: checkoutIdentity(this.options.context) };
+        const observed = CandidateObservation.parse(await repository.observe({ workspace }));
+        if (observed.kind !== "clean") return reject("result-dirty", observed.message);
+        const identity = ResultIdentity.parse({ assignment: { owner: snapshot.id, task: addressed.pin.task, scope, reservation: addressed.pin.reservation, assignment: addressed.pin.assignment, executor: { session: addressed.pin.workerSession, generation: addressed.pin.workerGeneration } }, workspace,
+          commit: observed.commit, tree: observed.tree, parent: { ref: workspace.parent, commit: observed.parentCommit }, criteria: task.history.at(-1)?.acceptance ?? [], requiredChecks: action.requiredChecks });
+        const digest = resultDigest(identity);
+        let record = snapshot.results.find(record => record.digest === digest);
+        if (!record) { record = ResultRecord.parse({ id: randomUUID(), digest, identity, captureEvidence: observed.evidence }); snapshot.results.push(record); }
+        task.result = { id: record.id, digest: record.digest };
+        return save(record);
+      } catch (error) { return reject("result-authority", String(error)); }
+    });
+  }
   submit(raw: unknown): Promise<OperationResult> {
+    const result = ResultControl.safeParse(raw);
+    if (result.success) return this.controlResult(result.data);
     const correction = CorrectionAction.safeParse(raw);
     if (correction.success) return this.controlCorrection(correction.data);
     const effect = EffectMessage.safeParse(raw);
@@ -3000,6 +3263,7 @@ export class Legion {
             const id = TaskId.parse(randomUUID());
             state.tasks.push({
               id,
+              result: null,
               technicalChoices: [],
               history: [
                 {

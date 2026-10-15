@@ -65,6 +65,10 @@ export class GitWorkspace implements WorkspaceRepository {
     this.check();
     return result;
   }
+  /** Share the ordinary guarded command path and retained common-directory identity checks. */
+  command({ args, cwd = this.cwd }: { args: string[]; cwd?: string }): Promise<CommandOutcome> {
+    return this.git(args, cwd);
+  }
   private async text(args: string[], cwd = this.cwd): Promise<string> {
     const result = await this.git(args, cwd);
     if (result.kind !== "finished" || result.code !== 0)

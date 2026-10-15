@@ -78,6 +78,18 @@ Receiving or verifying a protected correction does **not** renew an old assignme
 
 Focused UI/tool tests use controlled Pi/Herdr adapters and real public storage/transport. Actual installed-SDK safe-delivery/root-UI verification, final integration and independent review remain separate gates; this section is not whole-issue or #41 acceptance.
 
+## Exact-result review and parent integration (#38)
+
+A reported worker result is **not accepted**. In the current selected native Legatus turn, `legion_result` takes `{action: {...}}`; caller/session/generation authority comes from the extension, never tool parameters:
+
+1. `capture`: `{kind: "capture", task: {id, revision}, requiredChecks: ["focused tests"]}` pins clean committed source content, assignment/scope, intended parent and owning checkout. It never stages or commits.
+2. `verify`: `{kind: "verify", result: {id, digest}, verification: {criteria, checks, exceptions}}`. Criteria use zero-based approved criterion indices; checks use the captured names. Each outcome is `passed` or `failed` with nonempty evidence references. Exceptions retain a description and `resolution: {kind: "open"}` or `{kind: "resolved", summary, evidence}`. Missing/failed checks or open material exceptions prevent readiness.
+3. `review`: `{kind: "review", id, result, verificationDigest, reviewer: {session, run}, reference, outcome: "approved", evidence}` records genuine independent skill-review evidence of that exact identity/current verification. Executor/coordinator self-review is refused. Unchanged work reuses its valid review; material changes require relevant checks/review again.
+4. `prepare-integration`: `{kind: "prepare-integration", result, id}` saves an operation UUID without Git effects. Separately call `legion_integrate({requestId: id})` with that exact prepared UUID. It uses ordinary nested Bash permissions; review and preparation are not a permission grant. If the turn settles first, explicitly prepare the same pending ID in a current native Legatus turn rather than inventing a replacement operation.
+5. `reconcile-integration`: `{kind: "reconcile-integration", id}` observes actual Git evidence read-only. Failed/unknown effects stay unaccepted; never retry a merge to recover a lost acknowledgment. Status/doctor remain passive and do not reconcile.
+
+The owning checkout must be clean and on the intended non-primary task parent branch. Integration is fast-forward-only into that checkout, serialized within the owning run. Divergent/conflicting or materially changed work is held: separately authorize source resolution, produce a new clean commit, then capture/check/review the new identity. There is no reset/force, automatic conflict resolution, resource adoption, scope refresh, cross-run scheduler, main merge, push/PR, tracker closure or deployment grant. Acceptance requires confirmed exact parent integration, not command exit zero alone. Spec-wide final review and cleanup remain separate work.
+
 ## Safe stopping (#34)
 
 `/legion off` immediately withholds new assignments/effects and persists one shutdown identity. Repeated off observes that shutdown. Already-admitted effects and registered native children may settle; only corroborated native settlement and the addressed worker's parked receipt release the live owner's observation lock. Unknown effects/activity preserve resources and show stopping/blockers. Restart never schedules saved work or erases an unresolved shutdown; parked/report receipts are not acceptance, resume or cleanup authority.

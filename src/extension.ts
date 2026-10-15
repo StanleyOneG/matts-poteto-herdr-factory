@@ -2,6 +2,9 @@ import { sampleContext, contextStatus, type ContextAlert } from "./context-alert
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
+import { GitIntegration } from "./git-integration.js";
+import { checkoutIdentity } from "./checkout-identity.js";
+import type { ResultRepository } from "./result-domain.js";
 import { join, dirname } from "node:path";
 import { realpathSync, readFileSync, openSync, fsyncSync, closeSync } from "node:fs";
 import { z } from "zod";
@@ -16,6 +19,7 @@ import {
   Legion,
   ProposalSchema,
   CorrectionAction,
+  ResultControl,
   type Proposal,
   type LegionView,
   type OperationResult,
@@ -76,6 +80,7 @@ const [DeliverCorrection, ObserveCorrection, , VerifyCorrection] = CorrectionAct
 const CorrectionArguments = CorrectionAction.omit({ kind: true, evidence: true }).extend({
   action: z.discriminatedUnion("kind", [DeliverCorrection, ObserveCorrection, VerifyCorrection]),
 });
+const ResultArguments = ResultControl.omit({ kind: true, evidence: true });
 const StatusArguments = z.strictObject({ command: z.enum(["status", "doctor"]), id: LegatusId.optional(), details: z.boolean().optional() });
 const WorkspaceArguments = z.object({ requestId: z.string().min(1) }).strict();
 const ShellReceipt = z.object({
@@ -84,7 +89,7 @@ const ShellReceipt = z.object({
   truncated: z.literal(false),
 });
 type WorkspaceRun = {
-  tool: "legion_workspace" | "legion_launch" | "legion_handoff";
+  tool: "legion_workspace" | "legion_launch" | "legion_handoff" | "legion_integrate";
   marker: string;
   requestId: string;
   session: string;
@@ -116,11 +121,14 @@ function compactContinuation(view: LegionView): string {
     }; }), decisions: state.decisions, resolutions: state.resolutions,
     effects: state.effects.map(effect => ({ id: effect.intent.id, task: effect.intent.pin.task, state: effect.state })),
     corrections: state.corrections,
+    results: view.tasks.map(task => ({ task: task.id, result: task.result, status: task.resultStatus })),
+    integrations: state.integrations.map(operation => ({ id: operation.intent.id, result: operation.intent.result, state: operation.state })),
   })}`;
 }
 const nativeInstructions = `You are the Legatus following the explicitly Emperor-selected native Matt skill, not the intake-only interpreter. Ask necessary requirements, design and test-seam questions before AFK implementation. Let the skill own methodology and task-graph/frontier decisions; Tribuni are separate interactive exploration/implementer subagents, not ordinary native children. Native research, tools, permissions, Trust and child completion remain native.
 Record scoped tickets/tasks and material questions via legion_intake using the exact saved source references. An implement-spec source may scope multiple tickets, all within that Emperor source; new requirements, acceptance changes, mandatory-verification waivers, expanded access, financial commitments and irreversible actions require presented Emperor decisions. Followup answers are saved sources; do not manufacture provenance or infer workflow/profile selection. Use legion_request only for bounded reserve/reconcile/workspace/launch/handoff of admitted tasks; then execute the exact returned legion_workspace/legion_launch request identity. Never fabricate request IDs, change profile or bypass held/uncertain outcomes. Resolve uncertainty before any retry.
 For task corrections, use legion_intake correction with the exact saved source, current task and technical or approved-amendment authorization. Technical-choice is distinct and does not queue correction instructions. Use legion_correction to explicitly deliver or observe the exact saved ID/digest through actual host evidence. Queued means saved intent; delivered means exact worker receipt only. Verify only after Legatus checks establish the performed change, with nonempty summary and evidence references; worker reports, receipts, native settlement and generic applied intake results are not performed correction. Unknown outcomes preserve the exact original worker/evidence; never resend or automatically retarget. Explicit reissue uses correction.previous only after predecessor reconciliation and a different actual current worker. Receipt and verification never renew stale assignment scope; expose authority mismatches while independent approved tasks continue. Status/doctor are passive, not controls. Never answer Trust/permission prompts automatically.
+Use legion_result to capture clean committed reported work, verify every approved criterion/named required check and record material exceptions, then record independent skill review bound to the exact result and current verification digest. Executor/coordinator self-review is not independent. Unchanged exact work reuses its valid review. prepare-integration saves intent only and returns an exact legion_integrate requestId for a separate explicit guarded tool call; it is not Git permission. reconcile-integration observes unknown/applied effects read-only, never retries. Changed work, parent or conflict resolution requires new capture and relevant checks/review under separately appropriate authority. Failed/unknown integration is never accepted and cannot release dependents.
 This skill entry grants no additional staging, commit, integration, publication, issue closure, deployment, main merge or cleanup authority. Follow the Emperor's separately granted task policy. Do not rewrite upstream skills or global settings.`;
 export default function (pi: ExtensionAPI) {
   if (process.env.PI_SUBAGENT_CHILD === "1") return;
@@ -128,6 +136,7 @@ export default function (pi: ExtensionAPI) {
   if (bootstrap) { installTribunus(pi, bootstrap); return; }
   const hosts = new AsyncLocalStorage<TribunusHost>();
   const repositories = new AsyncLocalStorage<WorkspaceRepository>();
+  const resultRepositories = new AsyncLocalStorage<ResultRepository>();
   let workspaceRun: WorkspaceRun | null = null;
   const workspaceAttempts = new Map<string, "attempted" | "deferred" | "held">();
   let legion: Legion | null = null;
@@ -200,7 +209,8 @@ export default function (pi: ExtensionAPI) {
       lines.push(`Run ${snapshot.id}. ${view.tasks.length} tasks; ${snapshot.submissions.filter(source => source.state.kind === "pending").length} pending inputs.`,
         `Future profile ${snapshot.workflowChoice.profile}; workflow ${snapshot.workflowChoice.requestedWorkflow}.`);
       for (const task of view.tasks) {
-        lines.push(`Task ${task.id}@${task.history.at(-1)?.revision}: ${task.eligibility}; worker ${task.launch.kind}.`);
+        lines.push(`Task ${task.id}@${task.history.at(-1)?.revision}: ${task.eligibility}; worker ${task.launch.kind}; result ${task.resultStatus.kind}.`);
+        if (task.resultStatus.kind === "held") lines.push(`Result hold ${task.id}. ${task.resultStatus.message}`);
         for (const hold of [task.resumeHold, task.workflowHold, task.correctionHold]) if (hold) lines.push(`Hold ${task.id}. ${hold}`);
       }
       for (const decision of snapshot.decisions) {
@@ -262,6 +272,12 @@ export default function (pi: ExtensionAPI) {
         break;
       case "handoff-stage":
         report(ctx, `${result.message}\nHandoff ${result.requestId}. Explicit continuation: /legion handoff ${result.requestId}`);
+        break;
+      case "result-stage":
+        report(ctx, `${result.message}\nResult ${result.result.id}; ${result.status.kind}.`, result.status.kind === "held" ? "warning" : "info");
+        break;
+      case "integration-stage":
+        report(ctx, `${result.message}\nIntegration ${result.integration.intent.id}; ${result.status.kind}. ${result.integration.state.kind === "pending" ? `Explicit next stage: legion_integrate with requestId ${result.integration.intent.id}; ordinary Bash permissions still apply.` : result.integration.state.kind === "unknown" || result.integration.state.kind === "dispatched" ? `Preserve evidence; use legion_result reconcile-integration in the current native turn, or /legion integration observe ${result.integration.intent.controller.owner} ${result.integration.intent.id} from the exact retained controller session, including after off/restart. Never retry the merge.` : ""}`, result.status.kind === "accepted" ? "info" : "warning");
         break;
       case "correction-stage":
         report(ctx, `Correction ${result.correction}: ${result.state.kind}. ${result.message}`, result.state.kind === "unknown" ? "warning" : "info");
@@ -561,6 +577,22 @@ export default function (pi: ExtensionAPI) {
       assignments: {
         repository: () => repositories.getStore() ?? null,
       },
+      results: {
+        repository: () => {
+          const guarded = resultRepositories.getStore();
+          if (guarded) return guarded;
+          const git = new GitIntegration({ cwd: checkoutIdentity(ctx.cwd), run: async command => {
+            try { const result = await pi.exec("bash", ["-c", command]); return { kind: "finished", code: result.code, output: result.stdout + result.stderr }; }
+            catch (error) { return { kind: "unknown", message: String(error) }; }
+          } });
+          // Only read-only methods are reachable without a correlated ordinary Bash stage.
+          return {
+            observe: input => git.observe(input),
+            reconcile: input => git.reconcile(input),
+            integrate: async () => { throw new Error("Integration requires its explicit correlated guarded stage; no exec fallback."); },
+          };
+        },
+      },
     });
     try {
       ctx.ui.setStatus("legion-intake", "Legion inactive");
@@ -588,7 +620,7 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand("legion", {
     description:
-      "Durable approved work. /legion help for commands. on, task <text>, correction <task-id>@<revision> <text>, correction deliver|observe <id>, status [id] [--details], doctor, off, resume <id>, reserve, reconcile, workspace, launch, handoff. Poteto remains off unless the Emperor enables it.",
+      "Durable approved work. /legion help for commands. on, task <text>, correction <task-id>@<revision> <text>, correction deliver|observe <id>, integration observe <run-id> <operation-id>, status [id] [--details], doctor, off, resume <id>, reserve, reconcile, workspace, launch, handoff. Poteto remains off unless the Emperor enables it.",
     getArgumentCompletions: (prefix) =>
       [
         "on",
@@ -603,6 +635,7 @@ export default function (pi: ExtensionAPI) {
         "correction",
         "correction deliver",
         "correction observe",
+        "integration observe",
         "handoff",
         "off",
         "resume",
@@ -623,7 +656,7 @@ export default function (pi: ExtensionAPI) {
       const caller = { ...evidence(ctx), origin: "host-command" };
       try {
         if (text.trim() === "help") {
-          report(ctx, "Legion commands (English interface)\n/legion on | off | resume <run-id>\n/legion task <text> (escape reserved command words)\n/legion correction <task-id>@<revision> <text> (save targeted intent; protected changes still require Emperor approval)\n/legion correction deliver <id> | correction observe <id> (explicit controls; observe reconciles durable correction state, unlike passive status)\n/legion status [run-id] [--details] | doctor (read-only, no activation or dispatch)\n/legion reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>]\n/legion reconcile <task-id> | workspace <request-id> | launch <task-id>@<revision>\n/legion handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string> | handoff <handoff-id>\n/legion implement-spec=on <instructions> | poteto-mode=on <instructions> | poteto-mode=off\nCorrection verification and explicit linked reissue belong to the current Legatus; delivery reconciliation uses actual host observation. Receipts and reports are not performed-change verification. Never answer native Trust/permission prompts automatically.");
+          report(ctx, "Legion commands (English interface)\n/legion on | off | resume <run-id>\n/legion task <text> (escape reserved command words)\n/legion correction <task-id>@<revision> <text> (save targeted intent; protected changes still require Emperor approval)\n/legion correction deliver <id> | correction observe <id> (explicit controls; observe reconciles durable correction state, unlike passive status)\n/legion status [run-id] [--details] | doctor (read-only, no activation or dispatch)\n/legion reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>]\n/legion reconcile <task-id> | workspace <request-id> | launch <task-id>@<revision>\n/legion handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string> | handoff <handoff-id>\n/legion implement-spec=on <instructions> | poteto-mode=on <instructions> | poteto-mode=off\n/legion integration observe <run-id> <operation-id> (explicit read-only reconciliation by the exact retained controller session, including after off/restart; no activation, worker revival or renewed write/scope authority; unavailable ownership/evidence stays held)\nExact results: ask the current native Legatus to use legion_result capture, verify and independent review; prepare-integration saves intent only, then a separate exact legion_integrate requestId uses ordinary Bash permissions. reconcile-integration is read-only; unknown/failed is not accepted. No slash command grants Git authority.\nCorrection verification and explicit linked reissue belong to the current Legatus; delivery reconciliation uses actual host observation. Receipts and reports are not performed-change verification. Never answer native Trust/permission prompts automatically.");
           return;
         }
         if (/^\s*(?:status|doctor)(?:\s|$)/.test(text)) {
@@ -632,6 +665,17 @@ export default function (pi: ExtensionAPI) {
           const command = parts.filter(part => part !== "--details").join(" ");
           const result = await current.command({ text: command, requestKey: randomUUID(), evidence: caller });
           notifyResult(ctx, result, { details, diagnostics: parts[0] === "doctor" });
+          return;
+        }
+        if (/^\s*integration(?:\s|$)/.test(text)) {
+          const observation = /^\s*integration\s+observe\s+(\S+)\s+(\S+)\s*$/.exec(text);
+          if (!observation?.[1] || !observation[2]) {
+            report(ctx, "Use /legion integration observe <run-id> <operation-id>. Read-only reconciliation never activates, retries Git, revives workers or renews scope.", "error");
+            return;
+          }
+          const result = await current.observeIntegration({ run: observation[1], operation: observation[2], session: ctx.sessionManager.getSessionId() });
+          notifyResult(ctx, result);
+          if (legion === current) await refresh(ctx, false);
           return;
         }
         const correctionControl = /^\s*correction\s+(deliver|observe)(?:\s+([\s\S]*))?$/.exec(text);
@@ -1025,6 +1069,7 @@ export default function (pi: ExtensionAPI) {
   });
   pi.on("tool_call", (event) => {
     if (workspaceRun) {
+      if (event.toolName === "legion_status") return;
       const args = WorkspaceArguments.safeParse(event.input);
       if (
         workspaceRun.kind === "prepared" &&
@@ -1046,18 +1091,18 @@ export default function (pi: ExtensionAPI) {
         workspaceRun.kind === "running" &&
         event.toolName === "bash" &&
         event.parentToolCallId === workspaceRun.callId &&
-        repositories.getStore()
+        (repositories.getStore() || resultRepositories.getStore())
       )
         return;
-      if (nativeRun?.kind === "running" && !["legion_workspace", "legion_launch", "legion_handoff", "legion_request"].includes(event.toolName)) return;
+      if (workspaceRun.tool !== "legion_integrate" && nativeRun?.kind === "running" && !["legion_workspace", "legion_launch", "legion_handoff", "legion_integrate", "legion_request", "legion_result"].includes(event.toolName)) return;
       return {
         block: true,
         reason:
           "Workspace stage permits only its exact correlated root tool and necessary guarded nested Git calls.",
       };
     }
-    if ((event.toolName === "legion_request" || event.toolName === "legion_correction") && nativeRun?.kind !== "running") return { block: true, reason: "No applied selected native Legatus workflow turn is active." };
-    if (event.toolName === "legion_workspace" || event.toolName === "legion_launch" || event.toolName === "legion_handoff")
+    if ((event.toolName === "legion_request" || event.toolName === "legion_correction" || event.toolName === "legion_result") && nativeRun?.kind !== "running") return { block: true, reason: "No applied selected native Legatus workflow turn is active." };
+    if (event.toolName === "legion_workspace" || event.toolName === "legion_launch" || event.toolName === "legion_handoff" || event.toolName === "legion_integrate")
       return {
         block: true,
         reason: "No correlated host-authorized workspace stage is active.",
@@ -1126,6 +1171,30 @@ export default function (pi: ExtensionAPI) {
     },
   });
   pi.registerTool({
+    name: "legion_result", label: "Legion exact result", exposure: "model-only",
+    description: "Current native Legatus controls for an exact reported result: capture clean committed Git identity with named required checks; record criterion/check outcomes and material exceptions; record independent skill review of the exact result and verification digest; prepare a durable integration intent; reconcile its actual Git outcome read-only. Reports are not acceptance. Review never grants Git permission or changed scope. Never replay unknown integration.",
+    parameters: Type.Unsafe<z.infer<typeof ResultArguments>>(z.toJSONSchema(ResultArguments)),
+    execute: async (_toolCallId, raw, _signal, _update, ctx) => {
+      const args = ResultArguments.parse(raw), captured = nativeRun, current = legion;
+      if (!current || captured?.kind !== "running" || captured.evidence.session !== ctx.sessionManager.getSessionId() ||
+          binding?.generation !== captured.evidence.generation || binding.legatus !== captured.evidence.legatus || workspaceRun)
+        throw new Error("No current correlated native Legatus turn authorizes result control.");
+      const modeHold = nativeModeHold(ctx);
+      const diagnostics = principalDiagnostics({ principal: "Legatus", context: ctx, thinking: ctx.thinkingLevel ?? pi.getThinkingLevel() });
+      if (modeHold || diagnostics.some(diagnostic => diagnostic.status !== "ready")) throw new Error(modeHold ?? diagnostics.map(diagnostic => diagnostic.message).join(" "));
+      const result = await current.submit({ kind: "result-control", ...args, evidence: {
+        session: captured.evidence.session, generation: captured.evidence.generation, legatus: captured.evidence.legatus, run: captured.evidence.run,
+      } });
+      if (args.action.kind === "prepare-integration" && result.kind === "integration-stage" && result.integration.state.kind === "pending" &&
+          nativeRun === captured && captured.kind === "running" && legion === current && binding?.generation === captured.evidence.generation && !workspaceRun) {
+        workspaceRun = { kind: "prepared", tool: "legion_integrate", marker: captured.id, requestId: result.integration.intent.id, session: captured.evidence.session, generation: captured.evidence.generation };
+      }
+      notifyResult(ctx, result);
+      if (legion === current) await refresh(ctx, false);
+      return { content: [{ type: "text", text: JSON.stringify(result) }], details: result, isError: result.kind === "rejected" || result.kind === "uncertain" || (result.kind === "integration-stage" && ["held", "integration-failed", "integration-unknown"].includes(result.status.kind)) };
+    },
+  });
+  pi.registerTool({
     name: "legion_request", label: "Legion workflow request", exposure: "model-only",
     description: 'Request a bounded reserve, reconcile, workspace, launch or explicit handoff stage for an admitted task in the selected native workflow. Handoff usage: handoff <task-id>@<revision> --purpose "short purpose" --continue "successor continuation"; continue observations with handoff <handoff-id>. Supply only the command, never Emperor provenance, workflow/profile or task payload. No publication authority.',
     parameters: Type.Object({ command: Type.String({ minLength: 1 }) }, { additionalProperties: false }),
@@ -1150,12 +1219,12 @@ export default function (pi: ExtensionAPI) {
       } finally { if (nativeRequestCall === toolCallId) nativeRequestCall = null; }
     },
   });
-  for (const tool of ["legion_workspace", "legion_launch", "legion_handoff"] as const) pi.registerTool({
+  for (const tool of ["legion_workspace", "legion_launch", "legion_handoff", "legion_integrate"] as const) pi.registerTool({
     name: tool,
-    label: tool === "legion_handoff" ? "Legion handoff" : tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
+    label: tool === "legion_integrate" ? "Legion parent integration" : tool === "legion_handoff" ? "Legion handoff" : tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
     exposure: "model-only",
     description:
-      tool === "legion_handoff" ? "Continue exactly one immutable Legatus handoff request: task-scoped safe-stop, actual settlement, unchanged native skill, exact temporary artifact and one pinned same-worktree successor. Uncertain effects are observed, never replayed." : tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
+      tool === "legion_integrate" ? "Execute exactly one prepared integration requestId from legion_result in its separately correlated stage, through ordinary permission-controlled Bash. Review/preparation grants no Git permission. Unknown outcomes require read-only reconcile-integration, never another merge. No primary-branch merge, conflict resolution, publication or scope authority." : tool === "legion_handoff" ? "Continue exactly one immutable Legatus handoff request: task-scoped safe-stop, actual settlement, unchanged native skill, exact temporary artifact and one pinned same-worktree successor. Uncertain effects are observed, never replayed." : tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
     parameters: Type.Object(
       { requestId: Type.String({ minLength: 1 }) },
       { additionalProperties: false },
@@ -1177,6 +1246,9 @@ export default function (pi: ExtensionAPI) {
         throw new Error("No current correlated workspace stage.");
       if (tool === "legion_launch" || tool === "legion_handoff") await observeContext(ctx);
       const guarded: ConstructorParameters<typeof GitWorkspace>[1] = async (command) => {
+        if (tool === "legion_integrate" && (workspaceRun !== captured || captured.kind !== "running" || captured.callId !== toolCallId || legion !== current ||
+            binding?.session !== captured.session || binding.generation !== captured.generation || ctx.sessionManager.getSessionId() !== captured.session))
+          throw new Error("Correlated guarded stage authority changed. No shell invocation.");
         if (tool === "legion_handoff") {
           const checked = await current.command({ text: `handoff ${args.requestId}`, requestKey: args.requestId, evidence: evidence(ctx) });
           if (checked.kind !== "handoff-stage") throw new Error("Exact handoff authority revoked; no external invocation.");
@@ -1206,9 +1278,11 @@ export default function (pi: ExtensionAPI) {
         const view = await current.state();
         const request = view.snapshot?.launchRequests.find((r) => r.id === args.requestId);
         const host = new LocalTribunusHost(guarded, { owner: binding.legatus, session: captured.session, generation: captured.generation, epoch: tool === "legion_handoff" ? view.snapshot?.handoffs.find(record => record.id === args.requestId)?.pin.epoch ?? 0 : request?.epoch ?? 0 }, (message) => report(ctx, message, "error"));
-        const result = await repositories.run(git, () => hosts.run(host, () =>
-          current.command(tool === "legion_handoff" ? { handoffRequest: args.requestId } : tool === "legion_launch" ? { launchRequest: args.requestId } : { workspaceRequest: args.requestId }),
-        ));
+        const result = tool === "legion_integrate"
+          ? await resultRepositories.run(new GitIntegration({ cwd: checkoutIdentity(ctx.cwd), run: guarded }), () => current.command({ integrationRequest: args.requestId }))
+          : await repositories.run(git, () => hosts.run(host, () =>
+              current.command(tool === "legion_handoff" ? { handoffRequest: args.requestId } : tool === "legion_launch" ? { launchRequest: args.requestId } : { workspaceRequest: args.requestId }),
+            ));
         notifyResult(ctx, result);
         if (legion === current) await refresh(ctx);
         return {
@@ -1217,7 +1291,8 @@ export default function (pi: ExtensionAPI) {
           isError:
             result.kind === "rejected" ||
             result.kind === "uncertain" ||
-            result.kind === "ownership-blocked" || (result.kind === "launched" && result.launch.state.kind === "held"),
+            result.kind === "ownership-blocked" || (result.kind === "launched" && result.launch.state.kind === "held") ||
+            (result.kind === "integration-stage" && result.status.kind !== "accepted"),
         };
       } finally {
         if (workspaceRun === captured) {
