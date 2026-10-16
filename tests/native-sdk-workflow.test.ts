@@ -13,3 +13,25 @@ test("actual Pi1.2 public native input and persisted journal authorize scoped wo
   assert.ok(result.root.startsWith(join(tmpdir(), "legion-native-sdk-workflow-")));
   await rm(result.root, { recursive: true, force: true });
 });
+
+test("actual Pi native workflow requires explicit workspace authorization after deferred reserve and rejects a foreign stage ID", async t => {
+  const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "tests/support/native-sdk-workflow.mjs", "workspace"]);
+  const result = z.object({ root: z.string(), pi: z.literal("1.2.0"), networkCalls: z.literal(0), prematureDenied: z.literal(true), wrongIdDenied: z.literal(true), workspace: z.literal("ready"), nestedBash: z.number().positive(), errors: z.array(z.unknown()).length(0) }).parse(JSON.parse(stdout));
+  assert.ok(result.root.startsWith(join(tmpdir(), "legion-native-sdk-workflow-")));
+  t.diagnostic(JSON.stringify(result));
+  await rm(result.root, { recursive: true, force: true });
+});
+
+test("deferred reserve receipt explains the native intermediate workspace request without dropping host guidance", async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "tests/support/native-sdk-workflow.mjs", "deferred-guidance"]);
+  const result = z.object({ root: z.string() }).parse(JSON.parse(stdout));
+  assert.ok(result.root.startsWith(join(tmpdir(), "legion-native-sdk-workflow-")));
+  await rm(result.root, { recursive: true, force: true });
+});
+
+test("native workflow instructions distinguish deferred workspace intent from explicit stage authorization and execution", async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "tests/support/native-sdk-workflow.mjs", "guidance"]);
+  const result = z.object({ root: z.string() }).parse(JSON.parse(stdout));
+  assert.ok(result.root.startsWith(join(tmpdir(), "legion-native-sdk-workflow-")));
+  await rm(result.root, { recursive: true, force: true });
+});

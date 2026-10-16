@@ -731,7 +731,7 @@ export class Legion {
             legatus: state.id,
             requestKey: input.requestKey,
             sequence: state.receipts.length + 1,
-            message: `Workspace request recorded. Task NOT YET RESERVED by this request. Guarded execution required. Run /legion workspace ${input.requestKey}. No worker started.`,
+            message: `Workspace request recorded as deferred intent, not executable workspace authority. Task NOT YET RESERVED by this request. In the current native workflow, call legion_request({command: ${JSON.stringify(`workspace ${input.requestKey}`)}}); require workspace-stage, then legion_workspace with its exact requestId. Host alternative: /legion workspace ${input.requestKey}. No worker started.`,
           },
         };
         state.workspaceRequests.push(
