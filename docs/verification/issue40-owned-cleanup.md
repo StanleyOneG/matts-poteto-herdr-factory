@@ -8,9 +8,9 @@ Preserve all existing ownership, records, reports, evidence, handoff references 
 
 Spec #1 and tickets #40/#41 now carry this approved scope and revised acceptance checks. Future removal is deferred to [#42](https://github.com/StanleyOneG/matts-poteto-herdr-factory/issues/42), which is not a first-version/#41 prerequisite and promises no date or unverified supported environment. Tracker #40 is already CLOSED; that is not acceptance evidence.
 
-**The amendment is implemented and focused checks pass; acceptance remains pending.** No new native trial has occurred. The newly authorized bounded native check must use a newly created disposable owned tab with a real interactive Pi Tribunus, through the Legion product mechanism, to establish successful tab closure and preservation of its worktree, branch and evidence. Previous retained resources are not trial material. If the scenario is unavailable, report the blocker rather than substitute developer-only/direct Herdr closure or additional trials.
+**The amendment is implemented and independently reviewed; acceptance is blocked.** Focused checks and final typecheck/build pass. The single final full suite failed: 657/658, with a task-lock census subprocess timeout. The authorized native setup stopped before creating a Tribunus after a malformed reservation request and a source-authority-rejected continuation. Product tab auto-close remains unverified; the one product Tribunus trial grant is unspent, not permission to repeat setup without a new decision.
 
-The revised acceptance still requires focused regressions, typecheck/build, one full suite on the final candidate and independent Standards/Spec review. Commit the verified result; push needs separate approval. Add the final acceptance comment only after publishing the exact checked commit. Do not start #41 automatically. Successful native worktree removal is excluded from this version, not relabeled as passed.
+The exact locally committed candidate is `fe9fff9871efa0bbe8dbb0a0d8f2e849ef8bf982`, following implementation commit `eb487bcef0a485b6c265501c5819d39c7bc47aa3` and test-only review fixes. Neither a failed suite nor developer-only coordinator closure is acceptance. Push needs separate approval; no final acceptance comment may precede publication of the exact checked commit and completion of the remaining gates. Do not start #41 automatically. Successful native worktree removal is excluded from this version, not relabeled as passed.
 
 ## Amendment implementation and focused evidence
 
@@ -34,9 +34,68 @@ Each command used its own fresh disk-backed `/workspaces/astraprojects/.tmp/i40-
 | `npm run typecheck` | Exit 0 | `i40-z6Wz` |
 | `npm run build` | Exit 0 | `i40-1B5n` |
 
-Intermediate diagnostics are preserved, not relabeled as behavioral reds: `i40-6jBx` failed because the test attempted cleanup control while the tab stage still owned correlation; `i40-zOCn` was 22/24 because two test expectations incorrectly said inactive rather than stopping for unresolved historical effects; `i40-7It3` records a transient typecheck failure during refinement. Earlier green typechecks are `i40-F4Sb` and `i40-EemD`, and an earlier 17/17 state run is `i40-a3oU`. The final implementation no longer creates retained removal intents: retention is derived status, and old worktree records remain inert and unchanged. All these roots are worker-owned retained review evidence; preserve them until the coordinator completes review/continuation and explicitly takes the next cleanup decision. No old resources or evidence were deleted. Pi's already-running managed/truncated-output routing still uses `/tmp`; shell descendants were routed to disk without global configuration changes.
+Intermediate diagnostics are preserved, not relabeled as behavioral reds: `i40-6jBx` failed because the test attempted cleanup control while the tab stage still owned correlation; `i40-zOCn` was 22/24 because two test expectations incorrectly said inactive rather than stopping for unresolved historical effects; `i40-7It3` records a transient typecheck failure during refinement. Earlier green typechecks are `i40-F4Sb` and `i40-EemD`, and an earlier 17/17 state run is `i40-a3oU`. The final implementation no longer creates retained removal intents: retention is derived status, and old worktree records remain inert and unchanged. The coordinator accepts retention responsibility for these review-evidence roots. Preserve them until review/continuation no longer needs them and their separate cleanup conditions are established. No old resources or evidence were deleted. Pi's already-running managed/truncated-output routing still uses `/tmp`; shell descendants were routed to disk without global configuration changes.
 
-No full suite, native trial, staging, commit, push, tracker mutation or dependency/global-setting change was performed by this implementation worker. The coordinator owns the single final integrated-suite run and fresh independent review. Read-only native preflight found that the existing parent is on `main` without a Legion loadout, so it cannot serve as the real product coordinator. The Emperor subsequently authorized a separate isolated non-primary coordinator checkout/branch and one no-focus Legatus tab in workspace `w1`, with ordinary per-invocation Legion loading, before the one product Tribunus trial. This setup and the trial remain unperformed and parent-owned, pending the reviewed committed candidate. Readable stat-only terminal census is not the former worktree cwd/fd census blocker, nor proof of future worker settlement. Trust/permissions, real result checks/review/integration, exact identities/settlement, product closure and preserved worktree/branch/evidence still require actual native evidence. Successful native worktree removal is neither claimed nor a first-version gate.
+The initial implementation worker performed no full suite, native trial, staging, commit, push, tracker mutation or dependency/global-setting change. The subsequent coordinator-owned review, validation and native setup are recorded below. Readable stat-only terminal census is distinct from the former worktree cwd/fd census blocker and does not prove future worker settlement. Successful native worktree removal is neither claimed nor a first-version gate.
+
+## Amendment independent review and corrections
+
+Parallel workflow `47e49e96-460f-422f-a119-199485afce7d` reviewed exact `9b07d456...eb487bc`:
+
+- Standards reviewer `6385b8f9-24bd-4ab3-94e8-4c012a67ad89` found three P2 test issues: positional helper arguments, a singleton tab matrix retaining unreachable worktree branches, and a tab record still named `tree`.
+- Spec reviewer `635a15f1-1ca1-4803-bd80-e4c4dd4f63cd` found no implementation defect against the amended scope. Native and full-suite gates remained pending.
+- Fix worker `bd7b0bd8-8b9e-4489-b211-4f02e0c53f67` changed only `tests/cleanup-state.test.ts` and `tests/cleanup-public.test.ts`, committed by the coordinator as `fe9fff9`. Focused files passed 18/18 and 24/24, and typecheck passed. Evidence roots are `s.bKPi`, `p.t9ag` and `t.havm` under the disk-backed base; the coordinator retains responsibility. A small npm metadata log outside those roots was preserved and copied into `t.havm`.
+- Independent targeted re-review `07a21f50-a2cb-4b3d-8a0c-a1556ebd6627` confirmed all three findings resolved with no lost assertions or new defects. Reviewers inspected source, not independently rerun tests.
+
+The coordinator verified that `eb487bc...fe9fff9` changes only the two test files; production source and package manifests are identical. Review of code does not waive the failed integrated suite or missing native success.
+
+## Amendment final local validation
+
+Validation worker `3e939fce-6ee3-4751-b883-ec37bddcb028` tested clean `main` at `fe9fff9871efa0bbe8dbb0a0d8f2e849ef8bf982`, with Node 22.23.1, npm 10.9.8, TypeScript 5.9.3 and tsx 4.23.15:
+
+- `npm run typecheck`: exit 0.
+- `npm run build`: exit 0.
+- `npm test`: ran exactly once, 00:40:27–01:19:45 UTC on 2026-10-16; **657/658, exit 1**, zero cancelled, skipped or todo.
+- `git diff --check` and staged checks passed; HEAD and clean status were unchanged.
+
+The failure is `lock startup census task has one public owner and rejected contender every round`, at `tests/lock-startup.test.ts:75–76`. Its existing `node scripts/census-lock-startup.mjs 500 task` subprocess exceeded the test's 75000ms timeout and returned `ETIMEDOUT`. The suite itself completed normally. This is a failed gate, not a pass, setup red or demonstrated environmental flake. No full-suite rerun occurred. A subsequent bounded diagnosis ran the exact failing case once through `tsx --test --test-concurrency=1 --test-name-pattern='^lock startup census task has one public owner and rejected contender every round$' tests/lock-startup.test.ts`, with unchanged 500 rounds, 75000ms subprocess timeout, 80000ms outer timeout and safety assertions. It passed 1/1, exit 0, in 67271.822945ms. The final census contains 500 records, one owner, one saved and one rejected outcome each round, with zero zero-owner or dual-owner rounds. This standalone pass does not change the failed integrated-suite exit or establish acceptance.
+
+Read-only original-state inspection found sequential progress beyond 430 iterations, with a final committed acquire but no shutdown in iteration 430. Directory timestamp gaps were at most 0.256s, supporting cumulative runtime exhaustion rather than a prolonged early deadlock. The precise timing cause, any #40 performance contribution and the original last IPC/release phase remain unresolved. No harmless-flake classification, baseline comparison, code fix, threshold change or additional variant was inferred. Diagnosis report `8b47f3bd-7d84-4f7b-b918-7a967a4ec0a4` and `/workspaces/astraprojects/.tmp/dxLEEgL` preserve the original readback, focused log/census and limits; the coordinator accepts retention responsibility. The focused log SHA-256 is `c5eda25f4f079f442d5a6cdfb53d236c2d72e29c14b73e7ae1e8266d7a54e712`.
+
+Before/after manifests cover 718 tracked entries, file bytes, modes and symlink targets. They are byte-identical, SHA-256 `f4bb0add83508b6f397ed8106c026e08ab336e2b3afa7a39495f1b94ddb0fe56`. These documentation updates follow validation; production and test source remain the tested candidate.
+
+The coordinator retains `/workspaces/astraprojects/.tmp/v40e-AcLWlp` for manifests/receipts/audit, `v40t-3ap2ov3b` and `v40b-otavbu7s` for typecheck/build, and `sq4ovaQ` for the original full-suite log and fixtures. Full log SHA-256: `21c97cffb127364ea4bac3c3a01bdf2ae39c95ff9b94281665fbe802da7c6ebb`. The incomplete `sq4ovaQ/legion-lock-census-9By6ty` has 431 round directories but no final census JSON; this is not evidence of 431 completed rounds. No observed validation-process identity survived the final audit. These evidence roots remain retained; that audit is not a universal worktree-use proof or deletion authority.
+
+## Amendment native setup and remaining product gate
+
+Read-only preflight found no Legion loadout in the current parent Pi and a primary `main` checkout, which cannot serve as the non-primary product integration parent. The Emperor separately authorized one isolated coordinator checkout/branch and one additional no-focus Legatus tab in `w1`. Native driver `087402cb-22b4-48f3-9722-5abe61f816cc` created them from reviewed `eb487bc`, with normal configured interactive `pi -e <isolated checkout>`. Actual composition observed Pi 1.2.0, pi-subagents 0.78.0, Herdr 0.9.1/protocol 22 and fork `6365cd5`; ordinary doctor reported 14 ready. This is setup evidence, not installed-journey or product cleanup acceptance.
+
+The retained coordinator checkout is `/workspaces/astraprojects/worktrees-matts-poteto-herdr-factory_legion/issue40-coord-p40-U0YL`, branch `refs/heads/legion/issue40-coord-p40-U0YL`, still clean and registered at `eb487bc`. A task-owned dependency symlink initially appeared untracked; only that exact link was replaced, with supervisor approval, by an ignored directory of links to existing dependencies. No tracked/shared/global configuration or dependency installation changed.
+
+Actual run `4c4af671-4d09-40dc-8908-07ecb77d196b` admitted task `d09bb7ac-a95b-4f11-8d9b-ff604212a4e9@1` from source `f72f120e-87e7-4436-8bf4-4acfe55b394d@1`. The first reservation omitted required `--parent` and was rejected with disposition `none`. Reentering `/skill:implement` to supply the complete command created source `70825827-dd9a-4c63-afd6-8f2cef7711fd@1`; product authority rejected management of the task from the prior source. Both failures are preserved. They establish failure of these attempted requests, not impossibility of a supported same-source continuation or a cleanup behavioral defect.
+
+The coordinator ended the attempt without further reentry, re-admission or workaround. No reservation, product worker/worktree, result/check/review/integration, cleanup intent, nested cleanup permission call or product receipt was created. The single product Tribunus grant remains unspent. No new native action follows from that accounting without another decision.
+
+Setup-only cleanup closed `w1:t26`, pane `w1:pBD`, terminal `term_65dea41cb6f6cad`. Actual off/shutdown, 33 returned tool calls with no outstanding native child/effect, exact session/process/all-occupant checks, orderly Pi exit and a fresh shell-only census preceded normal Herdr closure. Same-server absence of the exact tab/pane/terminal and Pi/shell processes was recorded. **This was developer coordinator cleanup, not `legion_clean` or product auto-close.** No task-owned tab remains.
+
+Evidence and runtime are retained at `/workspaces/astraprojects/.tmp/p40-U0YL`; the driver's report indexes launch receipts, original/copied journal, rejected tool results, read-only run backup/final snapshot, source manifest and closure checks. Original product run state under `~/.pi/agent/legion/` and its Pi session journal remain preserved. The coordinator accepts retention responsibility for these resources, the checkout and branch. No old retained resource was trial material.
+
+Independent evidence auditor `adebac66-5e1e-4089-9a86-666177fe1666` checked original records and found no issues with the bounded setup-block, settlement, developer-close and preservation claims. The audit explicitly does not establish product acceptance or exclude a supported continuation route. Real product tab auto-close and accepted-worker worktree/branch/evidence preservation remain unverified.
+
+## Continuation boundary for the amended scope
+
+Independent evidence reviewer `964d0a9e-19ab-42c6-82e1-908cb93cf12b` checked the final documentation against retained validation receipts, focused census evidence and native reports. It found no issues with evidence accuracy. This does not waive either acceptance gate or authorize publication or further trials.
+
+The code and test changes are locally committed and independently reviewed. The full suite remains failed, despite the unchanged focused census passing; native product tab success remains unverified. Further timing attribution or a supported same-source native continuation needs a separate bounded decision, not automatic retries, relaxed thresholds or another setup/trial. No push, final acceptance comment or #41 start has occurred.
+
+Managed amendment reports live under `/home/vscode/.pi/agent/sessions/--workspaces-astraprojects-matts-poteto-herdr-factory--/subagent-artifacts/outputs/`, keyed by these run IDs:
+
+- Implementation: `85012f8a-9e51-4f66-b408-c1e6383db543`; test-only fixes: `bd7b0bd8-8b9e-4489-b211-4f02e0c53f67`.
+- Standards/Spec and targeted review outputs: `47e49e96-460f-422f-a119-199485afce7d`.
+- Read-only installed preflight: `47f11b3f-720c-47ce-8d69-cfee8467f9fd`.
+- Native setup/closure inventory: `087402cb-22b4-48f3-9722-5abe61f816cc`; independent native evidence audit: `adebac66-5e1e-4089-9a86-666177fe1666`.
+- Single final suite: `3e939fce-6ee3-4751-b883-ec37bddcb028`; bounded timeout diagnosis: `8b47f3bd-7d84-4f7b-b918-7a967a4ec0a4`.
+- Final evidence accuracy review: `964d0a9e-19ab-42c6-82e1-908cb93cf12b`.
 
 ## Historical status before the scope amendment
 
