@@ -3,10 +3,9 @@ import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { GitWorkspace, type WorkspaceRepository } from "./git-workspace.js";
 import { GitIntegration } from "./git-integration.js";
-import { CleanupControl, cleanupTargetDigest, type CleanupRecord, type TabCleanupAdapter, type WorktreeCleanupAdapter, type CleanupOutcome } from "./cleanup-domain.js";
+import { worktreeRetentionMessage, CleanupControl, cleanupTargetDigest, type CleanupRecord, type TabCleanupAdapter, type CleanupOutcome } from "./cleanup-domain.js";
 import { LocalTabCleanupAdapter, localTabCleanupNative, nativeTabCloseCommand, type TabCleanupNative, type TabCleanupPermission } from "./tab-cleanup.js";
-import { LocalWorktreeCleanupAdapter, type WorktreeUsageReader, type WorktreeCleanupPermission } from "./worktree-cleanup.js";
-import { worktreeUsage } from "./cleanup-usage.js";
+import type { WorktreeUsageReader } from "./worktree-cleanup.js";
 import { cleanupPermission, CleanupPermissionNotEntered } from "./cleanup-permission.js";
 import { checkoutIdentity } from "./checkout-identity.js";
 import type { ResultRepository } from "./result-domain.js";
@@ -139,7 +138,7 @@ function compactContinuation(view: LegionView): string {
     finalDeliveries: state.finalDeliveries.map(final => ({ id: final.id, digest: final.digest, specification: final.identity.specification, tasks: final.identity.tasks, commit: final.identity.commit, tree: final.identity.tree, requiredChecks: final.identity.requiredChecks, review: finalReviewStatus(final) })),
   })}`;
 }
-const nativeInstructions = `After exact acceptance, host automatically prepares independent eligible tab/worktree cleanup stages. Execute each returned legion_clean requestId once under ordinary Bash permission. Retention is not failure of acceptance. Unknown/dispatched cleanup is read-only via legion_cleanup reconcile or /legion cleanup observe; no retries, manual takeover or scheduler.
+const nativeInstructions = `After exact acceptance, host automatically prepares eligible owned-tab cleanup. Worktrees and branches are retained: automatic worktree removal is unsupported in this version and retention alone does not block eligible tab closure. Execute each returned legion_clean requestId once under ordinary Bash permission. Retention is not failure of acceptance. Unknown/dispatched cleanup is read-only via legion_cleanup reconcile or /legion cleanup observe; no retries, manual takeover or scheduler.
 You are the Legatus following the explicitly Emperor-selected native Matt skill, not the intake-only interpreter. Ask necessary requirements, design and test-seam questions before AFK implementation. Let the skill own methodology and task-graph/frontier decisions; Tribuni are separate interactive exploration/implementer subagents, not ordinary native children. Native research, tools, permissions, Trust and child completion remain native.
 Record scoped tickets/tasks and material questions via legion_intake using the exact saved source references. An implement-spec source may scope multiple tickets, all within that Emperor source; new requirements, acceptance changes, mandatory-verification waivers, expanded access, financial commitments and irreversible actions require presented Emperor decisions. Followup answers are saved sources; do not manufacture provenance or infer workflow/profile selection. Use legion_request only for bounded reserve/reconcile/workspace/launch/handoff of admitted tasks; then execute the exact returned legion_workspace/legion_launch request identity. Never fabricate request IDs, change profile or bypass held/uncertain outcomes. Resolve uncertainty before any retry.
 For task corrections, use legion_intake correction with the exact saved source, current task and technical or approved-amendment authorization. Technical-choice is distinct and does not queue correction instructions. Use legion_correction to explicitly deliver or observe the exact saved ID/digest through actual host evidence. Queued means saved intent; delivered means exact worker receipt only. Verify only after Legatus checks establish the performed change, with nonempty summary and evidence references; worker reports, receipts, native settlement and generic applied intake results are not performed correction. Unknown outcomes preserve the exact original worker/evidence; never resend or automatically retarget. Explicit reissue uses correction.previous only after predecessor reconciliation and a different actual current worker. Receipt and verification never renew stale assignment scope; expose authority mismatches while independent approved tasks continue. Status/doctor are passive, not controls. Never answer Trust/permission prompts automatically.
@@ -156,7 +155,7 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
   const repositories = new AsyncLocalStorage<WorkspaceRepository>();
   const resultRepositories = new AsyncLocalStorage<ResultRepository>();
   const deliveryAdapters = new AsyncLocalStorage<DeliveryAdapter>();
-  const cleanupAdapters = new AsyncLocalStorage<{ tabs: TabCleanupAdapter; worktrees: (commonDir: string) => WorktreeCleanupAdapter }>();
+  const cleanupAdapters = new AsyncLocalStorage<{ tabs: TabCleanupAdapter }>();
   let cleanupRecords: CleanupRecord[] = [];
   let cleanupQueue: string[] = [];
   let cleanupControlCall: string | null = null;
@@ -229,12 +228,13 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
   }
   function statusText({ view, options = {} }: { view: LegionView; options?: { details?: boolean; diagnostics?: boolean } }): string {
     const snapshot = view.snapshot;
-    const lines = [view.unavailable ? `Legion state unavailable. ${view.unavailable}` : `Legion ${view.mode}.`];
+    const lines = [view.unavailable ? `Legion state unavailable. ${view.unavailable}` : `Legion ${view.mode}.`, worktreeRetentionMessage];
     if (snapshot) {
       lines.push(`Run ${snapshot.id}. ${view.tasks.length} tasks; ${snapshot.submissions.filter(source => source.state.kind === "pending").length} pending inputs.`,
         `Future profile ${snapshot.workflowChoice.profile}; workflow ${snapshot.workflowChoice.requestedWorkflow}.`);
       for (const task of view.tasks) {
         lines.push(`Task ${task.id}@${task.history.at(-1)?.revision}: ${task.eligibility}; worker ${task.launch.kind}; result ${task.resultStatus.kind}.`);
+        if (task.retainedWorktree) lines.push(`Retained worktree ${task.retainedWorktree.path}; branch ${task.retainedWorktree.branch}. ${task.retainedWorktree.reason}`);
         if (task.resultStatus.kind === "held") lines.push(`Result hold ${task.id}. ${task.resultStatus.message}`);
         for (const hold of [task.resumeHold, task.workflowHold, task.correctionHold]) if (hold) lines.push(`Hold ${task.id}. ${hold}`);
       }
@@ -249,7 +249,7 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
       }
       for (const cleanup of snapshot.cleanups) {
         const visibility = "evidence" in cleanup.state ? cleanup.state.evidence.find(text => text.includes("visibility incomplete")) : null;
-        lines.push(`Cleanup ${cleanup.intent.target.kind} ${cleanup.intent.id}: ${cleanup.state.kind}. ${"message" in cleanup.state ? cleanup.state.message : ""} ${visibility ?? ""} ${cleanup.state.kind === "unknown" || cleanup.state.kind === "dispatched" ? `Read-only recovery: /legion cleanup observe ${snapshot.id} ${cleanup.intent.id}; never replay.` : ""}`);
+        lines.push(`Cleanup ${cleanup.intent.target.kind} ${cleanup.intent.id}: ${cleanup.state.kind}. ${"message" in cleanup.state ? cleanup.state.message : ""} ${visibility ?? ""} ${cleanup.intent.target.kind === "worktree" ? `Historical path ${cleanup.intent.target.plan.path}; branch ${cleanup.intent.target.plan.branch}. Operation preserved unchanged; automatic removal/retry is unsupported. This record does not establish current path existence.` : ""} ${cleanup.intent.target.kind === "tab" && (cleanup.state.kind === "unknown" || cleanup.state.kind === "dispatched") ? `Read-only recovery: /legion cleanup observe ${snapshot.id} ${cleanup.intent.id}; never replay.` : ""}`);
       }
       for (const task of view.tasks) for (const retained of task.retainedCleanupTabs) lines.push(`Retained tab ${retained.launch}: ${retained.reason}`);
       lines.push(deliveryAvailability);
@@ -600,16 +600,16 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
       return new LocalTribunusHost(async () => { throw new Error("Cleanup observation never performs effects."); }, record.intent.integration.intent.controller).observeResources(input);
     } };
     const tabs = new LocalTabCleanupAdapter({ evidenceRoot: join(getAgentDir(), "legion", "cleanup-tabs"), resources, ...(cleanupNative.tabs ? { native: cleanupNative.tabs } : {}) });
-    const usage = cleanupNative.usage ?? worktreeUsage({ resources, tabs, records: () => cleanupRecords });
-    return { tabs, worktrees: (commonDir: string) => new LocalWorktreeCleanupAdapter({ commonDir, evidenceRoot: join(getAgentDir(), "legion", "cleanup-worktrees"), run: readonlyCommand, usage }) };
+    return { tabs };
   }
   async function nextCleanup({ ctx, current, controller }: { ctx: ExtensionContext; current: Legion; controller: NativeRun }) {
     while (cleanupQueue.length && legion === current && nativeRun === controller && controller.kind === "running" && !workspaceRun) {
       const id = cleanupQueue.shift(); if (!id) continue;
       cleanupRecords = (await current.state()).snapshot?.cleanups ?? [];
+      if (!cleanupRecords.some(record => record.intent.id === id && record.intent.target.kind === "tab")) continue;
       const result = await current.submit({ kind: "cleanup-control", action: { kind: "prepare", id }, evidence: { session: controller.evidence.session, generation: controller.evidence.generation, legatus: controller.evidence.legatus, run: controller.evidence.run } });
       notifyResult(ctx, result);
-      if (result.kind === "cleanup-stage" && result.cleanup.state.kind === "pending" && nativeRun === controller && binding?.generation === controller.evidence.generation) {
+      if (result.kind === "cleanup-stage" && result.cleanup.intent.target.kind === "tab" && result.cleanup.state.kind === "pending" && nativeRun === controller && binding?.generation === controller.evidence.generation) {
         workspaceRun = { kind: "prepared", tool: "legion_clean", marker: controller.id, requestId: id, session: controller.evidence.session, generation: controller.evidence.generation };
         report(ctx, `Automatic eligible ${result.cleanup.intent.target.kind} cleanup stage: legion_clean requestId ${id}. Ordinary Bash permission is still required.`);
         return;
@@ -620,7 +620,7 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
     if (result.kind !== "integration-stage" || result.status.kind !== "accepted" || legion !== current || nativeRun !== controller || controller.kind !== "running") return;
     const view = await current.state(); cleanupRecords = view.snapshot?.cleanups ?? [];
     // Only this newly accepted exact integration, once; no passive scanning, scheduler or retries.
-    cleanupQueue.push(...cleanupRecords.filter(record => record.state.kind === "pending" && record.controllers.length === 0 && record.intent.integration.intent.id === result.integration.intent.id).map(record => record.intent.id));
+    cleanupQueue.push(...cleanupRecords.filter(record => record.intent.target.kind === "tab" && record.state.kind === "pending" && record.controllers.length === 0 && record.intent.integration.intent.id === result.integration.intent.id).map(record => record.intent.id));
     await nextCleanup({ ctx, current, controller });
   }
   function cleanupToolContent(result: OperationResult): Array<{ type: "text"; text: string }> {
@@ -633,6 +633,12 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
     cleanupRecords = (await current.state()).snapshot?.cleanups ?? [];
     const record = cleanupRecords.find(record => record.intent.id === captured.requestId);
     if (!record) throw new Error("Exact cleanup intent unavailable.");
+    if (record.intent.target.kind === "worktree") {
+      const result = await current.command({ cleanupRequest: captured.requestId });
+      if (workspaceRun === captured) workspaceRun = null;
+      await nextCleanup({ ctx, current, controller });
+      return { content: cleanupToolContent(result), details: result, isError: true };
+    }
     let effect: ConstructorParameters<typeof GitWorkspace>[1] | null = null;
     const assertCurrent = () => {
       if (workspaceRun !== captured || captured.kind !== "running" || captured.callId !== toolCallId || legion !== current || nativeRun !== controller || controller.kind !== "running" || binding?.session !== captured.session || binding.generation !== captured.generation || ctx.sessionManager.getSessionId() !== captured.session)
@@ -652,11 +658,6 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
       try { return await permission(input); }
       catch (error) { if (error instanceof CleanupPermissionNotEntered) return { ...denied, resource: "tab" }; throw error; }
     };
-    const worktreePermission: WorktreeCleanupPermission = async input => {
-      try { return await permission(input); }
-      catch (error) { if (error instanceof CleanupPermissionNotEntered) return { ...denied, resource: "worktree" }; throw error; }
-    };
-    const readonly = cleanupObservers();
     const native = cleanupNative.tabs ?? localTabCleanupNative;
     const tabs = new LocalTabCleanupAdapter({ evidenceRoot: join(getAgentDir(), "legion", "cleanup-tabs"),
       resources: { observeResources: async input => new LocalTribunusHost(async () => { throw new Error("Read-only cleanup resources."); }, record.intent.integration.intent.controller).observeResources(input) },
@@ -665,15 +666,7 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
         return effect(nativeTabCloseCommand({ tab }));
       } }, permission: tabPermission,
     });
-    const resources = { observeResources: async (input: Parameters<LocalTribunusHost["observeResources"]>[0]) => new LocalTribunusHost(async () => { throw new Error("Read-only cleanup resources."); }, record.intent.integration.intent.controller).observeResources(input) };
-    const usage = cleanupNative.usage ?? worktreeUsage({ resources, tabs: readonly.tabs, records: () => cleanupRecords });
-    const adapters = { tabs, worktrees: (commonDir: string) => new LocalWorktreeCleanupAdapter({ commonDir, evidenceRoot: join(getAgentDir(), "legion", "cleanup-worktrees"), usage, permission: worktreePermission,
-      run: async command => {
-        // Only C's exact destructive command reaches the released Bash; all other adapter calls are reads.
-        if (command.includes("'worktree' 'remove'")) { if (!effect) throw new Error("No permitted worktree removal."); return effect(command); }
-        return readonlyCommand(command);
-      },
-    }) };
+    const adapters = { tabs };
     let result: OperationResult;
     try {
       result = await cleanupAdapters.run(adapters, () => current.command({ cleanupRequest: captured.requestId }));
@@ -721,7 +714,7 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
       },
       cleanup: {
         tabs: () => cleanupAdapters.getStore()?.tabs ?? cleanupObservers().tabs,
-        worktrees: commonDir => cleanupAdapters.getStore()?.worktrees(commonDir) ?? cleanupObservers().worktrees(commonDir),
+        worktrees: () => null,
       },
       delivery: { adapter: () => deliveryAdapters.getStore() ?? null },
       results: {
@@ -805,7 +798,7 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
       const caller = { ...evidence(ctx), origin: "host-command" };
       try {
         if (text.trim() === "help") {
-          report(ctx, "Legion commands (English interface)\n/legion on | off | resume <run-id>\n/legion task <text> (escape reserved command words)\n/legion correction <task-id>@<revision> <text> (save targeted intent; protected changes still require Emperor approval)\n/legion correction deliver <id> | correction observe <id> (explicit controls; observe reconciles durable correction state, unlike passive status)\n/legion cleanup observe <run-id> <operation-id> (read-only; never retries)\n/legion status [run-id] [--details] | doctor (read-only, no activation or dispatch)\n/legion reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>]\n/legion reconcile <task-id> | workspace <request-id> | launch <task-id>@<revision>\n/legion handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string> | handoff <handoff-id>\n/legion implement-spec=on <instructions> | poteto-mode=on <instructions> | poteto-mode=off\n/legion integration observe <run-id> <operation-id> (explicit read-only reconciliation by the exact retained controller session, including after off/restart; no activation, worker revival or renewed write/scope authority; unavailable ownership/evidence stays held)\nDelivery: ask the current native Legatus to use legion_delivery for optional tracker binding/accepted-result closure, exact declared final scope/checks/independent review and draft/ready/local-report preparation; then separately legion_deliver with the exact requestId and ordinary Bash permissions. Operator-only owning-checkout .pi/legion-delivery.json selects configuration; missing/invalid configuration holds delivery, not direct tasks. /legion delivery observe <run-id> <operation-id> reconciles read-only after off/restart under the exact retained controller; no retry, activation, integration or authority renewal. Status is passive. External authority remains separate.\nExact results: ask the current native Legatus to use legion_result capture, verify and independent review; prepare-integration saves intent only, then a separate exact legion_integrate requestId uses ordinary Bash permissions. reconcile-integration is read-only; unknown/failed is not accepted. No slash command grants Git authority.\nCorrection verification and explicit linked reissue belong to the current Legatus; delivery reconciliation uses actual host observation. Receipts and reports are not performed-change verification. Never answer native Trust/permission prompts automatically.");
+          report(ctx, `${worktreeRetentionMessage}\n` + "Legion commands (English interface)\n/legion on | off | resume <run-id>\n/legion task <text> (escape reserved command words)\n/legion correction <task-id>@<revision> <text> (save targeted intent; protected changes still require Emperor approval)\n/legion correction deliver <id> | correction observe <id> (explicit controls; observe reconciles durable correction state, unlike passive status)\n/legion cleanup observe <run-id> <operation-id> (read-only; never retries)\n/legion status [run-id] [--details] | doctor (read-only, no activation or dispatch)\n/legion reserve <task-id>@<revision> --parent <refs/heads/branch> [--source <GitHub issue URL>]\n/legion reconcile <task-id> | workspace <request-id> | launch <task-id>@<revision>\n/legion handoff <task-id>@<revision> --purpose <JSON-string> --continue <JSON-string> | handoff <handoff-id>\n/legion implement-spec=on <instructions> | poteto-mode=on <instructions> | poteto-mode=off\n/legion integration observe <run-id> <operation-id> (explicit read-only reconciliation by the exact retained controller session, including after off/restart; no activation, worker revival or renewed write/scope authority; unavailable ownership/evidence stays held)\nDelivery: ask the current native Legatus to use legion_delivery for optional tracker binding/accepted-result closure, exact declared final scope/checks/independent review and draft/ready/local-report preparation; then separately legion_deliver with the exact requestId and ordinary Bash permissions. Operator-only owning-checkout .pi/legion-delivery.json selects configuration; missing/invalid configuration holds delivery, not direct tasks. /legion delivery observe <run-id> <operation-id> reconciles read-only after off/restart under the exact retained controller; no retry, activation, integration or authority renewal. Status is passive. External authority remains separate.\nExact results: ask the current native Legatus to use legion_result capture, verify and independent review; prepare-integration saves intent only, then a separate exact legion_integrate requestId uses ordinary Bash permissions. reconcile-integration is read-only; unknown/failed is not accepted. No slash command grants Git authority.\nCorrection verification and explicit linked reissue belong to the current Legatus; delivery reconciliation uses actual host observation. Receipts and reports are not performed-change verification. Never answer native Trust/permission prompts automatically.");
           return;
         }
         if (/^\s*(?:status|doctor)(?:\s|$)/.test(text)) {
@@ -1393,14 +1386,14 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
   pi.on("tool_execution_end", event => { if (event.toolName === "legion_cleanup" && event.toolCallId === cleanupControlCall) cleanupControlCall = null; });
   pi.registerTool({
     name: "legion_cleanup", label: "Legion cleanup observation/control", exposure: "model-only",
-    description: "Prepare an exact accepted cleanup intent or reconcile its retained receipt read-only. No model commands/usage/authority. Eligible preparation returns only an exact legion_clean requestId; unknown effects never replay.",
+    description: "Prepare exact eligible owned-tab cleanup or reconcile a historical receipt read-only. Automatic worktree removal is unsupported in this version; worktrees and branches are retained. No model commands/usage/authority. Eligible preparation returns only an exact legion_clean requestId; unknown effects never replay.",
     parameters: Type.Unsafe<z.infer<typeof CleanupArguments>>(z.toJSONSchema(CleanupArguments)),
     execute: async (toolCallId, raw, _signal, _update, ctx) => {
       const args = CleanupArguments.parse(raw), controller = nativeRun, current = legion;
       if (cleanupControlCall !== toolCallId || !current || controller?.kind !== "running" || workspaceRun || controller.evidence.session !== ctx.sessionManager.getSessionId() || binding?.generation !== controller.evidence.generation || binding.legatus !== controller.evidence.legatus) throw new Error("No exact current native cleanup root control.");
       cleanupRecords = (await current.state()).snapshot?.cleanups ?? [];
       const result = await current.submit({ kind: "cleanup-control", ...args, evidence: { session: controller.evidence.session, generation: controller.evidence.generation, legatus: controller.evidence.legatus, run: controller.evidence.run } });
-      if (args.action.kind === "prepare" && result.kind === "cleanup-stage" && result.cleanup.state.kind === "pending" && nativeRun === controller && !workspaceRun)
+      if (args.action.kind === "prepare" && result.kind === "cleanup-stage" && result.cleanup.intent.target.kind === "tab" && result.cleanup.state.kind === "pending" && nativeRun === controller && !workspaceRun)
         workspaceRun = { kind: "prepared", tool: "legion_clean", marker: controller.id, requestId: result.cleanup.intent.id, session: controller.evidence.session, generation: controller.evidence.generation };
       notifyResult(ctx, result); if (legion === current) await refresh(ctx, false);
       return { content: cleanupToolContent(result), details: result, isError: result.kind === "rejected" || result.kind === "uncertain" };
@@ -1468,7 +1461,7 @@ export default function (pi: ExtensionAPI, cleanupNative: { tabs?: TabCleanupNat
     label: tool === "legion_clean" ? "Legion exact resource cleanup" : tool === "legion_deliver" ? "Legion delivery execution" : tool === "legion_integrate" ? "Legion parent integration" : tool === "legion_handoff" ? "Legion handoff" : tool === "legion_workspace" ? "Legion workspace" : "Legion launch",
     exposure: "model-only",
     description:
-      tool === "legion_clean" ? "Execute only the exact automatically prepared accepted-resource cleanup requestId. Ordinary command-aware Bash authorization precedes final fresh checks. Never replay unknown outcomes; use read-only legion_cleanup reconcile." : tool === "legion_deliver" ? "Execute one exact prepared delivery requestId from legion_delivery through ordinary permission-controlled Bash. Operator-selected configuration only; no model commands, push/PR/closure authority implied. Unknown effects require read-only reconciliation, never retry." : tool === "legion_integrate" ? "Execute exactly one prepared integration requestId from legion_result in its separately correlated stage, through ordinary permission-controlled Bash. Review/preparation grants no Git permission. Unknown outcomes require read-only reconcile-integration, never another merge. No primary-branch merge, conflict resolution, publication or scope authority." : tool === "legion_handoff" ? "Continue exactly one immutable Legatus handoff request: task-scoped safe-stop, actual settlement, unchanged native skill, exact temporary artifact and one pinned same-worktree successor. Uncertain effects are observed, never replayed." : tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
+      tool === "legion_clean" ? "Execute only the exact automatically prepared eligible owned-tab cleanup requestId. Worktrees and branches are retained; automatic worktree removal is unsupported in this version. Ordinary command-aware Bash authorization precedes final fresh checks. Never replay unknown outcomes; use read-only legion_cleanup reconcile." : tool === "legion_deliver" ? "Execute one exact prepared delivery requestId from legion_delivery through ordinary permission-controlled Bash. Operator-selected configuration only; no model commands, push/PR/closure authority implied. Unknown effects require read-only reconciliation, never retry." : tool === "legion_integrate" ? "Execute exactly one prepared integration requestId from legion_result in its separately correlated stage, through ordinary permission-controlled Bash. Review/preparation grants no Git permission. Unknown outcomes require read-only reconcile-integration, never another merge. No primary-branch merge, conflict resolution, publication or scope authority." : tool === "legion_handoff" ? "Continue exactly one immutable Legatus handoff request: task-scoped safe-stop, actual settlement, unchanged native skill, exact temporary artifact and one pinned same-worktree successor. Uncertain effects are observed, never replayed." : tool === "legion_workspace" ? "Execute exactly one recorded host-authorized workspace request during its explicit guarded stage. Never launch workers." : "Execute exactly one saved host-authorized launch request during its correlated guarded stage. Never supply a task payload, approval, or provenance. Launch and initialize before bounded assignment.",
     parameters: Type.Object(
       { requestId: Type.String({ minLength: 1 }) },
       { additionalProperties: false },

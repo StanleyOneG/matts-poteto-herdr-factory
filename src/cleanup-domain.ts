@@ -49,6 +49,11 @@ export const TabCleanupOutcome = outcomeSchema({ resource: "tab" });
 export type TabCleanupOutcome = z.infer<typeof TabCleanupOutcome>;
 export const WorktreeCleanupOutcome = outcomeSchema({ resource: "worktree" });
 export type WorktreeCleanupOutcome = z.infer<typeof WorktreeCleanupOutcome>;
+export const worktreeRetentionMessage = "Automatic worktree removal is unsupported in this version. Retain the worktree, branch and evidence; this alone does not block eligible tab closure.";
+export function retainedWorktree({ intent }: { intent: WorktreeCleanupIntent }): WorktreeCleanupOutcome {
+  return { kind: "retained", noEffect: true, resource: "worktree", operation: intent.id, result: intent.result, targetDigest: cleanupTargetDigest({ intent }),
+    reason: "automatic-worktree-removal-unsupported", message: `${worktreeRetentionMessage} Retained path: ${intent.target.plan.path}; branch: ${intent.target.plan.branch}.`, evidence: ["first-version-worktree-retention"] };
+}
 export const CleanupOutcome = z.union([TabCleanupOutcome, WorktreeCleanupOutcome]);
 export type CleanupOutcome = z.infer<typeof CleanupOutcome>;
 export function cleanupOutcomeMatches({ intent, outcome }: { intent: CleanupIntent; outcome: CleanupOutcome }): boolean {
@@ -123,7 +128,7 @@ export interface TabCleanupAdapter {
 }
 export interface WorktreeCleanupAdapter {
   observe(input: { intent: WorktreeCleanupIntent; references: CleanupReferences }): Promise<WorktreeCleanupObservation>;
-  /** Non-forced exact-path worktree removal only; never delete branches, journals, handoff or evidence. */
+  /** Legacy compatibility only: returns unsupported/no effect without observing, dispatching or changing receipts. */
   remove(input: { intent: WorktreeCleanupIntent; references: CleanupReferences; finalGuard: () => Promise<void> }): Promise<WorktreeCleanupOutcome>;
   /** Read-only; an absent path without conclusive matching operation evidence is unknown, not success. */
   reconcile(input: { intent: WorktreeCleanupIntent }): Promise<WorktreeCleanupOutcome>;

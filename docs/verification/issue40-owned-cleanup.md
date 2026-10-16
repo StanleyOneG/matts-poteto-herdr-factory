@@ -1,12 +1,50 @@
-# #40 owned-resource cleanup: reviewed implementation and remaining native gates
+# #40 owned-tab cleanup and first-version worktree retention
 
-## Status
+## Current scope and acceptance status
+
+The Emperor approved a first-version-wide scope change after the original native gates remained unverified. Automatic closure of eligible owned tabs remains required. Automatic worktree removal is deferred: Legion must retain worktrees and branches, show their retention reason and state that removal is unsupported in this version. Retention alone must not block an otherwise eligible tab. No product deletion trigger, public command, legacy setting, saved intent or retry may restore removal, and no manual destructive-command bypass replaces it.
+
+Preserve all existing ownership, records, reports, evidence, handoff references and unknown historical outcomes. Disabling removal does not complete unknown operations or authorize replay. Unknown use still means retention. This amendment does not authorize a host observer, isolation system, privilege expansion or global-setting changes.
+
+Spec #1 and tickets #40/#41 now carry this approved scope and revised acceptance checks. Future removal is deferred to [#42](https://github.com/StanleyOneG/matts-poteto-herdr-factory/issues/42), which is not a first-version/#41 prerequisite and promises no date or unverified supported environment. Tracker #40 is already CLOSED; that is not acceptance evidence.
+
+**The amendment is implemented and focused checks pass; acceptance remains pending.** No new native trial has occurred. The newly authorized bounded native check must use a newly created disposable owned tab with a real interactive Pi Tribunus, through the Legion product mechanism, to establish successful tab closure and preservation of its worktree, branch and evidence. Previous retained resources are not trial material. If the scenario is unavailable, report the blocker rather than substitute developer-only/direct Herdr closure or additional trials.
+
+The revised acceptance still requires focused regressions, typecheck/build, one full suite on the final candidate and independent Standards/Spec review. Commit the verified result; push needs separate approval. Add the final acceptance comment only after publishing the exact checked commit. Do not start #41 automatically. Successful native worktree removal is excluded from this version, not relabeled as passed.
+
+## Amendment implementation and focused evidence
+
+Implementation starts from `9b07d45670b09281e78a81fd36f968bae48a0d59`. Acceptance queues only tab intents. Current owned-ready claims supply the displayed retained worktree path/branch; unresolved historical worktree operations suppress that assertion. Legacy worktree prepare/execute is refused before adapter invocation or state/controller/history changes, and product observation leaves all historical worktree records unchanged, including pending, proven no-effect, dispatched, unknown and confirmed tombstones. The compatibility adapter's `remove` is inert: no permission, observation, Git command or receipt write. Its read-only legacy receipt reader remains available outside product dispatch. The worktree usage observer is unchanged and disconnected from cleanup effects; no visibility expansion was attempted.
+
+The existing public command/task/observable-state seam covers automatic preparation, eligible tab closure with preserved worktree/branch/result evidence, legacy records through controls/off/resume, passive status/doctor/help, and lost tab receipts without replay. Existing tab ownership, settlement, permission-delay and sticky-human-use checks remain. Lower-level tests now seed historical receipts explicitly instead of obtaining them through product deletion, while preserving dirty/identity/usage/artifact and receipt-integrity assertions.
+
+Each command used its own fresh disk-backed `/workspaces/astraprojects/.tmp/i40-*` directory, with `TMPDIR`, `TMP` and `TEMP` explicitly set to that directory. Each retained directory contains `log` and the original `exit`; fixtures/caches were observed under that root. All commands below completed normally with zero cancellations. They are focused controlled checks, not native installed-composition acceptance.
+
+| Command after the environment assignments | Result | Retained evidence root |
+| --- | --- | --- |
+| `node --import tsx --test --test-name-pattern='first version retains accepted' tests/cleanup-public.test.ts` | Behavioral red, exit 1: accepted worktree still pending instead of unsupported retention | `i40-d9I0` |
+| Same command | Green, 1/1, exit 0 | `i40-HdeI` |
+| `node --import tsx --test --test-name-pattern='legacy pending worktree' tests/cleanup-public.test.ts` | Behavioral red, exit 1: legacy prepare still returned pending, after correcting the fixture to settle its tab stage first | `i40-CKJL` |
+| `node --import tsx --test --test-name-pattern='legacy pending worktree|first version retains accepted' tests/cleanup-public.test.ts` | Green, 2/2, exit 0 | `i40-zUFl` |
+| `node --import tsx --test --test-name-pattern='legacy .*worktree|first version retains accepted' tests/cleanup-public.test.ts` | Final boundary refinement green, 6/6, exit 0 | `i40-DUxp` |
+| `node --import tsx --test tests/worktree-cleanup.test.ts` | 55/55, exit 0 | `i40-l1FN` |
+| `node --import tsx --test tests/cleanup-state.test.ts` | 18/18, exit 0 | `i40-zQho` |
+| `node --import tsx --test tests/tab-cleanup.test.ts` | 40/40, exit 0; source/test unchanged | `i40-zkeB` |
+| `node --import tsx --test tests/cleanup-public.test.ts` | 24/24, exit 0 | `i40-939T` |
+| `npm run typecheck` | Exit 0 | `i40-z6Wz` |
+| `npm run build` | Exit 0 | `i40-1B5n` |
+
+Intermediate diagnostics are preserved, not relabeled as behavioral reds: `i40-6jBx` failed because the test attempted cleanup control while the tab stage still owned correlation; `i40-zOCn` was 22/24 because two test expectations incorrectly said inactive rather than stopping for unresolved historical effects; `i40-7It3` records a transient typecheck failure during refinement. Earlier green typechecks are `i40-F4Sb` and `i40-EemD`, and an earlier 17/17 state run is `i40-a3oU`. The final implementation no longer creates retained removal intents: retention is derived status, and old worktree records remain inert and unchanged. All these roots are worker-owned retained review evidence; preserve them until the coordinator completes review/continuation and explicitly takes the next cleanup decision. No old resources or evidence were deleted. Pi's already-running managed/truncated-output routing still uses `/tmp`; shell descendants were routed to disk without global configuration changes.
+
+No full suite, native trial, staging, commit, push, tracker mutation or dependency/global-setting change was performed by this implementation worker. The coordinator owns the single final integrated-suite run and fresh independent review. Read-only native preflight found that the existing parent is on `main` without a Legion loadout, so it cannot serve as the real product coordinator. The Emperor subsequently authorized a separate isolated non-primary coordinator checkout/branch and one no-focus Legatus tab in workspace `w1`, with ordinary per-invocation Legion loading, before the one product Tribunus trial. This setup and the trial remain unperformed and parent-owned, pending the reviewed committed candidate. Readable stat-only terminal census is not the former worktree cwd/fd census blocker, nor proof of future worker settlement. Trust/permissions, real result checks/review/integration, exact identities/settlement, product closure and preserved worktree/branch/evidence still require actual native evidence. Successful native worktree removal is neither claimed nor a first-version gate.
+
+## Historical status before the scope amendment
 
 Implemented only #40 against spec #1 and the Legion engineering policy, from baseline `12905ff2450ee4fec009d1431b711e177359d1e5`. Matt controlled development; poteto remained off. Results #29–39 remain covered by the integrated suite. No #41 journey, push, tracker closure or deployment was performed.
 
 **This is a reviewed, locally validated implementation, not full #40 acceptance.** Successful product tab auto-close and successful native worktree removal remain unverified mandatory native gates. The Emperor agreed to preserve the strict rule that unknown use retains a resource. No privileged-process exclusion, access expansion or acceptance waiver was introduced.
 
-## Implemented behavior
+## Historical implemented behavior before the scope amendment
 
 Tab closure and worktree removal have separate intents, eligibility, outcomes and receipts. Exact current accepted results supply acceptance evidence, not execution permission. Cleanup pins its current controller separately; explicit reconciled resume can prepare proven never-dispatched/no-effect work, but cannot replay dispatched or unknown effects.
 
@@ -18,7 +56,7 @@ Ordinary nested Bash sees and executes the exact native command. A fixed one-sho
 
 Native dispatch/receipt evidence survives outside removed resources. Saved exact successful receipts support applied-but-unacknowledged reconciliation; absence alone does not. Status/doctor stay passive. Confirmed tombstones preserve history without relaunching removed resources. Tab closure never removes a worktree, and worktree removal never deletes its branch.
 
-## Final validation
+## Historical validation of the original implementation
 
 Node 22.23.1, npm 10.9.8. Full suite ran **once**, normally, from 13:34:43 to 14:14:05 UTC on 2026-10-15:
 
@@ -31,7 +69,7 @@ All 17 implementation/test paths matched the reviewed manifest before/after. The
 
 Validation evidence is under `/workspaces/astraprojects/.tmp/`: `v40-9b1j` contains the invocation ledger and initial manifest; `t40-w2Ux` contains the suite output and original exit; `a40-0WAC` contains the post-suite audit; `c40-9hKW`, `b40-Uop3`, `d40-y5iE`, and `i40-NfB5` contain the other command logs/exits; `f40-jKr1` contains the final comparison and retention audit.
 
-## Independent review
+## Historical independent review
 
 Initial parallel Standards/Spec review workflow: `d3497cc9-fdc0-4d4e-b697-f31ea569f1d3`.
 
@@ -42,7 +80,7 @@ Initial parallel Standards/Spec review workflow: `d3497cc9-fdc0-4d4e-b697-f31ea5
 
 Reviewers inspected source/patches, not independently executed tests. The coordinator checked all 17 source hashes against the reviewed manifest. Exact fix evidence is retained in `f40-IczB` and `r40-vJx0`; their handoffs enumerate diagnostic and focused-test roots. Final validation covered the combined reviewed source.
 
-## One native check and its limits
+## Historical native check and its limits
 
 Exactly one newly created disposable pair was used on Herdr 0.9.1/protocol 22. Evidence: `/workspaces/astraprojects/.tmp/n40-5Kky`.
 
@@ -80,4 +118,4 @@ Managed reports are under `/home/vscode/.pi/agent/sessions/--workspaces-astrapro
 - Native check: `681f8e7d-adcb-4c14-b973-4f07333f2e3f`.
 - Final validation/evidence-review workflow: `1307757e-a6bf-48a1-a622-4967ba94b14c`.
 
-Further native verification needs an approved environment with sufficient observations and a bounded real product executor check. It is not authorized by this report. Do not close #40 as fully accepted or automatically start #41. Push and issue closure still require separate Emperor permission.
+At this historical checkpoint, further native verification needed an approved environment with sufficient observations and a bounded real product executor check; this report itself granted no trial authority. The current scope amendment and newly granted one-tab trial are recorded above. Neither changes what the historical evidence proved. Do not treat tracker closure as acceptance or automatically start #41. Push still requires separate Emperor permission.

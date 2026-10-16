@@ -1,4 +1,4 @@
-import { cleanupTargetDigest } from "../src/cleanup-domain.js";
+import { CleanupRecord, cleanupTargetDigest } from "../src/cleanup-domain.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
@@ -12,6 +12,7 @@ import { Legion, type LegionOptions } from "../src/intake.js";
 import { GitWorkspace } from "../src/git-workspace.js";
 import { mattInitializationPrompt, type TribunusHost } from "../src/tribunus.js";
 import type { ResultRepository } from "../src/result-domain.js";
+import { SnapshotStore } from "../src/snapshot.js";
 
 const exec = promisify(execFile);
 const sourceCommit = "a".repeat(40), sourceTree = "b".repeat(40), parentCommit = "c".repeat(40);
@@ -86,7 +87,7 @@ async function ready(f: Awaited<ReturnType<typeof fixture>>) {
   return result;
 }
 
-async function accept(f: Awaited<ReturnType<typeof fixture>>) {
+async function accept(f: Awaited<ReturnType<typeof fixture>>, { legacyWorktree = true } = {}) {
   const result = await ready(f), id = randomUUID(), adapter = readOnlyAdapter();
   adapter.integrate = async ({ intent, assertAuthority }) => {
     await assertAuthority();
@@ -98,26 +99,44 @@ async function accept(f: Awaited<ReturnType<typeof fixture>>) {
   assert.deepEqual((await f.legion.state()).snapshot?.cleanups, []);
   const integrated = await f.legion.command({ integrationRequest: id });
   assert.equal(integrated.kind, "integration-stage", JSON.stringify(integrated));
+  if (legacyWorktree) {
+    // Seed an old-format worktree intent at the persisted-record boundary, not via V1 dispatch.
+    const state = await f.legion.state(), snapshot = state.snapshot, claim = state.tasks[0]?.claim;
+    assert.ok(snapshot && claim?.kind === "owned");
+    const tab = snapshot.cleanups[0]; assert.ok(tab);
+    snapshot.cleanups.push(CleanupRecord.parse({ intent: { ...tab.intent, id: randomUUID(), target: { kind: "worktree", plan: claim.reservation.plan } }, state: { kind: "pending" } }));
+    const revision = snapshot.revision++;
+    await new SnapshotStore(f.options.storagePath).save(snapshot, revision, () => true);
+  }
   return { result, id };
+}
+
+async function seedCleanupState({ f, id, state }: { f: Awaited<ReturnType<typeof fixture>>; id: string; state: CleanupRecord["state"] }) {
+  const snapshot = (await f.legion.state()).snapshot; assert.ok(snapshot);
+  const record = snapshot.cleanups.find(record => record.intent.id === id); assert.ok(record);
+  record.state = state;
+  if (state.kind !== "pending" && state.kind !== "dispatched") record.history.push(state);
+  const revision = snapshot.revision++;
+  await new SnapshotStore(f.options.storagePath).save(snapshot, revision, () => true);
 }
 
 test("accepted exact results queue independent durable cleanup intents without passive effects", async () => {
   const f = await fixture();
   try {
-    const { result, id } = await accept(f), accepted = await f.legion.state();
+    const { result, id } = await accept(f, { legacyWorktree: false }), accepted = await f.legion.state();
     assert.equal(accepted.tasks[0]?.resultStatus.kind, "accepted");
-    assert.deepEqual(accepted.snapshot?.cleanups.map(record => record.intent.target.kind).sort(), ["tab", "worktree"]);
+    assert.deepEqual(accepted.snapshot?.cleanups.map(record => record.intent.target.kind).sort(), ["tab"]);
     assert.ok(accepted.snapshot?.cleanups.every(record => record.state.kind === "pending" && record.intent.integration.intent.id === id && record.intent.result.id === result.id));
     const before = accepted.snapshot;
     assert.deepEqual((await new Legion(f.options).state()).snapshot, before, "restart observation is passive");
     await f.command("status"); await f.command("doctor");
     assert.deepEqual((await f.legion.state()).snapshot, before, "status and doctor do not mutate or dispatch queued intents");
     await f.legion.command({ integrationRequest: id });
-    assert.equal((await f.legion.state()).snapshot?.cleanups.length, 2, "acceptance does not duplicate resource operations");
+    assert.equal((await f.legion.state()).snapshot?.cleanups.length, 1, "acceptance does not duplicate resource operations or create removal intents");
   } finally { await f.command("off"); }
 });
 
-test("cleanup inventories capture evidence from an earlier unaccepted result with its originating workspace", async () => {
+test("disabled legacy removal preserves earlier unaccepted result evidence without invoking worktree observation", async () => {
   const f = await fixture();
   try {
     const cwd = f.launch.worker.resources.cwd;
@@ -140,12 +159,13 @@ test("cleanup inventories capture evidence from an earlier unaccepted result wit
       reconcile: async () => { throw new Error("No cleanup dispatched"); },
     }) };
     const result = await runCleanup({ f, id: worktree.intent.id });
-    assert.ok(result.kind === "cleanup-stage" && result.cleanup.state.kind === "retained");
-    assert.equal(observations, 1);
+    assert.equal(result.kind, "rejected");
+    assert.equal(observations, 0);
+    assert.equal((await f.legion.state()).snapshot?.results[0]?.captureEvidence[0], "tracked#capture");
   } finally { await f.command("off"); }
 });
 
-test("cleanup retains a needed tab independently while a worktree dispatch is durable before its guarded effect", async () => {
+test("cleanup retains a needed tab independently and rejects legacy worktree dispatch without a state change", async () => {
   const f = await fixture();
   try {
     await accept(f);
@@ -177,17 +197,14 @@ test("cleanup retains a needed tab independently while a worktree dispatch is du
     assert.equal((await f.legion.state()).snapshot?.cleanups.find(record => record.intent.id === tab.intent.id)?.state.kind, "retained");
     assert.equal(closes, 0);
     const removed = await runCleanup({ f, id: worktree.intent.id });
-    assert.equal(removed.kind, "cleanup-stage", JSON.stringify(removed));
-    assert.equal(removals, 1); assert.equal(closes, 0);
+    assert.equal(removed.kind, "rejected", JSON.stringify(removed));
+    assert.equal(removals, 0); assert.equal(closes, 0);
     const state = await f.legion.state();
     assert.equal(state.snapshot?.cleanups.find(record => record.intent.id === tab.intent.id)?.state.kind, "retained");
-    assert.equal(state.snapshot?.cleanups.find(record => record.intent.id === worktree.intent.id)?.state.kind, "confirmed");
+    assert.deepEqual(state.snapshot?.cleanups.find(record => record.intent.id === worktree.intent.id), worktree);
     assert.equal(state.snapshot?.results.length, 1); assert.equal(state.snapshot?.integrations[0]?.state.kind, "confirmed");
     assert.ok(state.tasks[0]?.claim.kind === "owned");
-    assert.equal(state.tasks[0].claim.workspace.kind, "removed", "confirmed removal projects a durable tombstone, not stale ready");
-    assert.equal((await f.command(`launch ${f.task.id}@1`)).kind, "rejected");
-    const replay = await f.command(`reconcile ${f.task.id}`);
-    if (replay.kind === "deferred") assert.equal((await f.legion.command({ workspaceRequest: replay.receipt.requestKey })).kind, "rejected");
+    assert.equal(state.tasks[0].claim.workspace.kind, "ready", "Disabled removal never fabricates a tombstone");
   } finally { await f.command("off"); }
 });
 function tabObservation({ intent, ...overrides }: { intent: import("../src/cleanup-domain.js").TabCleanupIntent } & Partial<import("../src/cleanup-domain.js").TabCleanupObservation>): import("../src/cleanup-domain.js").TabCleanupObservation {
@@ -204,6 +221,32 @@ async function cleanupControl({ f, action }: { f: Awaited<ReturnType<typeof fixt
   const snapshot = (await f.legion.state()).snapshot; assert.ok(snapshot);
   return f.legion.submit({ kind: "cleanup-control", action, evidence: { session: "controller", generation: snapshot.generation, legatus: snapshot.id, run: "cleanup-stage" } });
 }
+
+test("every historical worktree state rejects direct execution and preparation without invoking adapters or rewriting history", async () => {
+  const f = await fixture();
+  try {
+    await accept(f);
+    const record = (await f.legion.state()).snapshot?.cleanups.find(record => record.intent.target.kind === "worktree"); assert.ok(record);
+    f.options.cleanup = { tabs: () => null, worktrees: () => { throw new Error("No historical worktree adapter may be invoked"); } };
+    const binding = { resource: "worktree", operation: record.intent.id, result: record.intent.result, targetDigest: cleanupTargetDigest({ intent: record.intent }), evidence: ["preserved historical evidence"] };
+    for (const state of [
+      { kind: "pending" }, { kind: "dispatched" },
+      { ...binding, kind: "retained", noEffect: true, reason: "usage", message: "Historical use unknown" },
+      { ...binding, kind: "failed", noEffect: true, message: "Historical no-effect failure" },
+      { ...binding, kind: "unknown", message: "Historical receipt lost" },
+      { ...binding, kind: "confirmed" },
+    ]) {
+      await seedCleanupState({ f, id: record.intent.id, state: CleanupRecord.parse({ ...record, state }).state });
+      const before = (await f.legion.state()).snapshot;
+      assert.equal((await f.legion.command({ cleanupRequest: record.intent.id })).kind, "rejected");
+      assert.equal((await cleanupControl({ f, action: { kind: "prepare", id: record.intent.id } })).kind, "rejected");
+      assert.equal((await cleanupControl({ f, action: { kind: "reconcile", id: record.intent.id } })).kind, "cleanup-stage");
+      assert.deepEqual((await f.legion.state()).snapshot, before, "No state/controller/history migration, completion or replay");
+      if (state.kind === "dispatched" || state.kind === "unknown" || state.kind === "confirmed")
+        assert.equal((await f.legion.state()).tasks[0]?.retainedWorktree, null, "Uncertain outcomes and old tombstones never assert path existence");
+    }
+  } finally { await f.command("off"); }
+});
 
 test("permission-delay final guard re-observes actual tab activity and prevents a late close", async () => {
   const f = await fixture();
@@ -243,6 +286,9 @@ test("lost cleanup receipt is never repeated; retained-controller observation re
       remove: async ({ finalGuard }) => { await finalGuard(); removals++; throw new Error("Receipt lost after actual removal"); },
       reconcile: async ({ intent }) => { observations++; return { ...confirmed({ intent }), resource: "worktree" }; },
     }) };
+    const historical = { kind: "unknown", resource: "worktree", operation: operation.intent.id, result: operation.intent.result, targetDigest: cleanupTargetDigest({ intent: operation.intent }), evidence: ["historical-unknown"], message: "Receipt lost after historical removal" } satisfies CleanupRecord["state"];
+    await seedCleanupState({ f, id: operation.intent.id, state: historical });
+    const legacy = (await f.legion.state()).snapshot?.cleanups.find(record => record.intent.id === operation.intent.id);
     await runCleanup({ f, id: operation.intent.id });
     let state = await f.legion.state();
     assert.equal(state.snapshot?.cleanups.find(record => record.intent.id === operation.intent.id)?.state.kind, "unknown");
@@ -250,7 +296,7 @@ test("lost cleanup receipt is never repeated; retained-controller observation re
     assert.notEqual(state.tasks[0].claim.workspace.kind, "removed", "Unknown receipt is not a tombstone");
     assert.equal((await cleanupControl({ f, action: { kind: "prepare", id: operation.intent.id } })).kind, "rejected");
     await runCleanup({ f, id: operation.intent.id });
-    assert.equal(removals, 1); assert.equal(observations, 0);
+    assert.equal(removals, 0); assert.equal(observations, 0);
     const snapshot = state.snapshot; assert.ok(snapshot);
     await f.command("off");
     assert.equal((await f.legion.observeCleanup({ run: snapshot.id, operation: operation.intent.id, session: "foreign" })).kind, "rejected");
@@ -259,11 +305,11 @@ test("lost cleanup receipt is never repeated; retained-controller observation re
     assert.equal(reconciled.kind, "cleanup-stage", JSON.stringify(reconciled));
     state = await f.legion.state();
     const record = state.snapshot?.cleanups.find(record => record.intent.id === operation.intent.id); assert.ok(record);
-    assert.equal(record.state.kind, "confirmed");
-    assert.deepEqual(record.history.map(outcome => outcome.kind), ["unknown", "confirmed"]);
-    assert.equal(removals, 1); assert.equal(observations, 1);
+    assert.deepEqual(record, legacy, "Explicit observation cannot promote or rewrite historical unknown removal");
+    assert.deepEqual(record.history.map(outcome => outcome.kind), ["unknown"]);
+    assert.equal(removals, 0); assert.equal(observations, 0);
     assert.equal(state.snapshot?.results[0]?.reviews.length, 1);
-    assert.ok(state.tasks[0]?.claim.kind === "owned"); assert.equal(state.tasks[0].claim.workspace.kind, "removed");
+    assert.ok(state.tasks[0]?.claim.kind === "owned"); assert.equal(state.tasks[0].claim.workspace.kind, "ready");
     assert.equal((await runCleanup({ f, id: operation.intent.id })).kind, "rejected", "Observation never revives effect authority after off");
   } finally { await f.command("off"); }
 });
@@ -278,8 +324,10 @@ test("confirmed closed tab and removed workspace resume as retained history, nev
       worktrees: () => ({ observe: async ({ intent }) => worktreeObservation({ intent }), remove: async ({ intent, finalGuard }) => { await finalGuard(); effects++; return { ...confirmed({ intent }), resource: "worktree" }; }, reconcile: async () => { throw new Error("Already confirmed"); } }),
     };
     const records = (await f.legion.state()).snapshot?.cleanups; assert.ok(records);
+    const tree = records.find(record => record.intent.target.kind === "worktree"); assert.ok(tree);
+    await seedCleanupState({ f, id: tree.intent.id, state: { ...confirmed({ intent: tree.intent }), resource: "worktree" } });
     for (const record of [...records].reverse()) await runCleanup({ f, id: record.intent.id });
-    assert.equal(effects, 2, "Tab cleanup remains independent after worktree removal");
+    assert.equal(effects, 1, "Tab cleanup remains independent of a historical confirmed removal");
     const saved = (await f.legion.state()).snapshot; assert.ok(saved);
     await f.command("off");
     assert.equal((await f.legion.state()).mode, "inactive", "Closed settled actors need no stop message to a nonexistent tab");
@@ -291,7 +339,7 @@ test("confirmed closed tab and removed workspace resume as retained history, nev
     assert.ok(state.tasks[0]?.claim.kind === "owned"); assert.equal(state.tasks[0].claim.workspace.kind, "removed");
     assert.deepEqual(state.snapshot?.cleanups, saved.cleanups);
     assert.equal((await f.command(`launch ${f.task.id}@1`)).kind, "rejected");
-    assert.equal(effects, 2);
+    assert.equal(effects, 1);
   } finally { await f.command("off"); }
 });
 
@@ -334,8 +382,8 @@ test("cleanup eligibility retains unknown ownership, human or foreign use, unset
     for (const { facts, reason } of treeCases) {
       treeFacts = facts;
       const outcome = await runCleanup({ f, id: worktree.intent.id });
-      if (outcome.kind !== "cleanup-stage" || outcome.cleanup.state.kind !== "retained") assert.fail(JSON.stringify(outcome));
-      assert.equal(outcome.cleanup.state.reason, reason);
+      assert.equal(outcome.kind, "rejected", `Legacy worktree ${reason} never invokes an observer or effect`);
+      assert.deepEqual((await f.legion.state()).snapshot?.cleanups.find(record => record.intent.id === worktree.intent.id), worktree);
     }
     assert.equal(effects, 0);
     assert.equal((await f.legion.state()).snapshot?.cleanups.find(record => record.intent.id === tab.intent.id)?.history.length, 14);
@@ -407,7 +455,7 @@ test("read-only exact integration reconciliation queues cleanup but performs no 
     assert.deepEqual((await f.legion.state()).snapshot?.cleanups, []);
     assert.equal((await f.control({ kind: "reconcile-integration", id })).kind, "integration-stage");
     const snapshot = (await f.legion.state()).snapshot; assert.ok(snapshot);
-    assert.equal(snapshot.cleanups.length, 2); assert.ok(snapshot.cleanups.every(record => record.state.kind === "pending"));
+    assert.equal(snapshot.cleanups.length, 1); assert.equal(snapshot.cleanups[0]?.intent.target.kind, "tab"); assert.ok(snapshot.cleanups.every(record => record.state.kind === "pending"));
     assert.deepEqual((await new Legion(f.options).state()).snapshot?.cleanups, snapshot.cleanups);
   } finally { await f.command("off"); }
 });
@@ -438,16 +486,16 @@ test("failed cleanup outcome publication keeps its dispatched write-ahead marker
   const f = await fixture();
   try {
     await accept(f);
-    const tree = (await f.legion.state()).snapshot?.cleanups.find(record => record.intent.target.kind === "worktree"); assert.ok(tree);
+    const tree = (await f.legion.state()).snapshot?.cleanups.find(record => record.intent.target.kind === "tab"); assert.ok(tree);
     let effects = 0, armed = true;
-    f.options.cleanup = { tabs: () => null, worktrees: () => ({
-      observe: async ({ intent }) => worktreeObservation({ intent }),
-      remove: async ({ intent, finalGuard }) => {
+    f.options.cleanup = { worktrees: () => null, tabs: () => ({
+      observe: async ({ intent }) => tabObservation({ intent }),
+      close: async ({ intent, finalGuard }) => {
         await finalGuard(); effects++;
         f.setStorageFault(point => { if (armed && point === "before-commit") { armed = false; throw new Error("Outcome save unavailable"); } });
-        return { ...confirmed({ intent }), resource: "worktree" };
+        return { ...confirmed({ intent }), resource: "tab" };
       },
-      reconcile: async ({ intent }) => ({ ...confirmed({ intent }), resource: "worktree" }),
+      reconcile: async ({ intent }) => ({ ...confirmed({ intent }), resource: "tab" }),
     }) };
     assert.equal((await runCleanup({ f, id: tree.intent.id })).kind, "uncertain");
     const unknown = await f.legion.state();

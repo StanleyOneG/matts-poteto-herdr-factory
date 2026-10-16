@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { randomUUID, createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, writeFile, readFile, readdir, mkdir, unlink, symlink } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, readdir, mkdir, unlink, symlink, lstat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalWorktreeCleanupAdapter, type WorktreeCleanupPermission, type WorktreeUsageReader } from "../src/worktree-cleanup.js";
@@ -50,22 +50,36 @@ test("exact accepted integrated clean worktree is eligible without mutating Git 
   assert.deepEqual((await readdir(f.root)).sort(), ["owned", "repo"]);
 });
 
-test("ordinary exact-path removal preserves branch, journal and durable success receipt across lost acknowledgment", async () => {
-  const f = await fixture(); let guards = 0;
+// Seed the old on-disk receipt format, never use the product to create a removal.
+async function historicalRemoval({ f, outcome = { kind: "finished", code: 0, output: "" } }: { f: Awaited<ReturnType<typeof fixture>>; outcome?: { kind: "finished"; code: number; output: string } | { kind: "unknown"; message: string } }) {
+  const stamp = async (path: string) => {
+    const stat = await lstat(path, { bigint: true });
+    return { path: await realpath(path), dev: stat.dev.toString(), ino: stat.ino.toString(), birth: stat.birthtimeNs.toString() };
+  };
+  const gitfile = join(f.path, ".git"), gitfileText = await readFile(gitfile, "utf8");
+  const identity = { common: await stamp(f.commonDir), directory: await stamp(f.path), administrative: await stamp(gitfileText.trim().slice(8)), gitfile: await stamp(gitfile), gitfileText };
+  const observation = await f.adapter().observe({ intent: f.intent, references: f.references });
+  const command = ["git", "-C", f.commonDir, "worktree", "remove", "--", f.path].map(value => `'${value}'`).join(" ");
+  const root = join(f.evidenceRoot, f.intent.id); await mkdir(root, { recursive: true, mode: 0o700 });
+  await writeFile(join(root, "dispatch.json"), JSON.stringify({ intent: f.intent, command, observation, identity }), { mode: 0o600 });
+  if (outcome.kind === "unknown" || outcome.code === 0) await f.git("worktree", "remove", "--", f.path);
+  await writeFile(join(root, "receipt.json"), JSON.stringify({ intent: f.intent, command, outcome }), { mode: 0o600 });
+}
+
+test("historical exact successful removal receipt remains readable without replay or history loss", async () => {
+  const f = await fixture();
   await writeFile(join(f.root, "journal"), "retained report and history\n");
-  f.allow(async ({ command, execute }) => {
-    assert.ok(command.endsWith(`'worktree' 'remove' '--' '${f.path}'`));
-    const outcome = await execute(); assert.equal(outcome.kind, "confirmed");
-    throw new Error("controller acknowledgment lost");
-  });
-  await assert.rejects(f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { guards++; } }), /acknowledgment lost/);
-  assert.equal(guards, 1);
+  await historicalRemoval({ f });
   assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "confirmed");
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("never replay"); } })).kind, "confirmed");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("never replay"); } })).kind, "retained");
   assert.equal(await f.git("rev-parse", "refs/heads/task"), f.intent.identity.commit);
   assert.equal(await readFile(join(f.root, "journal"), "utf8"), "retained report and history\n");
   await assert.rejects(readFile(join(f.path, "code")), { code: "ENOENT" });
 });
+
+async function observeEligibility({ f }: { f: Awaited<ReturnType<typeof fixture>> }) {
+  return cleanupEligibility({ intent: f.intent, observation: await f.adapter().observe({ intent: f.intent, references: f.references }) });
+}
 
 test("ignored evidence appearing during native usage observation is preserved", async () => {
   const f = await fixture();
@@ -99,7 +113,7 @@ for (const dirt of ["tracked", "staged", "untracked", "ignored"] ) test(`${dirt}
     await writeFile(join(f.path, "unpreserved"), "unpreserved artifact\n");
   }
   f.allow(async ({ execute }) => execute());
-  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
+  const outcome = await observeEligibility({ f });
   assert.ok(outcome.kind === "retained" && outcome.reason === "cleanliness");
   assert.equal(await f.git("rev-parse", "task"), f.intent.identity.commit);
   assert.ok((await readdir(f.root)).includes("owned"));
@@ -119,36 +133,29 @@ test("integration must still belong to the intended parent, not merely some bran
   const unrelated = await f.git("commit-tree", f.intent.identity.tree, "-m", "unrelated parent");
   await f.git("update-ref", "refs/heads/parent", unrelated);
   f.allow(async ({ execute }) => execute());
-  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
+  const outcome = await observeEligibility({ f });
   assert.ok(outcome.kind === "retained" && outcome.reason === "integration");
   assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
 });
 
-test("permission-delay dirt and late native use prevent removal", async () => {
-  for (const late of ["dirt", "process"] ) {
-    const f = await fixture(); let used = false;
-    f.use(async () => ({ usage: used ? "in-use" : "unused", evidence: ["controlled actual usage"] }));
-    f.allow(async ({ execute }) => {
-      if (late === "dirt") await writeFile(join(f.path, "late"), "new work\n"); else used = true;
-      return execute();
-    });
-    assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "retained");
-    assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
-  }
+test("inert removal never enters permission, usage, final guard, or Git even for a clean accepted worktree", async () => {
+  const f = await fixture();
+  f.use(async () => { throw new Error("Inert removal must not observe usage"); });
+  f.allow(async () => { throw new Error("Inert removal must not request permission"); });
+  const adapter = new LocalWorktreeCleanupAdapter({ commonDir: f.commonDir, evidenceRoot: f.evidenceRoot, run: async () => { throw new Error("Inert removal must not execute Git"); }, permission: async () => { throw new Error("No permission entry"); } });
+  const outcome = await adapter.remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("No guard entry"); } });
+  assert.ok(outcome.kind === "retained" && outcome.reason === "automatic-worktree-removal-unsupported");
+  assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
+  assert.equal(await f.git("rev-parse", "task"), f.intent.identity.commit);
+  assert.deepEqual((await readdir(f.root)).sort(), ["owned", "repo"]);
 });
 
-test("same canonical path and branch recreated during permission is a different filesystem incarnation", async () => {
-  const f = await fixture(), saved = join(f.root, "saved-original");
-  f.allow(async ({ execute }) => {
-    await f.git("worktree", "move", f.path, saved);
-    await f.git("branch", "saved-original", "task");
-    await exec("git", ["-C", saved, "symbolic-ref", "HEAD", "refs/heads/saved-original"]);
-    await f.git("worktree", "add", f.path, "task");
-    return execute();
-  });
-  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
-  assert.ok(outcome.kind === "retained" && outcome.reason === "identity-mismatch");
-  assert.equal(await readFile(join(saved, "code"), "utf8"), "accepted\n");
+test("same canonical path and branch recreated after historical removal is preserved as a different incarnation", async () => {
+  const f = await fixture(); await historicalRemoval({ f });
+  await f.git("worktree", "add", f.path, "task");
+  assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
+  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("No effect"); } });
+  assert.ok(outcome.kind === "retained" && outcome.reason === "automatic-worktree-removal-unsupported");
   assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
 });
 
@@ -192,7 +199,7 @@ test(`retained result capture evidence in ${location} is preserved by ordinary p
   const reference = location === "historical-alias" ? "capture-alias#capture" : location === "worktree" ? "code#capture" : location === "missing-absolute" ? join(gitdir, "missing-capture") : path;
   f.references.resultEvidence.push({ reference, cwd: location === "historical-alias" ? f.root : f.path });
   f.allow(async ({ execute }) => execute());
-  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
+  const outcome = await observeEligibility({ f });
   assert.ok(outcome.kind === "retained" && outcome.reason === "reviewer");
   assert.ok(outcome.evidence.includes(`Preserve referenced artifact at ${reference}`));
   assert.equal(await readFile(path, "utf8"), original);
@@ -203,8 +210,8 @@ test("relative result history references resolve from their original workspace, 
   const f = await fixture(), historical = join(f.root, "history");
   await mkdir(historical); await writeFile(join(historical, "code"), "retained historical capture\n");
   f.references.resultEvidence.push({ reference: "code#capture", cwd: historical });
-  f.allow(async ({ execute }) => execute());
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "confirmed");
+  assert.equal((await observeEligibility({ f })).kind, "eligible");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "retained");
   assert.equal(await readFile(join(historical, "code"), "utf8"), "retained historical capture\n");
 });
 
@@ -213,7 +220,7 @@ test("unresolvable result-evidence symlinks retain the worktree instead of becom
   await symlink("capture-loop", join(f.root, "capture-loop"));
   f.references.resultEvidence.push({ reference: "capture-loop", cwd: f.root });
   f.allow(async ({ execute }) => execute());
-  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
+  const outcome = await observeEligibility({ f });
   assert.ok(outcome.kind === "retained" && outcome.reason === "ownership");
   assert.match(outcome.evidence.join("\n"), /ELOOP/);
   assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
@@ -227,7 +234,7 @@ test(`explicit relative result evidence with ${location} retains the worktree`, 
   const reference = location === "missing-relative" ? "./evidence/missing.json" : "capture-alias/report.json";
   f.references.resultEvidence.push({ reference, cwd: location === "missing-relative" ? f.path : f.root });
   f.allow(async ({ execute }) => execute());
-  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
+  const outcome = await observeEligibility({ f });
   assert.ok(outcome.kind === "retained", `Expected unresolved evidence retention, got ${outcome.kind}`);
   assert.equal(outcome.reason, location === "dangling-ancestor" ? "ownership" : "reviewer");
   if (location === "dangling-ancestor") assert.match(outcome.evidence.join("\n"), /Preserve unresolved worktree facts.*ENOENT/);
@@ -236,13 +243,13 @@ test(`explicit relative result evidence with ${location} retains the worktree`, 
   assert.ok(!(await readdir(f.root)).includes("receipts"));
 });
 
-test("opaque short and long native result diagnostics and remote references still allow ordinary cleanup", async () => {
+test("opaque short and long native diagnostics remain readable without granting worktree removal", async () => {
   const f = await fixture();
   const reflog = `${"a".repeat(40)} ${"b".repeat(40)} Fixture <fixture@example.test> 1792068558 +0000\tlegion-integrate:${randomUUID()}:${"c".repeat(64)}: Fast-forward`;
   assert.ok(Buffer.byteLength(reflog) > 255);
   f.references.resultEvidence.push(...["exit-0", reflog, "https://evidence.example.test/capture/report.json"].map(reference => ({ reference, cwd: f.path })));
-  f.allow(async ({ execute }) => execute());
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "confirmed");
+  assert.equal((await observeEligibility({ f })).kind, "eligible");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "retained");
   assert.equal(await f.git("rev-parse", "refs/heads/task"), f.intent.identity.commit);
 });
 
@@ -253,49 +260,43 @@ test("cleanup evidence cannot be stored within the worktree being removed", asyn
   assert.deepEqual((await readdir(f.path)).sort(), [".git", "code"]);
 });
 
-test("ordinary permission and late authority refusal leave no dispatch or resource effect", async () => {
+test("legacy permission callbacks and final guards cannot revive removal", async () => {
   const f = await fixture();
+  f.allow(async () => { throw new Error("Legacy permission callback must not run"); });
   const held = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("must not enter"); } });
-  assert.ok(held.kind === "retained" && held.reason === "permission-unavailable");
-  f.allow(async ({ execute }) => execute());
-  await assert.rejects(f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("authority revoked"); } }), /authority revoked/);
+  assert.ok(held.kind === "retained" && held.reason === "automatic-worktree-removal-unsupported");
   assert.deepEqual((await readdir(f.root)).sort(), ["owned", "repo"]);
 });
 
-test("absence alone and a lost native receipt remain read-only unknown without blind replay", async () => {
-  const f = await fixture(); let removes = 0;
-  const adapter = () => new LocalWorktreeCleanupAdapter({ commonDir: f.commonDir, evidenceRoot: f.evidenceRoot, usage: async () => ({ usage: "unused", evidence: ["controlled census"] }), permission: async ({ execute }) => execute(), run: async command => {
-    const outcome = await f.run(command);
-    if (command.includes("'remove'")) { removes++; return { kind: "unknown", message: "native receipt lost" }; }
-    return outcome;
-  } });
-  assert.equal((await adapter().reconcile({ intent: f.intent })).kind, "unknown");
+test("absence alone and a lost historical native receipt remain read-only unknown without blind replay", async () => {
+  const f = await fixture();
+  assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
   assert.deepEqual((await readdir(f.root)).sort(), ["owned", "repo"]);
-  assert.equal((await adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "unknown");
-  assert.equal((await adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("no replay"); } })).kind, "unknown");
-  assert.equal(removes, 1);
-  assert.equal((await adapter().reconcile({ intent: f.intent })).kind, "unknown");
+  await historicalRemoval({ f, outcome: { kind: "unknown", message: "native receipt lost" } });
+  const receipt = await readFile(join(f.evidenceRoot, f.intent.id, "receipt.json"), "utf8");
+  assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("no replay"); } })).kind, "retained");
+  assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
+  assert.equal(await readFile(join(f.evidenceRoot, f.intent.id, "receipt.json"), "utf8"), receipt);
 });
 
-test("successful exact Git receipt never removes a later reused path", async () => {
-  const f = await fixture(); f.allow(async ({ execute }) => execute());
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "confirmed");
+test("historical successful exact Git receipt never removes a later reused path", async () => {
+  const f = await fixture(); await historicalRemoval({ f });
   await f.git("worktree", "add", f.path, "task");
   await writeFile(join(f.path, "new-human-work"), "preserve\n");
   assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("no repeat"); } })).kind, "unknown");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("no repeat"); } })).kind, "retained");
   assert.equal(await readFile(join(f.path, "new-human-work"), "utf8"), "preserve\n");
 });
 
 for (const loss of ["missing", "corrupt", "conflicting"] ) test(`${loss} durable receipt cannot infer success from path absence`, async () => {
-  const f = await fixture(); f.allow(async ({ execute }) => execute());
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "confirmed");
+  const f = await fixture(); await historicalRemoval({ f });
   const receipt = join(f.evidenceRoot, f.intent.id, "receipt.json");
   if (loss === "missing") await unlink(receipt);
   else if (loss === "corrupt") await writeFile(receipt, "not-json");
   else { const saved = JSON.parse(await readFile(receipt, "utf8")); saved.intent.id = randomUUID(); await writeFile(receipt, JSON.stringify(saved)); }
   assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("never replay"); } })).kind, "unknown");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("never replay"); } })).kind, "retained");
 });
 
 function predecessor({ f }: { f: Awaited<ReturnType<typeof fixture>> }) {
@@ -330,20 +331,20 @@ test("all retained predecessor and successor references reach fresh native usage
     assert.equal(references.handoffs[0]?.id, p.handoff.id);
     return { usage: predecessorInUse ? "in-use" : "unused", evidence: ["actual predecessor, successor and detached child census"] };
   });
-  f.allow(async ({ execute }) => execute());
-  const held = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
+  const held = await observeEligibility({ f });
   assert.ok(held.kind === "retained" && held.reason === "usage");
   assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
   predecessorInUse = false;
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "confirmed");
+  assert.equal((await observeEligibility({ f })).kind, "eligible");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "retained");
   assert.equal(await f.git("rev-parse", "task"), f.intent.identity.commit);
 });
 
-test("a new predecessor use appearing after permission prevents even a settled successor removal", async () => {
+test("fresh predecessor use is retained even when the successor has settled", async () => {
   const f = await fixture(), p = predecessor({ f }); let active = false;
   f.use(async ({ references }) => ({ usage: active && references.launches.some(launch => launch.id === p.old.id) ? "in-use" : "unused", evidence: ["native child started in predecessor's worktree"] }));
-  f.allow(async ({ execute }) => { active = true; return execute(); });
-  const outcome = await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} });
+  active = true;
+  const outcome = await observeEligibility({ f });
   assert.ok(outcome.kind === "retained" && outcome.reason === "usage");
   assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
 });
@@ -378,21 +379,20 @@ for (const change of ["backlink", "branch", "registration", "symlink", "reposito
   assert.ok(!(await readdir(f.root)).includes("receipts"));
 });
 
-test("a one-shot permission callback cannot repeat an already applied exact Git removal", async () => {
-  const f = await fixture();
-  f.allow(async ({ execute }) => {
-    const outcome = await execute(); assert.equal(outcome.kind, "confirmed");
-    await assert.rejects(execute(), /one-shot/); return outcome;
-  });
-  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "confirmed");
+test("repeated legacy calls cannot overwrite an already applied historical Git removal receipt", async () => {
+  const f = await fixture(); await historicalRemoval({ f });
+  const before = await readFile(join(f.evidenceRoot, f.intent.id, "receipt.json"), "utf8");
+  f.allow(async () => { throw new Error("Must not enter legacy permission"); });
+  for (let i = 0; i < 2; i++) assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("No effect"); } })).kind, "retained");
   assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "confirmed");
+  assert.equal(await readFile(join(f.evidenceRoot, f.intent.id, "receipt.json"), "utf8"), before);
 });
 
-test("native nonzero removal receipt remains unknown rather than claiming conclusive no-effect", async () => {
-  const f = await fixture();
-  const adapter = new LocalWorktreeCleanupAdapter({ commonDir: f.commonDir, evidenceRoot: f.evidenceRoot, permission: async ({ execute }) => execute(), usage: async () => ({ usage: "unused", evidence: ["controlled census"] }), run: async command => command.includes("'remove'") ? { kind: "finished", code: 1, output: "Git refused removal" } : f.run(command) });
-  assert.equal((await adapter.remove({ intent: f.intent, references: f.references, finalGuard: async () => {} })).kind, "unknown");
-  assert.equal((await adapter.remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("no retry"); } })).kind, "unknown");
+test("historical native nonzero receipt remains unknown rather than claiming conclusive no-effect", async () => {
+  const f = await fixture(); await historicalRemoval({ f, outcome: { kind: "finished", code: 1, output: "Git refused removal" } });
+  assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
+  assert.equal((await f.adapter().remove({ intent: f.intent, references: f.references, finalGuard: async () => { throw new Error("no retry"); } })).kind, "retained");
+  assert.equal((await f.adapter().reconcile({ intent: f.intent })).kind, "unknown");
   assert.equal(await readFile(join(f.path, "code"), "utf8"), "accepted\n");
 });
 

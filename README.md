@@ -22,6 +22,14 @@ For the legacy command reference, setup instructions and evidence links, read th
 - Advisory context alerts default to 135,000 and 150,000 tokens, without percentage scaling. Native compaction stays enabled and unchanged. Tribunus handoff uses the unchanged `/skill:handoff` with a purpose, a temporary file and an explicit successor instruction to read that exact path before continuing.
 - The target includes safe stop, explicit reconciled resume, a minimal indicator plus status/doctor, exact-result review, parent-branch integration and owned-resource cleanup. Unsupported or uncertain outcomes preserve work and ask the Emperor. Automatic Legatus rotation and manual takeover/return are outside the product.
 
+## First-version cleanup scope (#40)
+
+The approved first version closes only eligible accepted, reviewed, settled owned tabs after fresh exact ownership, session/process and all-occupant checks. Human-used, foreign, active, ambiguous or still-needed tabs remain retained. Missing receipts do not authorize blind repeat closure.
+
+Worktrees and branches remain preserved, including after eligible tab closure. Automatic worktree removal is unsupported in this version; retaining a worktree alone does not prevent an otherwise eligible tab from closing. No legacy setting, saved intent, retry or public command may enable removal, and no new manual destructive-command bypass replaces it. Preserve reports, evidence, handoff references and unknown historical outcomes.
+
+The implementation now queues tab cleanup only. Status/doctor derive the retained worktree path and branch from an owned ready claim, not from historical unknown removal records. Legacy removal prepare/execute is refused; observation leaves its state, controllers and history unchanged. Existing confirmed removal tombstones remain historical facts, not resources to recreate. Focused checks are complete, but integrated-suite, independent-review and native acceptance remain pending; see [#40 evidence and current status](docs/verification/issue40-owned-cleanup.md). Future automatic removal is [deferred to #42](https://github.com/StanleyOneG/matts-poteto-herdr-factory/issues/42), does not block the first version or #41, and has no promised date or verified supported environment.
+
 ## Explicit continuation (#35)
 
 Ordinary startup stays inactive. Use `/legion resume <run-id>` to continue a preserved run in its saved checkout, including from a fresh Legatus session. Resume rereads configuration and checks exclusive checkout/run ownership, retained history, actual Git associations and exact worker/native identities before attaching. Dirty files, staged changes and legitimate later commits are retained, not reset to the original parent pin. Status/doctor are observations, not recovery.

@@ -1,5 +1,5 @@
 import { FinalRecord, FinalIdentity, FinalObservation, finalReviewStatus, DeliveryContent, type FinalReviewStatus, DeliveryControl, DeliveryExecution, DeliveryObservation, DeliveryRecord, DeliveryIntent, DeliveryOutcome, DeliveryConfiguration, deliveryDigest, deliveryOutcomeMatches, unresolvedDelivery, type DeliveryAdapter, type AcceptedResultProof } from "./delivery-domain.js";
-import { CleanupRecord, CleanupControl, CleanupOutcome, TabCleanupIntent, WorktreeCleanupIntent, TabCleanupObservation, WorktreeCleanupObservation, cleanupEligibility, cleanupOutcomeMatches, cleanupTargetDigest, unresolvedCleanup, type CleanupIntent, type CleanupReferences, type CleanupEligibility, type TabCleanupAdapter, type WorktreeCleanupAdapter } from "./cleanup-domain.js";
+import { worktreeRetentionMessage, CleanupRecord, CleanupControl, CleanupOutcome, TabCleanupIntent, TabCleanupObservation, cleanupEligibility, cleanupOutcomeMatches, cleanupTargetDigest, unresolvedCleanup, type CleanupIntent, type CleanupReferences, type CleanupEligibility, type TabCleanupAdapter, type WorktreeCleanupAdapter } from "./cleanup-domain.js";
 import { ContextAlerts, ContextSample, type ContextAlert, type ContextObservation } from "./context-alerts.js";
 import { isDeepStrictEqual } from "node:util";
 import { checkoutIdentity } from "./checkout-identity.js";
@@ -177,6 +177,7 @@ export type LegionView = {
       resultStatus: ResultStatus;
       cleanups: CleanupRecord[];
       retainedCleanupTabs: Array<{ launch: string; reason: string }>;
+      retainedWorktree: { path: string; branch: string; reason: string } | null;
     }
   >;
   settings: LegionSettings | null;
@@ -1875,9 +1876,11 @@ export class Legion {
       return String(error);
     }
   }
-  private taskCleanupView({ snapshot, task }: { snapshot: LegatusSnapshot; task: string }) {
+  private taskCleanupView({ snapshot, task, claim }: { snapshot: LegatusSnapshot; task: string; claim: ClaimView | undefined }) {
     return {
       cleanups: snapshot.cleanups.filter(record => record.intent.identity.assignment.task.id === task),
+      retainedWorktree: claim?.kind === "owned" && claim.workspace.kind === "ready" && !snapshot.cleanups.some(record => record.intent.target.kind === "worktree" && record.intent.identity.assignment.reservation === claim.reservation.id && unresolvedCleanup({ record }))
+        ? { path: claim.reservation.plan.path, branch: claim.reservation.plan.branch, reason: worktreeRetentionMessage } : null,
       retainedCleanupTabs: snapshot.handoffs.filter(record => record.pin.task.id === task && !snapshot.cleanups.some(cleanup => cleanup.intent.target.kind === "tab" && cleanup.intent.target.address.launch === record.pin.launch)).map(record => ({
         launch: record.pin.launch, reason: "Handoff predecessor has no exact accepted reviewed result. Its tab, history and temporary handoff artifact remain retained; no closure is authorized.",
       })),
@@ -1907,7 +1910,7 @@ export class Legion {
             resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
             correctionHold: correctionHold({ snapshot, taskId: t.id }),
             resultStatus: this.taskResultStatus({ snapshot, task: t }),
-            ...this.taskCleanupView({ snapshot, task: t.id }),
+            ...this.taskCleanupView({ snapshot, task: t.id, claim: claims.byTask.get(t.id) }),
             eligibility:
               !this.binding || this.stopping
                 ? "inactive"
@@ -2245,7 +2248,7 @@ export class Legion {
                 resumeHold: snapshot.resumeState?.holds.find(hold => hold.task === t.id)?.message ?? null,
                 correctionHold: correctionHold({ snapshot, taskId: t.id }),
                 resultStatus: this.taskResultStatus({ snapshot, task: t }),
-                ...this.taskCleanupView({ snapshot, task: t.id }),
+                ...this.taskCleanupView({ snapshot, task: t.id, claim: claims.byTask.get(t.id) }),
               })) ?? [],
             ...this.settingsView(),
             diagnostics: this.activationDiagnostics,
@@ -3153,7 +3156,9 @@ export class Legion {
     });
   }
   private cleanupResult({ record }: { record: CleanupRecord }): OperationResult {
-    return { kind: "cleanup-stage", cleanup: record, message: record.state.kind === "confirmed"
+    return { kind: "cleanup-stage", cleanup: record, message: record.intent.target.kind === "worktree" && record.state.kind !== "confirmed"
+      ? "Automatic worktree removal is unsupported in this version; retain worktree, branch and evidence. Historical unknown/dispatched outcomes remain observation-only; never replay."
+      : record.state.kind === "confirmed"
       ? "Exact resource cleanup confirmed; result, review, branch, evidence and handoff history remain retained."
       : "Resource retained until exact eligibility and ordinary permission are established. Unknown/dispatched outcomes require read-only reconciliation, never replay." };
   }
@@ -3180,13 +3185,7 @@ export class Legion {
         reconcile: () => adapter.reconcile({ intent: target }),
       };
     }
-    const target = WorktreeCleanupIntent.parse(intent), adapter = this.options.cleanup?.worktrees(intent.identity.workspace.repository);
-    if (!adapter) throw new Error("Read-only/guarded worktree cleanup adapter unavailable.");
-    return {
-      observe: async ({ references }: { references: CleanupReferences }) => WorktreeCleanupObservation.parse(await adapter.observe({ intent: target, references })),
-      execute: (input: { references: CleanupReferences; finalGuard: () => Promise<void> }) => adapter.remove({ intent: target, ...input }),
-      reconcile: () => adapter.reconcile({ intent: target }),
-    };
+    throw new Error(worktreeRetentionMessage);
   }
   private async cleanupReferences({ snapshot, record }: { snapshot: LegatusSnapshot; record: CleanupRecord }): Promise<CleanupReferences> {
     const intent = record.intent, task = snapshot.tasks.find(task => task.id === intent.identity.assignment.task.id);
@@ -3252,6 +3251,7 @@ export class Legion {
       if (!binding || !this.selected || this.stopping || this.stopRequested) return reject("cleanup-authority", "Current explicitly authorized Legatus cleanup stage required.");
       const snapshot = await this.store.read(this.selected), record = snapshot?.cleanups.find(record => record.intent.id === id);
       if (!snapshot || !record) return reject("cleanup-missing", "Exact saved resource cleanup intent required.");
+      if (record.intent.target.kind === "worktree") return reject("automatic-worktree-removal-unsupported", worktreeRetentionMessage);
       if (record.state.kind !== "pending" && record.state.kind !== "retained") return this.cleanupResult({ record });
       const intent = record.intent;
       const publish = async (outcome: CleanupOutcome) => {
@@ -3307,6 +3307,8 @@ export class Legion {
         return reject("cleanup-authority", "Exact current owning Legatus session/generation required; no adoption or effect replay.");
       const snapshot = await this.store.read(this.selected), record = snapshot?.cleanups.find(record => record.intent.id === input.action.id);
       if (!snapshot || !record) return reject("cleanup-missing", "Exact saved cleanup operation required.");
+      if (record.intent.target.kind === "worktree") return input.action.kind === "prepare"
+        ? reject("automatic-worktree-removal-unsupported", worktreeRetentionMessage) : this.cleanupResult({ record });
       if (input.action.kind === "prepare") {
         try {
           if (record.state.kind !== "pending" && record.state.kind !== "retained" && !(record.state.kind === "failed" && record.state.noEffect)) return reject("cleanup-consumed", "This operation is observation-only; do not retry.");
@@ -3355,7 +3357,7 @@ export class Legion {
     });
   }
   private async observeCleanupOutcome({ snapshot, record, owned }: { snapshot: LegatusSnapshot; record: CleanupRecord; owned: () => boolean }): Promise<OperationResult> {
-    if (!unresolvedCleanup({ record })) return this.cleanupResult({ record });
+    if (record.intent.target.kind === "worktree" || !unresolvedCleanup({ record })) return this.cleanupResult({ record });
     let outcome: CleanupOutcome;
     try {
       outcome = CleanupOutcome.parse(await this.cleanupAdapter({ intent: record.intent }).reconcile());
@@ -3380,10 +3382,8 @@ export class Legion {
     if (claim?.kind !== "owned" || claim.workspace.kind !== "ready" || claim.reservation.id !== record.identity.assignment.reservation ||
         !addressed || addressed.pin.assignment !== record.identity.assignment.assignment || addressed.address.session !== record.identity.assignment.executor.session ||
         addressed.address.generation !== record.identity.assignment.executor.generation) return;
-    for (const target of [{ kind: "tab", address: addressed.address }, { kind: "worktree", plan: claim.reservation.plan }]) {
-      if (snapshot.cleanups.some(cleanup => cleanup.intent.result.id === record.id && cleanup.intent.result.digest === record.digest && cleanup.intent.target.kind === target.kind)) continue;
-      snapshot.cleanups.push(CleanupRecord.parse({ intent: { id: randomUUID(), result: { id: record.id, digest: record.digest }, identity: record.identity, integration, target }, state: { kind: "pending" } }));
-    }
+    if (snapshot.cleanups.some(cleanup => cleanup.intent.result.id === record.id && cleanup.intent.result.digest === record.digest && cleanup.intent.target.kind === "tab")) return;
+    snapshot.cleanups.push(CleanupRecord.parse({ intent: { id: randomUUID(), result: { id: record.id, digest: record.digest }, identity: record.identity, integration, target: { kind: "tab", address: addressed.address } }, state: { kind: "pending" } }));
   }
   private acceptedDeliveryProof({ snapshot, task }: { snapshot: LegatusSnapshot; task: LegatusSnapshot["tasks"][number] }): AcceptedResultProof {
     if (this.taskResultStatus({ snapshot, task }).kind !== "accepted") throw new Error("Only the current #38 accepted result authorizes closure/delivery; tracker state and prose never accept work.");

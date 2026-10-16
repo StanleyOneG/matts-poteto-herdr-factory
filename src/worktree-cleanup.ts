@@ -1,18 +1,17 @@
-import { existsSync, lstatSync, realpathSync, readFileSync, mkdirSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync, readFileSync } from "node:fs";
 import { join, resolve, relative, isAbsolute, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { GitWorkspace, type GuardedCommand } from "./git-workspace.js";
-import { WorktreeCleanupIntent, WorktreeCleanupObservation, cleanupEligibility, cleanupTargetDigest, type WorktreeCleanupAdapter, type WorktreeCleanupOutcome, type CleanupReferences } from "./cleanup-domain.js";
-import { privateFile, publish } from "./private-evidence.js";
+import { WorktreeCleanupIntent, WorktreeCleanupObservation, cleanupEligibility, cleanupTargetDigest, type WorktreeCleanupAdapter, type WorktreeCleanupOutcome, type CleanupReferences, retainedWorktree } from "./cleanup-domain.js";
+import { privateFile } from "./private-evidence.js";
 
 /** Trusted native boundary, not model-supplied assertions. Must join actual process/filesystem use
  * and native worker/child/effect settlement for EVERY supplied predecessor and successor. Death,
  * tab absence and UI idle alone are insufficient. Incomplete visibility returns unknown. */
 export const WorktreeUsage = z.strictObject({ usage: z.enum(["unused", "in-use", "unknown"]), evidence: z.array(z.string().min(1)).min(1) });
 export type WorktreeUsageReader = (input: { intent: WorktreeCleanupIntent; references: CleanupReferences }) => Promise<unknown>;
-/** Enter execute only AFTER ordinary command-aware permission, including nested Bash policies.
- * D supplies/verifies that barrier; neither a raw custom tool nor a pre-permission guard suffices. */
+/** Legacy caller shape only; removal is inert and never invokes this callback. */
 export type WorktreeCleanupPermission = (input: { command: string; execute: () => Promise<WorktreeCleanupOutcome> }) => Promise<WorktreeCleanupOutcome>;
 type Options = { commonDir: string; evidenceRoot: string; run: GuardedCommand; usage?: WorktreeUsageReader; permission?: WorktreeCleanupPermission };
 const CommandReceipt = z.discriminatedUnion("kind", [
@@ -25,6 +24,7 @@ const Dispatch = z.strictObject({ intent: WorktreeCleanupIntent, command: z.stri
 const Receipt = z.strictObject({ intent: WorktreeCleanupIntent, command: z.string(), outcome: CommandReceipt });
 const inside = ({ root, path }: { root: string; path: string }) => { const delta = relative(root, path); return delta === "" || delta !== ".." && !delta.startsWith(`..${sep}`) && !isAbsolute(delta); };
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+// Reconstruct historical command bytes for read-only receipt matching only; never execute them.
 const commandFor = ({ intent, commonDir }: { intent: WorktreeCleanupIntent; commonDir: string }) => ["git", "-C", commonDir, "worktree", "remove", "--", intent.target.plan.path].map(quote).join(" ");
 function canonicalDestination({ path }: { path: string }): string {
   let ancestor = path;
@@ -96,40 +96,9 @@ export class LocalWorktreeCleanupAdapter implements WorktreeCleanupAdapter {
   private binding({ intent }: { intent: WorktreeCleanupIntent }): Pick<WorktreeCleanupOutcome, "resource" | "operation" | "result" | "targetDigest"> {
     return { resource: "worktree", operation: intent.id, result: intent.result, targetDigest: cleanupTargetDigest({ intent }) };
   }
-  async remove({ intent, references, finalGuard }: Parameters<WorktreeCleanupAdapter["remove"]>[0]): Promise<WorktreeCleanupOutcome> {
-    const paths = this.paths({ intent }), binding = this.binding({ intent });
-    const retained = ({ reason, message, evidence }: { reason: string; message: string; evidence: string[] }): WorktreeCleanupOutcome => ({ ...binding, kind: "retained", noEffect: true, reason, message, evidence });
-    if (existsSync(paths.root)) return this.reconcile({ intent });
-    if (!this.options.permission) return retained({ reason: "permission-unavailable", message: "No verified ordinary after-permission Git effect callback; preserve worktree.", evidence: ["worktree-remove-not-dispatched"] });
-    const initial = await this.observe({ intent, references });
-    const eligibility = cleanupEligibility({ intent, observation: initial });
-    if (eligibility.kind === "retained") return retained(eligibility);
-    const identity = this.identity({ intent });
-    let entered = false;
-    return this.options.permission({ command: commandFor({ intent, commonDir: this.options.commonDir }), execute: async () => {
-      if (entered) throw new Error("Worktree permission callback is one-shot; never replay cleanup.");
-      entered = true;
-      if (existsSync(paths.root)) return this.reconcile({ intent });
-      // Reobserve after ordinary permission. A's finalGuard then rereads fresh durable references,
-      // calls observe again (including the usage reader), and finally rechecks current authority.
-      const observation = await this.observe({ intent, references });
-      const fresh = cleanupEligibility({ intent, observation });
-      if (fresh.kind === "retained") return retained(fresh);
-      if (!isDeepStrictEqual(identity, this.identity({ intent }))) return retained({ reason: "identity-mismatch", message: "Worktree/filesystem incarnation changed during permission wait; never remove a reused path.", evidence: observation.evidence });
-      if (canonicalDestination({ path: this.options.evidenceRoot }) !== this.options.evidenceRoot || this.removesPath({ intent, path: this.options.evidenceRoot })) return retained({ reason: "evidence", message: "Cleanup evidence must be canonical and durable outside the removed tree.", evidence: observation.evidence });
-      await finalGuard();
-      if (!isDeepStrictEqual(identity, this.identity({ intent }))) return retained({ reason: "identity-mismatch", message: "Worktree incarnation changed during final guard; preserve reused path.", evidence: observation.evidence });
-      mkdirSync(this.options.evidenceRoot, { recursive: true, mode: 0o700 });
-      try { mkdirSync(paths.root, { mode: 0o700 }); }
-      catch (error) { if (error instanceof Error && "code" in error && error.code === "EEXIST") return this.reconcile({ intent }); throw error; }
-      const command = commandFor({ intent, commonDir: this.options.commonDir });
-      publish(paths.dispatch, Dispatch.parse({ intent, command, observation, identity }));
-      let outcome: z.infer<typeof CommandReceipt>;
-      try { outcome = CommandReceipt.parse(await this.options.run(command)); }
-      catch (error) { outcome = { kind: "unknown", message: String(error) }; }
-      publish(paths.receipt, Receipt.parse({ intent, command, outcome }));
-      return this.reconcile({ intent });
-    } });
+  async remove({ intent }: Parameters<WorktreeCleanupAdapter["remove"]>[0]): Promise<WorktreeCleanupOutcome> {
+    // Compatibility boundary only. No permission, observation, dispatch or Git effect is entered.
+    return retainedWorktree({ intent });
   }
   async reconcile({ intent }: Parameters<WorktreeCleanupAdapter["reconcile"]>[0]): Promise<WorktreeCleanupOutcome> {
     const paths = this.paths({ intent }), binding = this.binding({ intent });
