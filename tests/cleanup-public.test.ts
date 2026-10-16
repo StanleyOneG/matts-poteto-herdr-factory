@@ -203,27 +203,23 @@ test("accepted exact result closes its eligible tab through ordinary Bash while 
   } finally { await f.close(); }
 });
 
-for (const resource of ["tab"]) test(`ordinary command-aware Bash denial preserves exact ${resource} without a native dispatch or fallback`, async () => {
+test("ordinary command-aware Bash denial preserves exact tab without a native dispatch or fallback", async () => {
   const f = await accepted();
   try {
-    if (resource === "worktree") assert.equal((await f.call("legion_clean", { requestId: f.tab.intent.id })).isError, false);
     let denied = 0;
     f.runtime.pi.on("tool_call", (event) => {
-      if (event.toolName === "bash" && (resource === "tab" ? JSON.stringify(event.input).includes("herdr tab close") : JSON.stringify(event.input).includes("'worktree' 'remove'"))) {
+      if (event.toolName === "bash" && JSON.stringify(event.input).includes("herdr tab close")) {
         denied++; return { block: true, reason: "Ordinary command-specific operator denial" };
       }
     });
-    const target = resource === "tab" ? f.tab : f.worktree;
-    await f.call("legion_clean", { requestId: target.intent.id });
-    const record = (await f.state()).snapshot.cleanups.find((record: { intent: { id: string } }) => record.intent.id === target.intent.id);
+    await f.call("legion_clean", { requestId: f.tab.intent.id });
+    const record = (await f.state()).snapshot.cleanups.find((record: { intent: { id: string } }) => record.intent.id === f.tab.intent.id);
     assert.ok(record); assert.equal(record.state.kind, "retained"); assert.ok(record.state.kind === "retained"); assert.equal(record.state.reason, "permission-not-entered");
-    assert.equal(existsSync(join(f.root, "a", "legion", resource === "tab" ? "cleanup-tabs" : "cleanup-worktrees", target.intent.id)), false, "The trusted closure never entered: no adapter dispatch/receipt directory");
-    assert.equal(existsSync(f.closedPath), resource === "worktree"); assert.ok(existsSync(f.worker.ctx.cwd)); assert.equal(denied, 1);
-    assert.equal((await f.call("legion_clean", { requestId: target.intent.id })).isError, true, "Consumed correlation never retries");
-    if (resource === "tab") {
-      assert.equal((await f.call("legion_clean", { requestId: f.worktree.intent.id })).isError, true, "Worktree removal remains unavailable regardless of tab outcome");
-      assert.equal(existsSync(f.closedPath), false);
-    }
+    assert.equal(existsSync(join(f.root, "a", "legion", "cleanup-tabs", f.tab.intent.id)), false, "The trusted closure never entered: no adapter dispatch/receipt directory");
+    assert.equal(existsSync(f.closedPath), false); assert.ok(existsSync(f.worker.ctx.cwd)); assert.equal(denied, 1);
+    assert.equal((await f.call("legion_clean", { requestId: f.tab.intent.id })).isError, true, "Consumed correlation never retries");
+    assert.equal((await f.call("legion_clean", { requestId: f.worktree.intent.id })).isError, true, "Worktree removal remains unavailable regardless of tab outcome");
+    assert.equal(existsSync(f.closedPath), false);
   } finally { await f.close(); }
 });
 
