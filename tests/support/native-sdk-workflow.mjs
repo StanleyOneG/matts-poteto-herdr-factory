@@ -15,6 +15,10 @@ const scenario = process.argv[2] ?? "entry";
 const root = mkdtempSync(join(tmpdir(), "legion-native-sdk-workflow-"));
 const profile = join(root, "profile"), cwd = join(root, "checkout"), bin = join(root, "bin");
 for (const directory of [profile, cwd, bin]) mkdirSync(directory);
+if (scenario === "activation") {
+  mkdirSync(join(profile, "extensions", "subagent"), { recursive: true });
+  writeFileSync(join(profile, "extensions", "subagent", "config.json"), JSON.stringify({ toolActivation: "dynamic", fleetView: false, asyncWidget: false }));
+}
 const workspaceScenario = scenario === "workspace" || scenario === "deferred-guidance";
 const git = (...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
 if (workspaceScenario) {
@@ -121,7 +125,9 @@ const provider = pi => pi.registerProvider("legion-workflow-fixture", {
     const latest = context.messages.at(-1);
     const data = context.messages.findLast(message => (typeof message.content === "string" ? message.content : message.content.filter(part => part.type === "text").map(part => part.text).join("\n")).includes("Exact saved sources and current state\n"));
     let content = [{ type: "text", text: "Ordinary native completion." }], stopReason = "stop";
-    if (native && data && !JSON.stringify(latest.content).includes("Ordinary child completion fixture")) {
+    if (scenario === "activation" && phase++ === 0) {
+      content = [{ type: "toolCall", id: randomUUID(), name: "subagents_enable", arguments: {} }]; stopReason = "toolUse";
+    } else if (native && data && !JSON.stringify(latest.content).includes("Ordinary child completion fixture")) {
       const text = typeof data.content === "string" ? data.content : data.content.filter(part => part.type === "text").map(part => part.text).join("\n");
       const parsed = JSON.parse(text.split("Exact saved sources and current state\n")[1]);
       if (phase++ === 0) { content = [{ type: "toolCall", id: randomUUID(), name: "legion_intake", arguments: { kind: "new-task", source: parsed.sources[0], goal: "SDK scoped approved task", acceptance: ["Exact native entry"], questions: [] } }]; stopReason = "toolUse"; }
@@ -164,6 +170,19 @@ try {
   await loader.reload(); assert.deepEqual(loader.getExtensions().errors, []);
   ({ session } = await createAgentSession({ cwd, agentDir: profile, settingsManager: settings, modelRuntime, model, resourceLoader: loader }));
   await session.bindExtensions({ mode: "print", onError: error => errors.push(error) });
+  if (scenario === "activation") {
+    const deferred = ["subagent", "bg_wait", "subagent_supervisor"];
+    assert.ok(session.getActiveToolNames().includes("subagents_enable"));
+    for (const name of deferred) assert.equal(session.getActiveToolNames().includes(name), false, `${name} is deferred before delegation`);
+    await session.prompt("Enable native delegation tools only; do not launch work.");
+    await session.waitForIdle();
+    for (const name of deferred) assert.ok(session.getActiveToolNames().includes(name), `${name} is co-selected after native enable`);
+    const result = session.messages.find(message => message.role === "toolResult" && message.toolName === "subagents_enable");
+    assert.ok(result); assert.equal(result.isError, false);
+    assert.equal((await state()).snapshot, null, "Tool activation never activates Legion or creates a task");
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ root, pi: VERSION, networkCalls: 0, deferred: true, coSelected: true, noTask: true, errors }));
+  } else {
   await session.prompt("/implement Inactive ordinary skill");
   await session.waitForIdle();
   assert.equal((await state()).snapshot, null, "Alias cannot activate inactive Legion");
@@ -225,6 +244,7 @@ try {
     assert.match(workspaceTool.description, /\/legion workspace/, "Native guidance must not exclude the supported host authorization alternative");
   }
   console.log(JSON.stringify({ root, pi: VERSION, networkCalls: 0, tasks: view.tasks.length, dispatch: delivery.kind, exactInstructions: delivery.prompt.endsWith(exact), appliedJournal: true, permissionDenied: true, customCompletion: true, ...(workspaceScenario ? { prematureDenied, wrongIdDenied, workspace: "ready", nestedBash: bashCalls.length } : {}), errors }));
+  }
 } finally {
   if (session) { await session.extensionRunner.emit({ type: "session_shutdown", reason: "shutdown" }); session.dispose(); }
   await new Promise(resolve => server.close(resolve));

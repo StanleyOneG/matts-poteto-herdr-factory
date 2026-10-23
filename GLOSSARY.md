@@ -23,6 +23,14 @@ _Avoid_: Tribunus, when a native subagent is meant.
 **Workflow profile**:
 The controller chosen for an assignment, retained through its continuation. Matt-controlled work and poteto-controlled work are distinct profiles.
 
+**Task prerequisite**:
+An explicit dependency on another local task's accepted result that must be satisfied before launch. The Legatus defines the dependency; readiness is not an instruction to launch.
+_Avoid_: Tracker blocker, when local launch readiness is meant.
+
+**Attempt**:
+One recorded execution of an assigned task. Ending an unsuccessful attempt neither accepts its result nor establishes that its writer has stopped.
+_Avoid_: Task, when only one execution is meant.
+
 **Accepted result**:
-An identified result whose requirements and checks pass, whose independent review is complete, and whose integration into its parent task branch is confirmed.
+An exact task result explicitly accepted by the Legatus after requirements/check verification, independent review and integration into its intended parent task branch. A worker report or an ended attempt is not acceptance.
 _Avoid_: Reported result, when acceptance is meant.

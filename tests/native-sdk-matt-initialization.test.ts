@@ -10,7 +10,7 @@ import { z } from "zod";
 // Approved public launch/receipt/reconciliation seam, backed by an actual fresh Pi SDK session.
 async function exercise(scenario: "fresh" | "late" | "error" | "lost") {
   const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "tests/support/native-sdk-matt-initialization.mjs", scenario]);
-  const result = z.object({ root: z.string(), pi: z.literal("1.2.0"), networkCalls: z.literal(0), bootstrapRequests: z.literal(1), scenario: z.enum(["fresh", "late", "error", "lost"]), persisted: z.literal(true), sameWorker: z.literal(true), noReplay: z.literal(true) }).parse(JSON.parse(stdout));
+  const result = z.object({ root: z.string(), pi: z.literal("1.3.0"), networkCalls: z.literal(0), bootstrapRequests: z.literal(1), scenario: z.enum(["fresh", "late", "error", "lost"]), persisted: z.literal(true), sameWorker: z.literal(true), noReplay: z.literal(true) }).parse(JSON.parse(stdout));
   assert.equal(result.scenario, scenario);
   assert.ok(result.root.startsWith(join(tmpdir(), "mi-")));
   await rm(result.root, { recursive: true, force: true });

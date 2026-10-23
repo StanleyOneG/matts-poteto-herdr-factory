@@ -33,7 +33,7 @@ export function readCenturio(binding: z.infer<typeof CenturioBinding>) {
 }
 export function nativeChildInput(record: { intent: z.infer<typeof OwnedNativeIntent> }) {
   const intent = record.intent;
-  return { agent: intent.agent, task: `${intent.task}\n\nBounded parent assignment: ${JSON.stringify(intent.assignment.value)}\nNo integration, publication, acceptance or cleanup authority.`, async: true, cwd: intent.cwd, worktree: false, artifacts: true };
+  return { agent: intent.agent, task: `${intent.task}\n\nBounded parent assignment: ${JSON.stringify(intent.assignment.value)}\nNo integration, publication, acceptance or cleanup authority.`, async: true, cwd: intent.cwd, worktree: false, options: { artifacts: true } };
 }
 // pi-subagents 0.77.0 action dispatch: these actions do not execute children.
 const NativeInspectionActions = new Set(["list", "get", "models", "children.list", "guide", "validate", "status", "debug.run", "doctor", "mission.list", "mission.show", "lane.status", "refine.show", "inspector.command", "inspector.status", "project.status", "command.status", "watchdog.status", "watchdog.check", "watchdog.recommend-model", "schedule.list", "schedule.show", "schedule.history"]);

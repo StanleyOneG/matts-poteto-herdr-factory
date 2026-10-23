@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { exerciseRace } from "./support/composed-transport.mjs";
 
-test("preflight admits intake with current Pi 1.2.0 and pi-subagents 0.78.0 composition", async () => {
+test("preflight admits intake with candidate Pi 1.3.0 and pi-subagents 0.79.1 composition pending native verification", async () => {
   const result = await exerciseRace("readiness");
-  assert.match(result.doctor, /Pi ready\. Observed Pi 1\.2\.0\./);
-  assert.match(result.doctor, /pi-subagents ready\..*Observed 0\.78\.0\./);
+  assert.match(result.doctor, /Pi ready\. Observed Pi 1\.3\.0\./);
+  assert.match(result.doctor, /pi-subagents ready\..*Observed on-disk package 0\.79\.1\./);
+  assert.match(result.doctor, /Candidate composition target Pi 1\.3\.0 \/ pi-subagents 0\.79\.1/);
+  assert.match(result.doctor, /On-disk metadata does not establish the in-memory runtime version/);
+  assert.match(result.doctor, /Native launch verification remains required/);
   assert.match(result.doctor, /@zenspc\/pi-pstack ready\./);
   assert.equal(result.view.mode, "active");
   assert.equal(result.view.snapshot?.submissions[0]?.text, "Fix the Ready label");
-  assert.equal(result.prompts.length, 1, "Verified composition can admit the saved intake into a model turn");
+  assert.equal(result.prompts.length, 1, "Candidate composition can admit the saved intake into a model turn");
 });
 
 for (const [readinessCase, diagnostic] of [
@@ -19,6 +22,8 @@ for (const [readinessCase, diagnostic] of [
   ["missing-subagents", "pi-subagents missing."],
   ["hidden-subagents", "pi-subagents missing."],
   ["pre-1.2-subagents", "pi-subagents unverified."],
+  ["pre-1.3-subagents", "pi-subagents unverified."],
+  ["pre-0.79.1-subagents", "pi-subagents unverified."],
   ["missing-pstack", "@zenspc/pi-pstack missing."],
   ["unsupported-pstack", "@zenspc/pi-pstack unverified."],
 ] satisfies [string, string][]) {

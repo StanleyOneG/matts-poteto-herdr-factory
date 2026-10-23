@@ -201,15 +201,29 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
   await writeFile(paneFile, JSON.stringify(pane));
   const callerFile = join(root, "caller.json");
   await writeFile(callerFile, JSON.stringify(pane));
-  await writeFile(join(bin, "herdr"), `#!/usr/bin/env node\nconst fs=require('node:fs');const a=process.argv.slice(2);const file=${JSON.stringify(paneFile)};let pane=JSON.parse(fs.readFileSync(a[0]==='pane'&&a[1]==='get'&&a[2]==='controlled-pane'?${JSON.stringify(callerFile)}:file));if(a[0]==='--version')console.log('0.9.1');else if(a[0]==='status')console.log(JSON.stringify({status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(socket)}}));else if(a[0]==='workspace'||a[0]==='tab'){fs.writeFileSync(${JSON.stringify(join(root, "layout-command.json"))},JSON.stringify(a));delete pane.agent;delete pane.agent_session;pane.tab_id='controlled-worker-tab';pane.pane_id='controlled-worker-pane';pane.foreground_cwd=a[a.indexOf('--cwd')+1];fs.writeFileSync(file,JSON.stringify(pane));fs.writeFileSync(${JSON.stringify(createdFile)},JSON.stringify({bootstrap:a[a.indexOf('--env')+1].split('=').slice(1).join('=')}));console.log(JSON.stringify({result:{root_pane:pane}}));}else if(a[1]==='get')console.log(JSON.stringify({result:{pane}}));else console.log(JSON.stringify({result:{process_info:{foreground_processes:[{pid:${census?.childCase === "caller-process" ? process.pid + 1 : process.pid}}]}}}));\n`, { mode: 0o700 });
+  await writeFile(join(bin, "herdr"), `#!/usr/bin/env node\nconst fs=require('node:fs');const a=process.argv.slice(2);const file=${JSON.stringify(paneFile)};let pane=JSON.parse(fs.readFileSync(a[0]==='pane'&&a[1]==='get'&&a[2]==='controlled-pane'?${JSON.stringify(callerFile)}:file));if(a[0]==='--version')console.log('0.9.1');else if(a[0]==='status')console.log(JSON.stringify({status:'running',running:true,version:'0.9.1',protocol:22,compatible:true,endpoint_compatible:true,restart_needed:false,socket:${JSON.stringify(socket)}}));else if(a[0]==='workspace'||a[0]==='tab'){fs.writeFileSync(${JSON.stringify(join(root, "layout-command.json"))},JSON.stringify(a));delete pane.agent;delete pane.agent_session;pane.tab_id='controlled-worker-tab';pane.pane_id='controlled-worker-pane';pane.foreground_cwd=a[a.indexOf('--cwd')+1];fs.writeFileSync(file,JSON.stringify(pane));fs.writeFileSync(${JSON.stringify(createdFile)},JSON.stringify({bootstrap:a[a.indexOf('--env')+1].split('=').slice(1).join('=')}));console.log(JSON.stringify({result:{root_pane:pane}}));}else if(a[0]==='pane'&&a[1]==='run'){
+  if(a[2]!==pane.pane_id||pane.agent)throw new Error('Cache input requires the exact available worker shell');
+  const output=require('node:child_process').execFileSync('/bin/bash',['-c',a[3]],{encoding:'utf8'});
+  fs.writeFileSync(${JSON.stringify(join(root, "cache-setup.json"))},JSON.stringify({pane:pane.pane_id,terminal:pane.terminal_id,shell:${process.pid},output}));
+  console.log(JSON.stringify({result:{type:'ok'}}));
+}else if(a[0]==='pane'&&a[1]==='wait-output'){
+  const receipt=JSON.parse(fs.readFileSync(${JSON.stringify(join(root, "cache-setup.json"))},'utf8'));
+  if(a[2]!==pane.pane_id||receipt.pane!==pane.pane_id||receipt.terminal!==pane.terminal_id||receipt.shell!==${process.pid})throw new Error('Cache receipt identity changed');
+  const pattern=new RegExp(a[a.indexOf('--regex')+1]),matched_line=receipt.output.trimEnd().split(String.fromCharCode(10)).find(line=>pattern.test(line));
+  if(!matched_line)throw new Error('Cache setup did not execute the requested receipt');
+  console.log(JSON.stringify({result:{type:'output_matched',pane_id:pane.pane_id,matched_line}}));
+}else if(a[1]==='get')console.log(JSON.stringify({result:{pane}}));else console.log(JSON.stringify({result:{process_info:{pane_id:pane.pane_id,shell_pid:${process.pid},foreground_process_group_id:${process.pid},foreground_processes:[{pid:${census?.childCase === "caller-process" ? process.pid + 1 : process.pid}}]}}}));\n`, { mode: 0o700 });
   let workerDescriptor = null;
   let worker = null, originalTimer = globalThis.setTimeout, scheduled = [], workerFailure = null;
   const controller = runtime(repo, "composed-controller", join(root, "controller.jsonl"));
+  const launchCommands = [];
   globalThis.setTimeout = (callback, milliseconds, ...args) => milliseconds === 0 ? (scheduled.push(() => callback(...args)), { unref() {} }) : originalTimer(callback, milliseconds, ...args);
   const drain = async () => { const batch = scheduled; scheduled = []; for (const callback of batch) callback(); await delay(20); };
   controller.external(async (name, { command }) => {
     if (name !== "bash") return undefined;
+    launchCommands.push(command);
     let output, exitCode = 0;
+    if (scenario === "launch-cache-unknown" && command.startsWith("herdr pane wait-output ")) throw new Error("Cache setup output acknowledgment lost after input submission");
     if (command.startsWith("herdr agent start ")) {
       await writeFile(join(root, "startup-command.json"), JSON.stringify(command));
       const { bootstrap } = JSON.parse(await readFile(createdFile, "utf8"));
@@ -280,16 +294,16 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       await writeFile(join(repo, ".pi", "legion.json"), "{bad-json");
     }
     if (scenario === "missing-pi-contract") controller.pi.sendUserMessage = undefined;
-    if (["unknown-subagents", "unsupported-subagents", "missing-subagents", "hidden-subagents", "pre-1.2-subagents"].includes(scenario)) {
+    if (["unknown-subagents", "unsupported-subagents", "missing-subagents", "hidden-subagents", "pre-1.2-subagents", "pre-1.3-subagents", "pre-0.79.1-subagents"].includes(scenario)) {
       const discoveredTools = controller.pi.getAllTools();
       const unsupported = join(root, "unsupported-subagents");
-      if (["unsupported-subagents", "pre-1.2-subagents"].includes(scenario)) {
+      if (["unsupported-subagents", "pre-1.2-subagents", "pre-1.3-subagents", "pre-0.79.1-subagents"].includes(scenario)) {
         await mkdir(unsupported);
-        await writeFile(join(unsupported, "package.json"), JSON.stringify({ name: "pi-subagents", version: scenario === "pre-1.2-subagents" ? "0.77.0" : "9.9.9" }));
+        await writeFile(join(unsupported, "package.json"), JSON.stringify({ name: "pi-subagents", version: scenario === "pre-1.2-subagents" ? "0.77.0" : scenario === "pre-1.3-subagents" ? "0.78.0" : scenario === "pre-0.79.1-subagents" ? "0.79.0" : "9.9.9" }));
       }
       controller.pi.getAllTools = () => discoveredTools.flatMap(tool => tool.name !== "subagent" ? [tool]
         : scenario === "missing-subagents" ? []
-        : [{ ...tool, exposure: scenario === "hidden-subagents" ? "hidden" : tool.exposure, sourceInfo: { path: ["unsupported-subagents", "pre-1.2-subagents"].includes(scenario) ? join(unsupported, "index.js") : scenario === "unknown-subagents" ? join(root, "unknown/index.js") : tool.sourceInfo.path } }]);
+        : [{ ...tool, exposure: scenario === "hidden-subagents" ? "hidden" : tool.exposure, sourceInfo: { path: ["unsupported-subagents", "pre-1.2-subagents", "pre-1.3-subagents", "pre-0.79.1-subagents"].includes(scenario) ? join(unsupported, "index.js") : scenario === "unknown-subagents" ? join(root, "unknown/index.js") : tool.sourceInfo.path } }]);
     }
     if (["same-version-npm", "foreign-fork-origin", "foreign-poteto-skill"].includes(scenario)) {
       const foreign = join(root, "foreign-pstack");
@@ -622,6 +636,23 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
     if (["unknown-caller", "caller-process"].includes(census?.childCase)) {
       assert.equal((await state()).tasks[0].launch.kind, "held", "Unknown caller/session/process cannot acquire a Tribunus");
       assert.equal(fs.existsSync(createdFile), false, "Unknown owning Legatus must not create a Herdr tab or workspace");
+      return { root, view: await state() };
+    }
+    if (scenario === "launch-cache-unknown") {
+      const before = await state(), held = before.tasks[0].launch;
+      assert.equal(held.kind, "held");
+      assert.equal(held.code, "startup-outcome-unknown");
+      assert.equal(held.startEvidence.kind, "uncertain");
+      assert.equal(held.last.kind, "pi-dispatched");
+      assert.equal(launchCommands.filter(command => command.startsWith("herdr tab create ")).length, 1);
+      assert.equal(launchCommands.filter(command => command.startsWith("herdr pane run ")).length, 1);
+      assert.equal(launchCommands.filter(command => command.startsWith("herdr pane wait-output ")).length, 1);
+      assert.equal(launchCommands.some(command => command.startsWith("herdr agent start ")), false);
+      const dispatched = [...launchCommands];
+      await controller.call("legion_launch", { requestId: launch });
+      assert.deepEqual(launchCommands, dispatched, "Uncertain setup cannot resend input, wait, create a tab or start Pi");
+      assert.equal(fs.existsSync(join(root, "startup-command.json")), false);
+      assert.equal((await state()).tasks[0].launch.startEvidence.kind, "uncertain");
       return { root, view: await state() };
     }
     if (scenario === "launch-profile-held") return { root, view: await state(), result: launched.details, prompts: [...worker.prompts], entries: worker.ctx.sessionManager.getBranch() };
@@ -975,6 +1006,75 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       const branch = (await execute("git", ["-C", input.cwd, "symbolic-ref", "HEAD"])).stdout.trim();
       assert.notEqual(branch, (await execute("git", ["-C", worker.ctx.cwd, "symbolic-ref", "HEAD"])).stdout.trim());
       if (scenario === "child-prepared") return { root, view: await state() };
+      if (scenario === "child-launch-shape" || scenario === "child-launch-shape-denials") {
+        // Use the locally tested native dependency and its existing host peers, not a schema replica.
+        const { createSubagentParamsSchema } = await import("../../node_modules/pi-subagents/src/extension/schemas.js");
+        const { flattenSubagentToolOptions } = await import("../../node_modules/pi-subagents/src/extension/subagent-options.js");
+        const manifest = JSON.parse(fs.readFileSync(new URL("../../node_modules/pi-subagents/package.json", import.meta.url), "utf8"));
+        assert.equal(manifest.version, "0.79.1");
+        const parameters = createSubagentParamsSchema();
+        assert.equal(Object.hasOwn(parameters.properties, "artifacts"), false);
+        assert.equal(Object.hasOwn(parameters.properties, "options"), true);
+        const canonical = { agent: "worker", task: input.task, async: true, cwd: input.cwd, worktree: false, options: { artifacts: true } };
+        assert.deepEqual(input, canonical, "Prepared launch must use the declared native model-facing options shape");
+        assert.ok(Object.keys(input).every(key => Object.hasOwn(parameters.properties, key)), "Prepared fields must be declared model-facing fields");
+        const admitted = validateToolArguments({ name: "subagent", parameters }, { type: "toolCall", id: randomUUID(), name: "subagent", arguments: canonical });
+        assert.deepEqual(admitted, canonical, "Native model argument validation preserves the exact prepared object");
+        const flat = { agent: "worker", task: input.task, async: true, cwd: input.cwd, worktree: false, artifacts: true };
+        assert.deepEqual(flattenSubagentToolOptions(admitted), flat, "Native lowering owns execution input translation");
+        assert.deepEqual(flattenSubagentToolOptions(flat), flat, "Native flat/RPC callers retain backwards compatibility");
+        if (scenario === "child-launch-shape-denials") {
+          const before = await state(), intentBytes = fs.readFileSync(prepared.details.evidence);
+          const launchPath = join(dirname(prepared.details.evidence), `${prepared.details.intent}.centurio-launch.json`);
+          let invoked = 0;
+          worker.external(async () => { invoked++; throw new Error("Refused launch reached native execution"); });
+          for (const raw of [
+            flat,
+            { ...canonical, task: `${canonical.task}\nChanged task` },
+            { ...canonical, agent: "foreign-agent" },
+            { ...canonical, cwd: worker.ctx.cwd },
+            { ...canonical, worktree: true },
+            { ...canonical, async: false },
+            { ...canonical, options: { artifacts: false } },
+            { ...canonical, options: { artifacts: true, share: true } },
+            { ...canonical, options: { artifacts: true, tools: ["write"] } },
+            { ...canonical, options: { artifacts: true, context: "inherit" } },
+            { ...canonical, model: "unauthorized/model" },
+            { ...canonical, tools: ["write"] },
+            { ...canonical, extensionBindings: [] },
+            { ...canonical, skill: "unapproved" },
+            { ...canonical, extra: true },
+          ]) {
+            const refused = await worker.call("subagent", raw);
+            assert.equal(refused.isError, true, `Altered native launch must be refused: ${JSON.stringify(raw)}`);
+            assert.match(refused.content[0].text, /exact current assignment-owned isolated launch/);
+          }
+          const parentCwd = worker.ctx.cwd;
+          try {
+            worker.ctx.cwd = root;
+            const refused = await worker.call("subagent", canonical);
+            assert.equal(refused.isError, true, "The caller must remain in its exact parent checkout");
+            assert.match(refused.content[0].text, /current principal and reconciled children/);
+          } finally { worker.ctx.cwd = parentCwd; }
+          const nested = await worker.call("subagent", canonical, randomUUID(), "foreign-parent-call");
+          assert.equal(nested.isError, true, "Nested execution cannot consume a fresh model-origin preparation");
+          assert.match(nested.content[0].text, /fresh assignment-owned prepared launch/);
+          const sessionId = worker.ctx.sessionManager.getSessionId;
+          try {
+            worker.ctx.sessionManager.getSessionId = () => "foreign-principal";
+            assert.equal((await worker.call("subagent", canonical)).isError, true, "A foreign principal cannot consume this preparation");
+          } finally { worker.ctx.sessionManager.getSessionId = sessionId; }
+          assert.equal(invoked, 0, "Shape/owner/cwd failures are pre-effect");
+          const after = await state();
+          assert.deepEqual(after.snapshot.effects, before.snapshot.effects, "Refusals cannot acquire native effect authority");
+          assert.deepEqual(after.tasks[0].launch.worker.resources.children, before.tasks[0].launch.worker.resources.children, "Refusals leave the child prepared and unconsumed");
+          assert.deepEqual(fs.readFileSync(prepared.details.evidence), intentBytes, "Refusals preserve the original intent bytes");
+          assert.equal(fs.existsSync(launchPath), false, "No refused shape/owner publishes launch provenance");
+          assert.equal((await worker.call("subagent", canonical)).isError, true, "Restoring fixture session metadata cannot restore retired authority");
+          assert.equal(invoked, 0);
+          return { root, view: await state() };
+        }
+      }
       if (scenario === "child-held-launch") {
         worker.external(async () => { throw new Error("Native effect outcome unavailable"); });
         assert.equal((await worker.call("write", { path: "uncertain.txt", content: "unknown" })).isError, true);
@@ -1092,7 +1192,7 @@ export async function exerciseNativeAssignment(scenario = "write", census) {
       }
       await worker.settle(false, "Principal reports finished; this is not child settlement.");
       assert.equal((await state()).tasks[0].launch.kind, "assigned");
-      if (scenario === "child-active") return { root, view: await state() };
+      if (scenario === "child-active" || scenario === "child-launch-shape") return { root, view: await state() };
       let originalShutdown = null;
       if (scenario === "child-stop-owner-loss") {
         await controller.command("off");

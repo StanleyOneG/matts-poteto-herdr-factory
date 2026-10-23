@@ -31,9 +31,23 @@ function processIdentity(pid: number) {
   return { pid, boot, start };
 }
 const Retirement = z.strictObject({ stop: WorkerStop, reason: z.enum(["safe-stop", "owner-lost", "owner-unresolved"]), message: z.string() });
+const CacheEnvironmentKey = z.enum(["XDG_CACHE_HOME", "npm_config_cache", "NPM_CONFIG_CACHE"]);
+const LaunchEnvironmentKey = z.enum([
+  "PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR", "TMPDIR", "TMP", "TEMP",
+  "PI_SUBAGENTS_TEMP_ROOT", ...CacheEnvironmentKey.options
+]);
+const LaunchEnvironment = z.partialRecord(LaunchEnvironmentKey, z.string()).superRefine((environment, ctx) => {
+  // Shell quoting cannot protect control bytes from the terminal input layer.
+  for (const key of CacheEnvironmentKey.options) {
+    const value = environment[key];
+    if (value !== undefined && /[\u0000-\u001f\u007f-\u009f]/u.test(value))
+      ctx.addIssue({ code: "custom", path: [key], message: `Cache route ${key} contains unsupported terminal control characters.` });
+  }
+});
 const Descriptor = z.object({
   launch: LaunchRecord, cwd: z.string(), capability: z.string(), authority: Authority, ownerProcess: OwnerProcess.optional(),
-  workflowChoice: WorkflowChoiceSchema.optional(), startupSelection: StartupSelectionSchema.optional()
+  workflowChoice: WorkflowChoiceSchema.optional(), startupSelection: StartupSelectionSchema.optional(),
+  launchEnvironment: LaunchEnvironment.optional()
 });
 const Hello = z.object({
   address: WorkerAddress, endpoint: z.string(), journal: z.string(), pid: z.int().positive(), process: LocalProcessIdentity.optional()
@@ -134,52 +148,93 @@ export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
     publish(join(root, `${evidence}.effect-outcome.json`), result);
     if (result.kind !== "finished" || result.code !== 0)
       throw new Error(`Guarded local effect has no successful completion. Preserve effect evidence ${evidence} for launch ${launch}. No fallback.`);
-    return JSON.parse(result.output);
+    return result.output;
   }
-  async createWindow({ launch, cwd, workflowChoice, startupSelection }: Parameters<TribunusHost["createWindow"]>[0]) {
-    if (launch.successor && (!isDeepStrictEqual(workflowChoice, launch.successor.workflowChoice) || startupSelection.kind !== "exact" || !isDeepStrictEqual(startupSelection.selection, { model: launch.successor.modelPin.model, thinking: launch.successor.modelPin.thinking }))) throw new Error("Successor launch must preserve the predecessor's exact model/thinking/profile. No defaults or fallback.");
-    const local = await localIdentity();
+  private async jsonEffect(command: string, launch: string): Promise<unknown> {
+    return JSON.parse(await this.effect(command, launch));
+  }
+  private async owningLegatus(local: Awaited<ReturnType<typeof localIdentity>>) {
     const callerId = process.env.HERDR_PANE_ID;
-    if (!callerId) throw new Error("The owning Legatus has no Herdr caller identity. No tab created.");
+    if (!callerId) throw new Error("The owning Legatus has no Herdr caller identity. No launch effect authorized.");
     const caller = await paneAt(callerId);
     const session = caller.agent_session?.kind === "id" ? caller.agent_session.value
       : caller.agent_session?.kind === "path" ? z.object({ type: z.literal("session"), id: z.string() }).parse(JSON.parse(readFileSync(caller.agent_session.value, "utf8").split("\n")[0] ?? "")).id : null;
     const processInfo = z.object({ result: z.object({ process_info: z.object({ foreground_processes: z.array(z.object({ pid: z.int() })) }) }) })
       .parse(JSON.parse((await exec("herdr", ["pane", "process-info", "--pane", callerId])).stdout));
-    if (caller.agent !== "pi" || session !== this.authority.session || !processInfo.result.process_info.foreground_processes.some(p => p.pid === process.pid))
-      throw new Error("Herdr caller does not verify this owning Legatus session/process. No tab created.");
+    if (caller.pane_id !== callerId || caller.agent !== "pi" || session !== this.authority.session || !processInfo.result.process_info.foreground_processes.some(p => p.pid === process.pid))
+      throw new Error("Herdr caller does not verify this owning Legatus session/process. No launch effect authorized.");
+    return OwnerProcess.parse({ ...processIdentity(process.pid), window: { ...local, workspace: caller.workspace_id, tab: caller.tab_id, pane: caller.pane_id, terminal: caller.terminal_id } });
+  }
+  async createWindow({ launch, cwd, workflowChoice, startupSelection }: Parameters<TribunusHost["createWindow"]>[0]) {
+    if (launch.successor && (!isDeepStrictEqual(workflowChoice, launch.successor.workflowChoice) || startupSelection.kind !== "exact" || !isDeepStrictEqual(startupSelection.selection, { model: launch.successor.modelPin.model, thinking: launch.successor.modelPin.thinking }))) throw new Error("Successor launch must preserve the predecessor's exact model/thinking/profile. No defaults or fallback.");
+    const local = await localIdentity(), ownerProcess = await this.owningLegatus(local), caller = ownerProcess.window;
+    const launchEnvironment = LaunchEnvironment.parse(Object.fromEntries(LaunchEnvironmentKey.options.flatMap(key => {
+      const value = process.env[key];
+      return value === undefined ? [] : [[key, value]];
+    })));
     mkdirSync(join(this.root, launch.id), {
       recursive: true, mode: 0o700
     });
     const path = this.descriptor(launch.id);
     publish(path, Descriptor.parse({
-      launch, cwd, workflowChoice, startupSelection, capability: randomBytes(32).toString("hex"), authority: this.authority,
-      ownerProcess: { ...processIdentity(process.pid), window: { ...local, workspace: caller.workspace_id, tab: caller.tab_id, pane: caller.pane_id, terminal: caller.terminal_id } }
+      launch, cwd, workflowChoice, startupSelection, launchEnvironment, capability: randomBytes(32).toString("hex"), authority: this.authority,
+      ownerProcess
     }));
     const created = z.object({
       result: z.object({
         root_pane: Pane
       })
-    }).parse(await this.effect(`herdr tab create --workspace ${quote(caller.workspace_id)} --cwd ${quote(cwd)} --label ${quote(`Legion ${launch.id}`)} --env ${quote(`LEGION_TRIBUNUS_BOOTSTRAP=${path}`)} --no-focus`, launch.id)).result.root_pane;
-    if (created.workspace_id !== caller.workspace_id || created.tab_id === caller.tab_id || created.pane_id === caller.pane_id)
+    }).parse(await this.jsonEffect(`herdr tab create --workspace ${quote(caller.workspace)} --cwd ${quote(cwd)} --label ${quote(`Legion ${launch.id}`)} --env ${quote(`LEGION_TRIBUNUS_BOOTSTRAP=${path}`)}${Object.entries(launchEnvironment).map(([key, value]) => ` --env ${quote(`${key}=${value}`)}`).join("")} --no-focus`, launch.id)).result.root_pane;
+    if (created.workspace_id !== caller.workspace || created.tab_id === caller.tab || created.pane_id === caller.pane)
       throw new Error("Created Herdr tab does not match the owning-workspace placement. Preserve the launch; no alternate layout.");
     return WindowIdentity.parse({
       ...local, workspace: created.workspace_id, tab: created.tab_id, pane: created.pane_id, terminal: created.terminal_id
     });
   }
-  async startPi({ launch, window, startupSelection }: Parameters<TribunusHost["startPi"]>[0]) {
+  private async shellIdentity({ launch, window }: Pick<Parameters<TribunusHost["startPi"]>[0], "launch" | "window">, readiness: "sole" | "native-start") {
     const local = await localIdentity();
     if (local.endpoint !== window.endpoint || local.server !== window.server)
       throw new Error("Local Herdr endpoint/server changed. No start.");
     const pane = await paneAt(window.pane);
-    if (pane.terminal_id !== window.terminal || pane.agent)
+    if (pane.workspace_id !== window.workspace || pane.tab_id !== window.tab || pane.pane_id !== window.pane || pane.terminal_id !== window.terminal || pane.agent !== undefined || pane.agent_session !== undefined)
       throw new Error("Owned terminal is not an available shell. No alternate launch path.");
+    const info = z.object({ result: z.object({ process_info: z.object({
+      pane_id: z.literal(window.pane), shell_pid: z.int().positive(), foreground_process_group_id: z.int().positive(), foreground_processes: z.array(z.object({ pid: z.int().positive() }))
+    }) }) }).parse(await this.jsonEffect(`herdr pane process-info --pane ${quote(window.pane)}`, launch.id)).result.process_info;
+    const pids = info.foreground_processes.map(p => p.pid);
+    if (info.foreground_process_group_id !== info.shell_pid || pids.filter(pid => pid === info.shell_pid).length !== 1 || new Set(pids).size !== pids.length)
+      throw new Error("Owned shell foreground group is unavailable or inconsistent. Preserve the launch; no input or start.");
+    if (readiness === "sole" && pids.length !== 1)
+      throw new Error("Owned shell is not the sole foreground process. Preserve the launch; no input or start.");
+    return processIdentity(info.shell_pid);
+  }
+  async startPi({ launch, window, startupSelection }: Parameters<TribunusHost["startPi"]>[0]) {
+    const shell = await this.shellIdentity({ launch, window }, "sole");
     const descriptor = Descriptor.parse(privateFile(this.descriptor(launch.id)));
+    if (descriptor.launch.id !== launch.id || descriptor.launch.reservation !== launch.reservation || !isDeepStrictEqual(descriptor.authority, this.authority)) throw new Error("Launch environment does not belong to this captured launch authority.");
     if (!isDeepStrictEqual(descriptor.startupSelection, startupSelection)) throw new Error("Startup selection differs from the captured owned launch.");
+    const cacheAssignments = CacheEnvironmentKey.options.flatMap(key => {
+      const value = descriptor.launchEnvironment?.[key];
+      return value === undefined ? [] : [`${key}=${quote(value)}`];
+    });
+    if (cacheAssignments.length) {
+      const nonce = randomUUID(), receipt = `LEGION_CACHE_READY=${nonce}`;
+      // Tab env precedes shell rc. Restore only captured cache routes in that same shell,
+      // and split the marker so echoed input cannot acknowledge execution.
+      const setup = `export ${cacheAssignments.join(" ")} && builtin printf '%s%s\\n' 'LEGION_CACHE_READY=' ${quote(nonce)}`;
+      await this.effect(`herdr pane run ${quote(window.pane)} ${quote(setup)}`, launch.id);
+      z.object({ result: z.object({ type: z.literal("output_matched"), pane_id: z.literal(window.pane), matched_line: z.literal(receipt) }) })
+        .parse(await this.jsonEffect(`herdr pane wait-output ${quote(window.pane)} --source recent-unwrapped --regex ${quote(`^${receipt}$`)}`, launch.id));
+      if (!descriptor.ownerProcess || !isDeepStrictEqual(descriptor.ownerProcess, await this.owningLegatus(await localIdentity())))
+        throw new Error("Owning Legatus changed after cache routing. Preserve the launch; no start.");
+      // The marker acknowledges execution, not prompt settlement. Native start owns
+      // readiness (including explicit busy/no-input handling) within this one dispatch.
+      if (!isDeepStrictEqual(shell, await this.shellIdentity({ launch, window }, "native-start"))) throw new Error("Owned shell changed after cache routing. Preserve the launch; no start.");
+    }
     const args = startupSelection.kind === "exact"
       ? ` --model ${quote(startupSelection.selection.model)} --thinking ${quote(startupSelection.selection.thinking)}` : "";
     const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-    await this.effect(`herdr agent start ${quote(`lg-${launch.id.replaceAll("-", "").slice(0, 24)}`)} --kind pi --pane ${quote(window.pane)} -- -e ${quote(packageRoot)}${args}`, launch.id);
+    await this.jsonEffect(`herdr agent start ${quote(`lg-${launch.id.replaceAll("-", "").slice(0, 24)}`)} --kind pi --pane ${quote(window.pane)} -- -e ${quote(packageRoot)}${args}`, launch.id);
   }
   private async hello(launch: string) { return Hello.parse(privateFile(join(this.root, launch, "hello.json"))); }
   private async currentAssignment(hello: z.infer<typeof Hello>, command: string, signal: AbortSignal) {
@@ -213,7 +268,7 @@ export class LocalTribunusHost implements TribunusHost, ResumeResourceReader {
     const path = join(this.root, hello.address.launch, `${command}.${this.authority.generation}.${this.authority.epoch}.request.json`);
     publish(path, frame);
     const client = fileURLToPath(new URL("./tribunus-client.mjs", import.meta.url));
-    const response = Envelope.parse(await this.effect(`node ${quote(client)} ${quote(this.descriptor(hello.address.launch))} ${quote(hello.endpoint)} ${quote(path)}`, hello.address.launch));
+    const response = Envelope.parse(await this.jsonEffect(`node ${quote(client)} ${quote(this.descriptor(hello.address.launch))} ${quote(hello.endpoint)} ${quote(path)}`, hello.address.launch));
     if (response.kind === "held")
       throw new Error(response.message);
     return response.value;

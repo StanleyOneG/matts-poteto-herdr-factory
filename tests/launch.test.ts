@@ -779,6 +779,29 @@ for (const scenario of ["identity", "resources", "initialization"] as const) {
     }
   });
 }
+test("off during dispatched native start permits its completion but prevents initialization and assignment", async () => {
+  const { actor, host } = externalWorker(), f = await fixture(host);
+  let release!: () => void, entered!: () => void;
+  const barrier = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const startPi = host.startPi;
+  host.startPi = async input => { entered(); await barrier; await startPi(input); };
+  try {
+    await f.ready();
+    await f.command(`launch ${f.task.id}@1`, "launch");
+    const running = f.legion.command({ launchRequest: "launch" });
+    await started;
+    await f.command("off");
+    assert.equal((await f.legion.state()).mode, "stopping");
+    release();
+    assert.equal((await running).kind, "uncertain");
+    assert.equal((await f.legion.state()).tasks[0]?.launch.kind, "pi-dispatched");
+    assert.equal(actor.started.length, 1, "The already-authorized native stage may finish");
+    assert.deepEqual(actor.initialized, []);
+    assert.deepEqual(actor.assignments, []);
+  } finally { release(); await f.command("off"); }
+});
+
 test("off during worker initialization prevents assignment and preserves the unresolved stage", async () => {
   const { actor, host } = externalWorker(), f = await fixture(host);
   let release!: () => void, entered!: () => void;

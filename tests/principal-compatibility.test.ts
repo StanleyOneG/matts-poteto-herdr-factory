@@ -139,14 +139,14 @@ test("principal-compatibility exposes native registry errors instead of trusting
   }
 });
 
-test("principal-compatibility accepts a real Pi 1.2.0 registry snapshot without auth resolution or requests", async () => {
+test("principal-compatibility accepts a real Pi 1.3.0 registry snapshot without auth resolution or requests", async () => {
   const { VERSION, ModelRegistry, ModelRuntime } = await import("@earendil-works/pi-coding-agent");
   const { InMemoryCredentialStore } = await import("@earendil-works/pi-ai");
   // VERSION can refer to the parent Pi executable through inherited PI_PACKAGE_DIR.
   const metadata = z.object({ version: z.string() }).parse(JSON.parse(await readFile(
     new URL("../package.json", import.meta.resolve("@earendil-works/pi-coding-agent")), "utf8",
   )));
-  assert.equal(metadata.version, "1.2.0");
+  assert.equal(metadata.version, "1.3.0");
   assert.equal(VERSION, metadata.version, "Imported Pi code and runtime metadata must describe the same current composition");
   const credentials = new InMemoryCredentialStore();
   const runtime = await ModelRuntime.create({ credentials, modelsPath: null, refreshOnCreate: false });

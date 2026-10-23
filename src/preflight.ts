@@ -91,8 +91,8 @@ export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput, wo
   ].every((k) => typeof Reflect.get(pi, k) === "function");
   add(
     "Pi",
-    ["1.1.0", "1.2.0"].includes(VERSION) && contracts ? "ready" : "unverified",
-    `Observed Pi ${VERSION}. Current contract target is 1.2.0; historical target 1.1.0. Native launch verification remains required.`,
+    ["1.1.0", "1.2.0", "1.3.0"].includes(VERSION) && contracts ? "ready" : "unverified",
+    `Observed Pi ${VERSION}. Candidate contract target is 1.3.0; historical targets 1.2.0 and 1.1.0. Native launch verification remains required.`,
   );
   try {
     const { DatabaseSync } = await import("node:sqlite");
@@ -122,12 +122,12 @@ export async function preflight(pi: ExtensionAPI, principal?: PrincipalInput, wo
   const subVersion = subagent
     ? await packageAt(subagent.sourceInfo.path, "pi-subagents")
     : null;
-  const subagentsCompatible = VERSION === "1.2.0" && subVersion === "0.78.0" || VERSION === "1.1.0" && subVersion === "0.77.0";
+  const subagentsCompatible = VERSION === "1.3.0" && subVersion === "0.79.1" || VERSION === "1.2.0" && subVersion === "0.78.0" || VERSION === "1.1.0" && subVersion === "0.77.0";
   add(
     "pi-subagents",
     !subagent ? "missing" : subagentsCompatible ? "ready" : "unverified",
     subagent
-      ? `Loaded root tool ${subagent.sourceInfo.path}. Observed ${subVersion ?? "unknown provenance"}. Current composition target Pi 1.2.0 / pi-subagents 0.78.0; historical Pi 1.1.0 / 0.77.0. No arbitrary-version compatibility.`
+      ? `Registered root tool ${subagent.sourceInfo.path}. Observed on-disk package ${subVersion ?? "unknown provenance"}. Candidate composition target Pi 1.3.0 / pi-subagents 0.79.1; historical Pi 1.2.0 / 0.78.0 and Pi 1.1.0 / 0.77.0. On-disk metadata does not establish the in-memory runtime version. Native launch verification remains required. No arbitrary-version compatibility.`
       : "Load the pi-subagents root tool in this context.",
   );
   for (const name of requiredWorkflowSkills(workflowChoice)) {

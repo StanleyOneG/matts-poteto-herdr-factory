@@ -8,7 +8,7 @@ import { z } from "zod";
 
 test("current Pi SDK user/custom startup and pi-subagents preserve root and configured 8k child denial", async () => {
   const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "tests/support/native-sdk-denial.mjs"]);
-  const report = z.object({ root: z.string(), pi: z.literal("1.2.0"), subagents: z.literal("0.78.0"), networkCalls: z.literal(0),
+  const report = z.object({ root: z.string(), pi: z.literal("1.3.0"), subagents: z.literal("0.79.1"), networkCalls: z.literal(0),
     userStartupBusy: z.literal(true), customStartupBusy: z.literal(true),
     rootRefused: z.literal(true), childRefused: z.literal(true), rootCanary: z.literal(false), childCanary: z.literal(false),
     nativeResponse: z.object({ status: z.literal("completed"), ownerRunId: z.literal("fixture-owned-run"), nodeId: z.literal("native-child"), runId: z.string() }), errors: z.array(z.unknown()).length(0),
